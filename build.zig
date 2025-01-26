@@ -8,6 +8,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/fuizon.zig"),
         .target = target,
         .optimize = optimize,
+
+        .link_libc = true,
+        .link_libcpp = true,
     });
-    _ = fuizon;
+    fuizon.linkSystemLibrary("crossterm_ffi", .{ .needed = true });
 }
