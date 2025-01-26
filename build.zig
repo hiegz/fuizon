@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) void {
 
         .link_libc = true,
         .link_libcpp = true,
+        .valgrind = true,
     });
     fuizon.linkSystemLibrary("crossterm_ffi", .{ .needed = true });
 }
