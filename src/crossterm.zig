@@ -32,3 +32,26 @@ pub const event = struct {
         }
     }
 };
+
+/// Checks whether the raw mode is enabled.
+pub fn isRawModeEnabled() error{BackendError}!bool {
+    var ret: c_int = undefined;
+    var is_enabled: bool = undefined;
+    ret = c.crossterm_is_raw_mode_enabled(&is_enabled);
+    if (0 != ret) return error.BackendError;
+    return is_enabled;
+}
+
+/// Enables raw mode.
+pub fn enableRawMode() error{BackendError}!void {
+    var ret: c_int = undefined;
+    ret = c.crossterm_enable_raw_mode();
+    if (0 != ret) return error.BackendError;
+}
+
+/// Disables raw mode.
+pub fn disableRawMode() error{BackendError}!void {
+    var ret: c_int = undefined;
+    ret = c.crossterm_disable_raw_mode();
+    if (0 != ret) return error.BackendError;
+}

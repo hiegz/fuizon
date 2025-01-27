@@ -45,6 +45,13 @@ const Demo = struct {
 
 pub fn main() !void {
     std.debug.print("Press 'q' to quit, 'p' to toggle polling, or any other key to see info about it\n\r", .{});
+
+    std.debug.assert((try fuizon.crossterm.isRawModeEnabled()) == false);
+    try fuizon.crossterm.enableRawMode();
+    std.debug.assert((try fuizon.crossterm.isRawModeEnabled()) == true);
+    defer std.debug.assert((fuizon.crossterm.isRawModeEnabled() catch unreachable) == false);
+    defer fuizon.crossterm.disableRawMode() catch {};
+
     var demo = Demo{ .is_running = true, .is_polling = false };
     try demo.run();
 }
