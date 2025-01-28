@@ -199,6 +199,20 @@ pub fn Backend(WriterType: type) type {
             if (0 != ret) return error.BackendError;
         }
 
+        /// Scrolls the terminal screen a given number of rows up.
+        pub fn scrollUp(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_scroll_up(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Scrolls the terminal screen a given number of rows down.
+        pub fn scrollDown(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_scroll_down(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
         /// ...
         fn _write(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
             const maxlen = @as(usize, std.math.maxInt(c_long));
