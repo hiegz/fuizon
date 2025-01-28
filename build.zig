@@ -51,7 +51,7 @@ fn addExample(
     example.root_module.addImport("fuizon", fuizon);
 
     artifact = b.addRunArtifact(example);
-    step = b.step("run" ++ "-" ++ name ++ "-" ++ "example", description);
+    step = b.step("run" ++ "-" ++ name, description);
     step.dependOn(&artifact.step);
 }
 
@@ -76,5 +76,5 @@ pub fn build(b_: *std.Build) void {
 
     addTest("event", b.path("src/event.zig"));
 
-    addExample("event", "Run event demo", b.path("examples/event.zig"));
+    addExample("crossterm", "Run the crossterm demo", b.path("examples/crossterm.zig"));
 }
