@@ -222,6 +222,48 @@ pub fn Backend(WriterType: type) type {
             if (0 != ret) return error.BackendError;
         }
 
+        /// Clears all cells.
+        pub fn clearAll(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_all(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Clears all cells and history.
+        pub fn clearPurge(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_purge(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Clears all cells from the cursor position downwards.
+        pub fn clearFromCursorDown(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_from_cursor_down(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Clears all cells from the cursor position upwards.
+        pub fn clearFromCursorUp(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_from_cursor_up(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Clears all cells at the current row.
+        pub fn clearCurrentLine(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_current_line(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Clears all cells from the cursor position until the new line.
+        pub fn clearUntilNewLine(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_clear_until_new_line(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
         /// ...
         fn _write(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
             const maxlen = @as(usize, std.math.maxInt(c_long));

@@ -95,6 +95,12 @@ fn Demo(comptime WriterType: type) type {
                     .up_arrow => try self.backend.moveCursorToRow(0),
                     .char => switch (event.key.code.char) {
                         'c' => try self.toggleCursorVisiblity(),
+                        'a' => try self.backend.clearAll(),
+                        'A' => try self.backend.clearPurge(),
+                        'J' => try self.backend.clearFromCursorDown(),
+                        'K' => try self.backend.clearFromCursorUp(),
+                        'd' => try self.backend.clearCurrentLine(),
+                        'n' => try self.backend.clearUntilNewLine(),
                         's' => try self.backend.moveCursorTo(0, 0),
                         'h' => try self.backend.moveCursorLeft(1),
                         'j' => try self.backend.moveCursorDown(1),
@@ -154,7 +160,7 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("      'a' to toggle alternate screen,\n\r", .{});
             std.debug.print("      'p' to toggle polling,\n\r", .{});
             std.debug.print("      'd' to enable debug mode,\n\r", .{});
-            std.debug.print("      'm' to enable move mode,\n\r", .{});
+            std.debug.print("      'm' to enable move/clear mode,\n\r", .{});
             std.debug.print("      's' to enable scroll mode\n\r", .{});
         }
 
@@ -171,6 +177,12 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
             std.debug.print("      'p' to get current cursor position,\n\r", .{});
             std.debug.print("      'c' to toggle cursor visibility,\n\r", .{});
+            std.debug.print("      'd' to clear the current line,\n\r", .{});
+            std.debug.print("      'n' to clear from the cursor position until the new line,\n\r", .{});
+            std.debug.print("      'J' to clear the terminal screen from the cursor position downwards,\n\r", .{});
+            std.debug.print("      'K' to clear the terminal screen from the cursor position upwards,\n\r", .{});
+            std.debug.print("      'A' to clear the terminal screen and history,\n\r", .{});
+            std.debug.print("      'a' to clear the terminal screen,\n\r", .{});
             std.debug.print("      's' to move to the top left corner,\n\r", .{});
             std.debug.print("      '↑' to move to the top corner,\n\r", .{});
             std.debug.print("      '←' to move to the left corner,\n\r", .{});
