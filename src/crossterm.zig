@@ -57,6 +57,15 @@ pub fn disableRawMode() error{BackendError}!void {
     if (0 != ret) return error.BackendError;
 }
 
+/// Get current cursor position.
+pub fn getCursorPosition() error{BackendError}!struct { x: u16, y: u16 } {
+    var ret: c_int = undefined;
+    var pos: c.crossterm_cursor_position = undefined;
+    ret = c.crossterm_get_cursor_position(&pos);
+    if (0 != ret) return error.BackendError;
+    return .{ .x = pos.x, .y = pos.y };
+}
+
 /// A backend implementation that uses crossterm to render to the terminal.
 pub fn Backend(WriterType: type) type {
     return struct {
@@ -96,6 +105,97 @@ pub fn Backend(WriterType: type) type {
         pub fn leaveAlternateScreen(self: *Self) error{BackendError}!void {
             var ret: c_int = undefined;
             ret = c.crossterm_leave_alternate_screen(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Shows cursor.
+        pub fn showCursor(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_show_cursor(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Hides cursor.
+        pub fn hideCursor(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_hide_cursor(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Saves current cursor position.
+        pub fn saveCursorPosition(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_save_cursor_position(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Restores previously saved cursor position.
+        pub fn restoreCursorPosition(self: *Self) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_restore_cursor_position(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor up by `n` rows.
+        pub fn moveCursorUp(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_up(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor up by `n` rows.
+        pub fn moveCursorToPreviousLine(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_to_previous_line(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor down by `n` rows.
+        pub fn moveCursorDown(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_down(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor up by `n` rows.
+        pub fn moveCursorToNextLine(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_to_next_line(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor left by `n` columns.
+        pub fn moveCursorLeft(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_left(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor right by `n` columns.
+        pub fn moveCursorRight(self: *Self, n: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_right(&self.stream, n);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor to the specified row.
+        pub fn moveCursorToRow(self: *Self, y: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_to_row(&self.stream, y);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor to the specified row.
+        pub fn moveCursorToCol(self: *Self, x: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_to_col(&self.stream, x);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Moves the cursor to the specified position on the screen.
+        pub fn moveCursorTo(self: *Self, x: u16, y: u16) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_move_cursor_to(&self.stream, x, y);
             if (0 != ret) return error.BackendError;
         }
 
