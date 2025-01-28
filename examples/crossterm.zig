@@ -8,7 +8,7 @@ fn Demo(comptime WriterType: type) type {
         backend: fuizon.crossterm.Backend(WriterType),
 
         state: enum { terminated, running },
-        mode: enum { normal, debug, move },
+        mode: enum { normal, debug, move, scroll },
         alternate_screen: enum { disabled, enabled },
         polling: enum { disabled, enabled },
         cursor: enum { hidden, visible },
@@ -53,6 +53,7 @@ fn Demo(comptime WriterType: type) type {
                 .normal => try self.handleNormalEvent(event),
                 .debug => try self.handleDebugEvent(event),
                 .move => try self.handleMoveEvent(event),
+                .scroll => try self.handleScrollEvent(event),
             }
         }
 
@@ -65,6 +66,7 @@ fn Demo(comptime WriterType: type) type {
                         'p' => try self.togglePolling(),
                         'd' => self.enableDebugMode(),
                         'm' => try self.enableMoveMode(),
+                        's' => self.enableScrollMode(),
                         else => {},
                     },
                     else => {},
@@ -92,9 +94,7 @@ fn Demo(comptime WriterType: type) type {
                         's' => try self.backend.moveCursorTo(0, 0),
                         'h' => try self.backend.moveCursorLeft(1),
                         'j' => try self.backend.moveCursorDown(1),
-                        'J' => try self.backend.moveCursorToNextLine(1),
                         'k' => try self.backend.moveCursorUp(1),
-                        'K' => try self.backend.moveCursorToPreviousLine(1),
                         'l' => try self.backend.moveCursorRight(1),
                         'p' => {
                             const pos = try fuizon.crossterm.getCursorPosition();
@@ -102,6 +102,30 @@ fn Demo(comptime WriterType: type) type {
                             std.debug.print("x={}, y={}\n\r", .{ pos.x, pos.y });
                             try self.backend.saveCursorPosition();
                             try self.backend.moveCursorTo(pos.x, pos.y);
+                        },
+                        else => {},
+                    },
+                    .enter => try self.backend.moveCursorToNextLine(1),
+                    .backspace => try self.backend.moveCursorToPreviousLine(1),
+                    else => {},
+                },
+
+                else => {},
+            }
+        }
+
+        fn handleScrollEvent(self: *Self, event: fuizon.Event) !void {
+            switch (event) {
+                .key => switch (event.key.code) {
+                    .escape => try self.enableNormalMode(),
+                    .char => switch (event.key.code.char) {
+                        'j' => {
+                            try self.backend.scrollDown(1);
+                            try self.backend.moveCursorDown(1);
+                        },
+                        'k' => {
+                            try self.backend.scrollUp(1);
+                            try self.backend.moveCursorUp(1);
                         },
                         else => {},
                     },
@@ -122,7 +146,8 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("      'a' to toggle alternate screen,\n\r", .{});
             std.debug.print("      'p' to toggle polling,\n\r", .{});
             std.debug.print("      'd' to enable debug mode,\n\r", .{});
-            std.debug.print("      'm' to enable move mode\n\r", .{});
+            std.debug.print("      'm' to enable move mode,\n\r", .{});
+            std.debug.print("      's' to enable scroll mode\n\r", .{});
         }
 
         fn enableDebugMode(self: *Self) void {
@@ -143,11 +168,19 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("      '←' to move to the left corner,\n\r", .{});
             std.debug.print("      'h' to move left,\n\r", .{});
             std.debug.print("      'j' to move down,\n\r", .{});
-            std.debug.print("      'J' to move to the next line,\n\r", .{});
             std.debug.print("      'k' to move up,\n\r", .{});
-            std.debug.print("      'K' to move to the previous line,\n\r", .{});
             std.debug.print("      'l' to move right\n\r", .{});
+            std.debug.print("      'enter' to move to the next line,\n\r", .{});
+            std.debug.print("      'backspace' to move to the previous line,\n\r", .{});
             try self.backend.saveCursorPosition();
+        }
+
+        fn enableScrollMode(self: *Self) void {
+            self.mode = .scroll;
+            std.debug.print("Scroll mode enabled\n\r", .{});
+            std.debug.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+            std.debug.print("      'j' to scroll down,\n\r", .{});
+            std.debug.print("      'k' to scroll up\n\r", .{});
         }
 
         fn toggleAlternateScreen(self: *Self) !void {
