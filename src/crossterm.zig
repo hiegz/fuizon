@@ -66,6 +66,15 @@ pub fn getCursorPosition() error{BackendError}!struct { x: u16, y: u16 } {
     return .{ .x = pos.x, .y = pos.y };
 }
 
+/// Returns the current size of the terminal screen.
+pub fn getTerminalSize() error{BackendError}!struct { width: u16, height: u16 } {
+    var ret: c_int = undefined;
+    var size: c.crossterm_size = undefined;
+    ret = c.crossterm_get_size(&size);
+    if (0 != ret) return error.BackendError;
+    return .{ .width = size.width, .height = size.height };
+}
+
 /// A backend implementation that uses crossterm to render to the terminal.
 pub fn Backend(WriterType: type) type {
     return struct {

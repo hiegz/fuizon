@@ -62,6 +62,10 @@ fn Demo(comptime WriterType: type) type {
                 .key => switch (event.key.code) {
                     .char => switch (event.key.code.char) {
                         'q' => self.state = .terminated,
+                        't' => {
+                            const size = try fuizon.crossterm.getTerminalSize();
+                            std.debug.print("{}x{}\n\r", .{ size.width, size.height });
+                        },
                         'a' => try self.toggleAlternateScreen(),
                         'p' => try self.togglePolling(),
                         'd' => self.enableDebugMode(),
@@ -120,6 +124,9 @@ fn Demo(comptime WriterType: type) type {
                     .escape => try self.enableNormalMode(),
                     .char => switch (event.key.code.char) {
                         'j' => {
+                            if ((try fuizon.crossterm.getCursorPosition()).y + 1 ==
+                                (try fuizon.crossterm.getTerminalSize()).height)
+                                return;
                             try self.backend.scrollDown(1);
                             try self.backend.moveCursorDown(1);
                         },
@@ -143,6 +150,7 @@ fn Demo(comptime WriterType: type) type {
 
             std.debug.print("Normal mode enabled\n\r", .{});
             std.debug.print("Press 'q' to quit,\n\r", .{});
+            std.debug.print("      't' to get terminal size,\n\r", .{});
             std.debug.print("      'a' to toggle alternate screen,\n\r", .{});
             std.debug.print("      'p' to toggle polling,\n\r", .{});
             std.debug.print("      'd' to enable debug mode,\n\r", .{});
