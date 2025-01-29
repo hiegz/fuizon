@@ -81,17 +81,18 @@ pub fn Backend(WriterType: type) type {
         const Self = @This();
 
         allocator: std.mem.Allocator,
-        writer: *WriterType,
         stream: c.crossterm_stream,
 
         /// Creates a new `CrosstermBackend` instance attached to the specified writer.
         pub fn init(allocator: std.mem.Allocator, writer: WriterType) std.mem.Allocator.Error!Self {
+            var w: *WriterType = undefined;
             var backend: Self = undefined;
             backend.allocator = allocator;
-            backend.writer = try allocator.create(WriterType);
-            backend.writer.* = writer;
+            w = try allocator.create(WriterType);
+            errdefer allocator.destroy(w);
+            w.* = writer;
             backend.stream = .{
-                .context = @ptrCast(backend.writer),
+                .context = @ptrCast(w),
                 .write_fn = Self._write,
                 .flush_fn = Self._flush,
             };
@@ -100,7 +101,8 @@ pub fn Backend(WriterType: type) type {
 
         /// Releases all allocated memory.
         pub fn deinit(self: Self) void {
-            self.allocator.destroy(self.writer);
+            const w: *WriterType = @ptrCast(@alignCast(self.stream.context));
+            self.allocator.destroy(w);
         }
 
         /// Switches to the alternate screen.
@@ -261,6 +263,28 @@ pub fn Backend(WriterType: type) type {
         pub fn clearUntilNewLine(self: *Self) error{BackendError}!void {
             var ret: c_int = undefined;
             ret = c.crossterm_clear_until_new_line(&self.stream);
+            if (0 != ret) return error.BackendError;
+        }
+
+        /// Prints a single unicode character to the terminal at the current
+        /// cursor position applying the given style.
+        pub fn put(self: *Self, char: u21, style: ?fuizon.Style) error{ BackendError, Utf8CannotEncodeSurrogateHalf, CodepointTooLarge }!void {
+            var buffer: [4]u8 = undefined;
+            var length: u3 = undefined;
+            length = try std.unicode.utf8Encode(char, &buffer);
+            try self.write(buffer[0..length], style);
+        }
+
+        /// Prints the specified number of bytes from the buffer to the terminal
+        /// at the current cursor position applying the given style.
+        pub fn write(self: *Self, buffer: []const u8, style: ?fuizon.Style) error{BackendError}!void {
+            var ret: c_int = undefined;
+            ret = c.crossterm_stream_write(
+                &self.stream,
+                buffer.ptr,
+                buffer.len,
+                if (style) |s| @ptrCast(&s.toCrosstermStyle()) else null,
+            );
             if (0 != ret) return error.BackendError;
         }
 

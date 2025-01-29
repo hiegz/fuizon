@@ -75,6 +75,10 @@ pub fn build(b_: *std.Build) void {
     test_step = b.step("test", "Run all tests");
 
     addTest("event", b.path("src/event.zig"));
+    addTest("style", b.path("src/style.zig"));
 
     addExample("crossterm", "Run the crossterm demo", b.path("examples/crossterm.zig"));
+    addExample("4-bit-color-demo", "Run the 4-bit color code demo", b.path("examples/base_colors.zig"));
+    addExample("8-bit-color-demo", "Run the 8-bit color code demo", b.path("examples/ansi_colors.zig"));
+    addExample("24-bit-color-demo", "Run the 24-bit color code demo", b.path("examples/rgb_colors.zig"));
 }
