@@ -2,76 +2,102 @@ const std = @import("std");
 const fuizon = @import("fuizon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
     const stdout = std.io.getStdOut();
     const writer = stdout.writer();
-    var backend = try fuizon.crossterm.Backend(@TypeOf(writer)).init(allocator, writer);
-    defer backend.deinit();
 
-    try backend.write("Black:        ", null);
-    try backend.write("   ", .{ .background_color = .black });
-    try backend.write("\n\r", null);
+    try writer.print("Black:        ", .{});
+    try fuizon.crossterm.text.background.set(writer, .black);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("White:        ", null);
-    try backend.write("   ", .{ .background_color = .white });
-    try backend.write("\n\r", null);
+    try writer.print("White:        ", .{});
+    try fuizon.crossterm.text.background.set(writer, .white);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Red:          ", null);
-    try backend.write("   ", .{ .background_color = .red });
-    try backend.write("\n\r", null);
+    try writer.print("Red:          ", .{});
+    try fuizon.crossterm.text.background.set(writer, .red);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Red:     ", null);
-    try backend.write("   ", .{ .background_color = .dark_red });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Red:     ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_red);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Green:        ", null);
-    try backend.write("   ", .{ .background_color = .green });
-    try backend.write("\n\r", null);
+    try writer.print("Green:        ", .{});
+    try fuizon.crossterm.text.background.set(writer, .green);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Green:   ", null);
-    try backend.write("   ", .{ .background_color = .dark_green });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Green:   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_green);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Blue:         ", null);
-    try backend.write("   ", .{ .background_color = .blue });
-    try backend.write("\n\r", null);
+    try writer.print("Blue:         ", .{});
+    try fuizon.crossterm.text.background.set(writer, .blue);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Blue:    ", null);
-    try backend.write("   ", .{ .background_color = .dark_blue });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Blue:    ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_blue);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Yellow:       ", null);
-    try backend.write("   ", .{ .background_color = .yellow });
-    try backend.write("\n\r", null);
+    try writer.print("Yellow:       ", .{});
+    try fuizon.crossterm.text.background.set(writer, .yellow);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Yellow:  ", null);
-    try backend.write("   ", .{ .background_color = .dark_yellow });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Yellow:  ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_yellow);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Magenta:      ", null);
-    try backend.write("   ", .{ .background_color = .magenta });
-    try backend.write("\n\r", null);
+    try writer.print("Magenta:      ", .{});
+    try fuizon.crossterm.text.background.set(writer, .magenta);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Magenta: ", null);
-    try backend.write("   ", .{ .background_color = .dark_magenta });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Magenta: ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_magenta);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Cyan:         ", null);
-    try backend.write("   ", .{ .background_color = .cyan });
-    try backend.write("\n\r", null);
+    try writer.print("Cyan:         ", .{});
+    try fuizon.crossterm.text.background.set(writer, .cyan);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Cyan:    ", null);
-    try backend.write("   ", .{ .background_color = .dark_cyan });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Cyan:    ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_cyan);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Grey:         ", null);
-    try backend.write("   ", .{ .background_color = .grey });
-    try backend.write("\n\r", null);
+    try writer.print("Grey:         ", .{});
+    try fuizon.crossterm.text.background.set(writer, .grey);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 
-    try backend.write("Dark Grey:    ", null);
-    try backend.write("   ", .{ .background_color = .dark_grey });
-    try backend.write("\n\r", null);
+    try writer.print("Dark Grey:    ", .{});
+    try fuizon.crossterm.text.background.set(writer, .dark_grey);
+    try writer.print("   ", .{});
+    try fuizon.crossterm.text.background.set(writer, .default);
+    try writer.print("\n\r", .{});
 }

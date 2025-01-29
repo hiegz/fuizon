@@ -2,6 +2,527 @@ const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const c = @import("headers.zig").c;
 
+/// ...
+pub const raw_mode = struct {
+    /// Checks whether the raw mode is enabled.
+    pub fn isEnabled() error{BackendError}!bool {
+        var ret: c_int = undefined;
+        var is_enabled: bool = undefined;
+        ret = c.crossterm_is_raw_mode_enabled(&is_enabled);
+        if (0 != ret) return error.BackendError;
+        return is_enabled;
+    }
+
+    /// Enables raw mode.
+    pub fn enable() error{BackendError}!void {
+        var ret: c_int = undefined;
+        ret = c.crossterm_enable_raw_mode();
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Disables raw mode.
+    pub fn disable() error{BackendError}!void {
+        var ret: c_int = undefined;
+        ret = c.crossterm_disable_raw_mode();
+        if (0 != ret) return error.BackendError;
+    }
+};
+
+/// ...
+pub const alternate_screen = struct {
+    /// Switches to the alternate screen.
+    pub fn enter(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_enter_alternate_screen(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Switches back to the main screen.
+    pub fn leave(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_leave_alternate_screen(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+};
+
+/// ...
+pub const screen = struct {
+    /// Clears all cells.
+    pub fn clearAll(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_all(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Clears all cells and history.
+    pub fn clearPurge(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_purge(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Clears all cells from the cursor position downwards.
+    pub fn clearFromCursorDown(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_from_cursor_down(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Clears all cells from the cursor position upwards.
+    pub fn clearFromCursorUp(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_from_cursor_up(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Clears all cells at the current row.
+    pub fn clearCurrentLine(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_current_line(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Clears all cells from the cursor position until the new line.
+    pub fn clearUntilNewLine(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_clear_until_new_line(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Scrolls the terminal screen a given number of rows up.
+    pub fn scrollUp(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_scroll_up(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Scrolls the terminal screen a given number of rows down.
+    pub fn scrollDown(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_scroll_down(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Returns the current size of the terminal screen.
+    pub fn size() error{BackendError}!struct { width: u16, height: u16 } {
+        var ret: c_int = undefined;
+        var sz: c.crossterm_size = undefined;
+        ret = c.crossterm_get_size(&sz);
+        if (0 != ret) return error.BackendError;
+        return .{ .width = sz.width, .height = sz.height };
+    }
+};
+
+/// ...
+pub const cursor = struct {
+    /// Shows cursor.
+    pub fn show(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_show_cursor(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Hides cursor.
+    pub fn hide(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_hide_cursor(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor up by `n` rows.
+    pub fn moveUp(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_up(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor up by `n` rows.
+    pub fn moveToPreviousLine(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_to_previous_line(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor down by `n` rows.
+    pub fn moveDown(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_down(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor up by `n` rows.
+    pub fn moveToNextLine(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_to_next_line(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor left by `n` columns.
+    pub fn moveLeft(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_left(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor right by `n` columns.
+    pub fn moveRight(writer: anytype, n: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_right(&stream, n);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor to the specified row.
+    pub fn moveToRow(writer: anytype, y: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_to_row(&stream, y);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor to the specified row.
+    pub fn moveToCol(writer: anytype, x: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_to_col(&stream, x);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Moves the cursor to the specified position on the screen.
+    pub fn moveTo(writer: anytype, x: u16, y: u16) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_move_cursor_to(&stream, x, y);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Saves current cursor position.
+    pub fn save(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_save_cursor_position(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Restores previously saved cursor position.
+    pub fn restore(writer: anytype) error{BackendError}!void {
+        var stream: c.crossterm_stream = .{
+            .context = @ptrCast(@constCast(&writer)),
+            .write_fn = _write(@TypeOf(writer)),
+            .flush_fn = _flush(@TypeOf(writer)),
+        };
+        var ret: c_int = undefined;
+        ret = c.crossterm_restore_cursor_position(&stream);
+        if (0 != ret) return error.BackendError;
+    }
+
+    /// Get current cursor position.
+    pub fn position() error{BackendError}!struct { x: u16, y: u16 } {
+        var ret: c_int = undefined;
+        var pos: c.crossterm_cursor_position = undefined;
+        ret = c.crossterm_get_cursor_position(&pos);
+        if (0 != ret) return error.BackendError;
+        return .{ .x = pos.x, .y = pos.y };
+    }
+};
+
+pub const text = struct {
+    /// ...
+    pub const foreground = struct {
+        /// Updates the current foreground color.
+        pub fn set(writer: anytype, color: fuizon.Color) error{BackendError}!void {
+            var stream: c.crossterm_stream = .{
+                .context = @ptrCast(@constCast(&writer)),
+                .write_fn = _write(@TypeOf(writer)),
+                .flush_fn = _flush(@TypeOf(writer)),
+            };
+            var ret: c_int = undefined;
+            ret = c.crossterm_stream_set_foreground_color(
+                &stream,
+                &color.toCrosstermColor(),
+            );
+            if (0 != ret) return error.BackendError;
+        }
+    };
+
+    /// ...
+    pub const background = struct {
+        /// Updates the current background color.
+        pub fn set(writer: anytype, color: fuizon.Color) error{BackendError}!void {
+            var stream: c.crossterm_stream = .{
+                .context = @ptrCast(@constCast(&writer)),
+                .write_fn = _write(@TypeOf(writer)),
+                .flush_fn = _flush(@TypeOf(writer)),
+            };
+            var ret: c_int = undefined;
+            ret = c.crossterm_stream_set_background_color(
+                &stream,
+                &color.toCrosstermColor(),
+            );
+            if (0 != ret) return error.BackendError;
+        }
+    };
+
+    /// ...
+    pub const attribute = struct {
+        /// ...
+        pub const bold = struct {
+            /// Enables the text attribute 'bold.'
+            pub fn set(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_set_bold_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+
+            /// Disables the text attribute 'bold.'
+            pub fn reset(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_reset_bold_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+        };
+
+        /// ...
+        pub const dim = struct {
+            /// Enables the text attribute 'dim.'
+            pub fn set(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_set_dim_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+
+            /// Disables the text attribute 'dim.'
+            pub fn reset(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_reset_dim_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+        };
+
+        /// ...
+        pub const underline = struct {
+            /// Enables the text attribute 'underline.'
+            pub fn set(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_set_underlined_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+
+            /// Disables the text attribute 'underline.'
+            pub fn reset(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_reset_underlined_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+        };
+
+        /// ...
+        pub const reverse = struct {
+            /// Enables the text attribute 'reverse.'
+            pub fn set(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_set_reverse_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+
+            /// Disables the text attribute 'reverse.'
+            pub fn reset(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_reset_reverse_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+        };
+
+        /// ...
+        pub const hidden = struct {
+            /// Enables the text attribute 'hidden.'
+            pub fn set(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_set_hidden_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+
+            /// Disables the text attribute 'hidden.'
+            pub fn reset(writer: anytype) error{BackendError}!void {
+                var stream: c.crossterm_stream = .{
+                    .context = @ptrCast(@constCast(&writer)),
+                    .write_fn = _write(@TypeOf(writer)),
+                    .flush_fn = _flush(@TypeOf(writer)),
+                };
+                var ret: c_int = undefined;
+                ret = c.crossterm_stream_reset_hidden_attribute(&stream);
+                if (0 != ret) return error.BackendError;
+            }
+        };
+    };
+
+    /// ...
+    pub const attributes = struct {
+        /// Disables all text attributes.
+        pub fn reset(writer: anytype) error{BackendError}!void {
+            var stream: c.crossterm_stream = .{
+                .context = @ptrCast(@constCast(&writer)),
+                .write_fn = _write(@TypeOf(writer)),
+                .flush_fn = _flush(@TypeOf(writer)),
+            };
+            var ret: c_int = undefined;
+            ret = c.crossterm_stream_reset_attributes(&stream);
+            if (0 != ret) return error.BackendError;
+        }
+    };
+};
+
+/// ...
 pub const event = struct {
     /// Checks if events are available for reading.
     pub fn poll() error{BackendError}!bool {
@@ -34,272 +555,25 @@ pub const event = struct {
     }
 };
 
-/// Checks whether the raw mode is enabled.
-pub fn isRawModeEnabled() error{BackendError}!bool {
-    var ret: c_int = undefined;
-    var is_enabled: bool = undefined;
-    ret = c.crossterm_is_raw_mode_enabled(&is_enabled);
-    if (0 != ret) return error.BackendError;
-    return is_enabled;
-}
-
-/// Enables raw mode.
-pub fn enableRawMode() error{BackendError}!void {
-    var ret: c_int = undefined;
-    ret = c.crossterm_enable_raw_mode();
-    if (0 != ret) return error.BackendError;
-}
-
-/// Disables raw mode.
-pub fn disableRawMode() error{BackendError}!void {
-    var ret: c_int = undefined;
-    ret = c.crossterm_disable_raw_mode();
-    if (0 != ret) return error.BackendError;
-}
-
-/// Get current cursor position.
-pub fn getCursorPosition() error{BackendError}!struct { x: u16, y: u16 } {
-    var ret: c_int = undefined;
-    var pos: c.crossterm_cursor_position = undefined;
-    ret = c.crossterm_get_cursor_position(&pos);
-    if (0 != ret) return error.BackendError;
-    return .{ .x = pos.x, .y = pos.y };
-}
-
-/// Returns the current size of the terminal screen.
-pub fn getTerminalSize() error{BackendError}!struct { width: u16, height: u16 } {
-    var ret: c_int = undefined;
-    var size: c.crossterm_size = undefined;
-    ret = c.crossterm_get_size(&size);
-    if (0 != ret) return error.BackendError;
-    return .{ .width = size.width, .height = size.height };
-}
-
-/// A backend implementation that uses crossterm to render to the terminal.
-pub fn Backend(WriterType: type) type {
+/// ...
+fn _write(comptime WriterType: type) fn (buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
     return struct {
-        const Self = @This();
-
-        allocator: std.mem.Allocator,
-        stream: c.crossterm_stream,
-
-        /// Creates a new `CrosstermBackend` instance attached to the specified writer.
-        pub fn init(allocator: std.mem.Allocator, writer: WriterType) std.mem.Allocator.Error!Self {
-            var w: *WriterType = undefined;
-            var backend: Self = undefined;
-            backend.allocator = allocator;
-            w = try allocator.create(WriterType);
-            errdefer allocator.destroy(w);
-            w.* = writer;
-            backend.stream = .{
-                .context = @ptrCast(w),
-                .write_fn = Self._write,
-                .flush_fn = Self._flush,
-            };
-            return backend;
-        }
-
-        /// Releases all allocated memory.
-        pub fn deinit(self: Self) void {
-            const w: *WriterType = @ptrCast(@alignCast(self.stream.context));
-            self.allocator.destroy(w);
-        }
-
-        /// Switches to the alternate screen.
-        pub fn enterAlternateScreen(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_enter_alternate_screen(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Switches back to the main screen.
-        pub fn leaveAlternateScreen(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_leave_alternate_screen(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Shows cursor.
-        pub fn showCursor(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_show_cursor(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Hides cursor.
-        pub fn hideCursor(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_hide_cursor(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Saves current cursor position.
-        pub fn saveCursorPosition(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_save_cursor_position(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Restores previously saved cursor position.
-        pub fn restoreCursorPosition(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_restore_cursor_position(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor up by `n` rows.
-        pub fn moveCursorUp(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_up(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor up by `n` rows.
-        pub fn moveCursorToPreviousLine(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_to_previous_line(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor down by `n` rows.
-        pub fn moveCursorDown(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_down(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor up by `n` rows.
-        pub fn moveCursorToNextLine(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_to_next_line(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor left by `n` columns.
-        pub fn moveCursorLeft(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_left(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor right by `n` columns.
-        pub fn moveCursorRight(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_right(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor to the specified row.
-        pub fn moveCursorToRow(self: *Self, y: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_to_row(&self.stream, y);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor to the specified row.
-        pub fn moveCursorToCol(self: *Self, x: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_to_col(&self.stream, x);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Moves the cursor to the specified position on the screen.
-        pub fn moveCursorTo(self: *Self, x: u16, y: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_move_cursor_to(&self.stream, x, y);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Scrolls the terminal screen a given number of rows up.
-        pub fn scrollUp(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_scroll_up(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Scrolls the terminal screen a given number of rows down.
-        pub fn scrollDown(self: *Self, n: u16) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_scroll_down(&self.stream, n);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells.
-        pub fn clearAll(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_all(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells and history.
-        pub fn clearPurge(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_purge(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells from the cursor position downwards.
-        pub fn clearFromCursorDown(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_from_cursor_down(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells from the cursor position upwards.
-        pub fn clearFromCursorUp(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_from_cursor_up(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells at the current row.
-        pub fn clearCurrentLine(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_current_line(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Clears all cells from the cursor position until the new line.
-        pub fn clearUntilNewLine(self: *Self) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_clear_until_new_line(&self.stream);
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// Prints a single unicode character to the terminal at the current
-        /// cursor position applying the given style.
-        pub fn put(self: *Self, char: u21, style: ?fuizon.Style) error{ BackendError, Utf8CannotEncodeSurrogateHalf, CodepointTooLarge }!void {
-            var buffer: [4]u8 = undefined;
-            var length: u3 = undefined;
-            length = try std.unicode.utf8Encode(char, &buffer);
-            try self.write(buffer[0..length], style);
-        }
-
-        /// Prints the specified number of bytes from the buffer to the terminal
-        /// at the current cursor position applying the given style.
-        pub fn write(self: *Self, buffer: []const u8, style: ?fuizon.Style) error{BackendError}!void {
-            var ret: c_int = undefined;
-            ret = c.crossterm_stream_write(
-                &self.stream,
-                buffer.ptr,
-                buffer.len,
-                if (style) |s| @ptrCast(&s.toCrosstermStyle()) else null,
-            );
-            if (0 != ret) return error.BackendError;
-        }
-
-        /// ...
-        fn _write(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
+        fn w(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
             const maxlen = @as(usize, std.math.maxInt(c_long));
             const len = if (buflen <= maxlen) buflen else maxlen;
-            const ctx: *WriterType = @ptrCast(@alignCast(context));
+            const ctx: *const WriterType = @ptrCast(@alignCast(context));
             return @intCast(ctx.write(buf[0..len]) catch return -1);
         }
+    }.w;
+}
 
-        /// ...
-        fn _flush(context: ?*anyopaque) callconv(.C) c_int {
-            _ = context;
+/// ...
+fn _flush(comptime WriterType: type) fn (contxet: ?*anyopaque) callconv(.C) c_int {
+    return struct {
+        fn f(context: ?*anyopaque) callconv(.C) c_int {
+            const ctx: *const WriterType = @ptrCast(@alignCast(context));
+            _ = ctx;
             return 0;
         }
-    };
+    }.f;
 }
