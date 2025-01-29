@@ -13,3 +13,5 @@ pub const RgbColor = style.RgbColor;
 pub const Attributes = style.Attributes;
 
 pub const crossterm = @import("crossterm.zig");
+
+pub const backend = crossterm;
