@@ -1,18 +1,73 @@
 const std = @import("std");
 const c = @import("headers.zig").c;
 
+pub const Attribute = enum(u8) {
+    // zig fmt: off
+    bold       = 1 << 0,
+    dim        = 1 << 1,
+    underlined = 1 << 2,
+    reverse    = 1 << 3,
+    hidden     = 1 << 4,
+    // zig fmt: on
+
+    pub fn format(
+        self: Attribute,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        // zig fmt: off
+        switch (self) {
+            .bold       => _ = try writer.write("bold"),
+            .dim        => _ = try writer.write("dim"),
+            .underlined => _ = try writer.write("underlined"),
+            .reverse    => _ = try writer.write("reverse"),
+            .hidden     => _ = try writer.write("hidden"),
+        }
+        // zig fmt: on
+    }
+
+    pub fn bitset(attribute: Attribute) u8 {
+        return @intFromEnum(attribute);
+    }
+};
+
 pub const Attributes = struct {
     // zig fmt: off
-    pub const none       = Attributes{ .bitset = 0      };
-    pub const bold       = Attributes{ .bitset = 1 << 0 };
-    pub const dim        = Attributes{ .bitset = 1 << 1 };
-    pub const underlined = Attributes{ .bitset = 1 << 2 };
-    pub const reverse    = Attributes{ .bitset = 1 << 3 };
-    pub const hidden     = Attributes{ .bitset = 1 << 4 };
-    pub const all        = Attributes{ .bitset = 0x1f   };
+    pub const none = Attributes.join(&.{});
+    pub const all  = Attributes.join(&.{ .bold, .dim, .underlined, .reverse, .hidden });
     // zig fmt: on
 
     bitset: u8,
+
+    pub fn join(attributes: []const Attribute) Attributes {
+        var target = Attributes{ .bitset = 0 };
+        target.set(attributes);
+        return target;
+    }
+
+    pub fn set(self: *Attributes, attributes: []const Attribute) void {
+        for (attributes) |attribute| {
+            self.bitset |= attribute.bitset();
+        }
+    }
+
+    pub fn reset(self: *Attributes, attributes: []const Attribute) void {
+        for (attributes) |attribute| {
+            self.bitset &= ~attribute.bitset();
+        }
+    }
+
+    pub fn contain(self: Attributes, attributes: []const Attribute) bool {
+        for (attributes) |attribute| {
+            if ((self.bitset & attribute.bitset()) == 0)
+                return false;
+        }
+        return true;
+    }
 
     pub fn format(
         self: Attributes,
@@ -23,49 +78,31 @@ pub const Attributes = struct {
         _ = fmt;
         _ = options;
 
-        var attributes = [_][]const u8{""} ** 5;
+        var attributes = [_]Attribute{.bold} ** 5;
         var nattributes: usize = 0;
 
-        if ((self.bitset & Attributes.bold.bitset) != 0) {
-            attributes[nattributes] = "bold";
+        if (self.contain(&.{.bold})) {
+            attributes[nattributes] = .bold;
             nattributes += 1;
         }
-        if ((self.bitset & Attributes.dim.bitset) != 0) {
-            attributes[nattributes] = "dim";
+        if (self.contain(&.{.dim})) {
+            attributes[nattributes] = .dim;
             nattributes += 1;
         }
-        if ((self.bitset & Attributes.underlined.bitset) != 0) {
-            attributes[nattributes] = "underlined";
+        if (self.contain(&.{.underlined})) {
+            attributes[nattributes] = .underlined;
             nattributes += 1;
         }
-        if ((self.bitset & Attributes.reverse.bitset) != 0) {
-            attributes[nattributes] = "reverse";
+        if (self.contain(&.{.reverse})) {
+            attributes[nattributes] = .reverse;
             nattributes += 1;
         }
-        if ((self.bitset & Attributes.hidden.bitset) != 0) {
-            attributes[nattributes] = "hidden";
+        if (self.contain(&.{.hidden})) {
+            attributes[nattributes] = .hidden;
             nattributes += 1;
         }
 
-        try writer.print("[", .{});
-        for (0..nattributes -| 1) |i|
-            try writer.print("{s}, ", .{attributes[i]});
-        try writer.print("{s}", .{attributes[nattributes -| 1]});
-        try writer.print("]", .{});
-    }
-
-    pub fn toCrosstermAttributes(attributes: Attributes) c.crossterm_attributes {
-        var target: c.crossterm_attributes = 0;
-
-        // zig fmt: off
-        if ((attributes.bitset & Attributes.bold.bitset)       != 0) target |= @intCast(c.CROSSTERM_BOLD_ATTRIBUTE);
-        if ((attributes.bitset & Attributes.dim.bitset)        != 0) target |= @intCast(c.CROSSTERM_DIM_ATTRIBUTE);
-        if ((attributes.bitset & Attributes.underlined.bitset) != 0) target |= @intCast(c.CROSSTERM_UNDERLINED_ATTRIBUTE);
-        if ((attributes.bitset & Attributes.reverse.bitset)    != 0) target |= @intCast(c.CROSSTERM_REVERSE_ATTRIBUTE);
-        if ((attributes.bitset & Attributes.hidden.bitset)     != 0) target |= @intCast(c.CROSSTERM_HIDDEN_ATTRIBUTE);
-        // zig fmt: on
-
-        return target;
+        try writer.print("{any}", .{attributes[0..nattributes]});
     }
 };
 
@@ -142,120 +179,69 @@ pub const Style = struct {
     background_color: ?Color = null,
 
     attributes: Attributes = Attributes.none,
-
-    pub fn toCrosstermStyle(style: Style) c.crossterm_style {
-        var target: c.crossterm_style = undefined;
-
-        if (style.foreground_color) |foreground| {
-            target.has_foreground_color = true;
-            target.foreground_color = foreground.toCrosstermColor();
-        } else {
-            target.has_foreground_color = false;
-        }
-
-        if (style.background_color) |background| {
-            target.has_background_color = true;
-            target.background_color = background.toCrosstermColor();
-        } else {
-            target.has_background_color = false;
-        }
-
-        target.has_underline_color = false;
-        target.attributes = style.attributes.toCrosstermAttributes();
-
-        return target;
-    }
 };
 
-test "null-attribute" {
-    try std.testing.expectEqual(
-        0,
-        // zig fmt: off
-        (Attributes.bold.bitset       |
-         Attributes.dim.bitset        |
-         Attributes.underlined.bitset |
-         Attributes.reverse.bitset    |
-         Attributes.hidden.bitset)    & Attributes.none.bitset
-        // zig fmt: on
-        ,
-    );
+test "no-attributes" {
+    try std.testing.expectEqual(0, Attributes.none.bitset);
 }
 
 test "all-attributes" {
-    try std.testing.expectEqual(
-        // zig fmt: off
-        Attributes.bold.bitset        |
-        Attributes.dim.bitset         |
-        Attributes.underlined.bitset  |
-        Attributes.reverse.bitset     |
-        Attributes.hidden.bitset
-        // zig fmt: on
-        ,
-        Attributes.all.bitset,
-    );
+    try std.testing.expect(Attributes.all.contain(&.{
+        .bold,
+        .dim,
+        .underlined,
+        .reverse,
+        .hidden,
+    }));
 }
 
-test "format-null-attribute" {
-    try std.testing.expectFmt("[]", "{}", .{Attributes.none});
+test "attributes-contain" {
+    var attributes = Attributes.all;
+    attributes.reset(&.{ .bold, .reverse });
+
+    try std.testing.expect(!attributes.contain(&.{.bold}));
+    try std.testing.expect(!attributes.contain(&.{.reverse}));
+    try std.testing.expect(!attributes.contain(&.{ .bold, .reverse }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .bold }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .reverse }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .bold, .reverse }));
+    try std.testing.expect(attributes.contain(&.{.dim}));
+}
+
+test "attributes-set-reset" {
+    var left = Attributes.none;
+    left.set(&.{ .dim, .hidden, .underlined });
+    var right = Attributes.all;
+    right.reset(&.{ .bold, .reverse });
+    try std.testing.expectEqual(left.bitset, right.bitset);
 }
 
 test "format-bold-attribute" {
-    try std.testing.expectFmt("[bold]", "{}", .{Attributes.bold});
+    try std.testing.expectFmt("bold", "{}", .{Attribute.bold});
 }
 
 test "format-dim-attribute" {
-    try std.testing.expectFmt("[dim]", "{}", .{Attributes.dim});
+    try std.testing.expectFmt("dim", "{}", .{Attribute.dim});
 }
 
 test "format-underlined-attribute" {
-    try std.testing.expectFmt("[underlined]", "{}", .{Attributes.underlined});
+    try std.testing.expectFmt("underlined", "{}", .{Attribute.underlined});
 }
 
 test "format-reverse-attribute" {
-    try std.testing.expectFmt("[reverse]", "{}", .{Attributes.reverse});
+    try std.testing.expectFmt("reverse", "{}", .{Attribute.reverse});
 }
 
 test "format-hidden-attribute" {
-    try std.testing.expectFmt("[hidden]", "{}", .{Attributes.hidden});
+    try std.testing.expectFmt("hidden", "{}", .{Attribute.hidden});
+}
+
+test "format-empty-attribute-set" {
+    try std.testing.expectFmt("{  }", "{}", .{Attributes.none});
 }
 
 test "format-all-attributes" {
-    try std.testing.expectFmt("[bold, dim, underlined, reverse, hidden]", "{}", .{Attributes.all});
-}
-
-test "from-fuizon-to-crossterm-bold-attribute" {
-    try std.testing.expectEqual(
-        c.CROSSTERM_BOLD_ATTRIBUTE,
-        Attributes.bold.toCrosstermAttributes(),
-    );
-}
-
-test "from-fuizon-to-crossterm-dim-attribute" {
-    try std.testing.expectEqual(
-        c.CROSSTERM_DIM_ATTRIBUTE,
-        Attributes.dim.toCrosstermAttributes(),
-    );
-}
-
-test "from-fuizon-to-crossterm-underlined-attribute" {
-    try std.testing.expectEqual(
-        c.CROSSTERM_UNDERLINED_ATTRIBUTE,
-        Attributes.underlined.toCrosstermAttributes(),
-    );
-}
-
-test "from-fuizon-to-crossterm-reverse-attribute" {
-    try std.testing.expectEqual(
-        c.CROSSTERM_REVERSE_ATTRIBUTE,
-        Attributes.reverse.toCrosstermAttributes(),
-    );
-}
-
-test "from-fuizon-to-crossterm-hidden-attribute" {
-    try std.testing.expectEqual(
-        c.CROSSTERM_HIDDEN_ATTRIBUTE,
-        Attributes.hidden.toCrosstermAttributes(),
-    );
+    try std.testing.expectFmt("{ bold, dim, underlined, reverse, hidden }", "{}", .{Attributes.all});
 }
 
 test "from-fuizon-to-crossterm-default-color" {
