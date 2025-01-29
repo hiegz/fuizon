@@ -1,22 +1,91 @@
 const std = @import("std");
 const c = @import("headers.zig").c;
 
+pub const KeyModifier = enum(u16) {
+    // zig fmt: off
+    shift   = 1 << 0,
+    control = 1 << 1,
+    alt     = 1 << 2,
+    super   = 1 << 3,
+    hyper   = 1 << 4,
+    meta    = 1 << 5,
+    keypad  = 1 << 6,
+    caps    = 1 << 7,
+    numlock = 1 << 8,
+    // zig fmt: on
+
+    pub fn format(
+        self: KeyModifier,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        // zig fmt: off
+        switch (self) {
+            .shift   => _ = try writer.write("shift"),
+            .control => _ = try writer.write("control"),
+            .alt     => _ = try writer.write("alt"),
+            .super   => _ = try writer.write("super"),
+            .hyper   => _ = try writer.write("hyper"),
+            .meta    => _ = try writer.write("meta"),
+            .keypad  => _ = try writer.write("keypad"),
+            .caps    => _ = try writer.write("caps"),
+            .numlock => _ = try writer.write("numlock"),
+        }
+        // zig fmt: on
+    }
+
+    pub fn bitset(self: KeyModifier) u16 {
+        return @intFromEnum(self);
+    }
+};
+
 pub const KeyModifiers = struct {
     // zig fmt: off
-    pub const none    = KeyModifiers{ .bitset = 0 };
-    pub const shift   = KeyModifiers{ .bitset = 1 << 0 };
-    pub const control = KeyModifiers{ .bitset = 1 << 1 };
-    pub const alt     = KeyModifiers{ .bitset = 1 << 2 };
-    pub const super   = KeyModifiers{ .bitset = 1 << 3 };
-    pub const hyper   = KeyModifiers{ .bitset = 1 << 4 };
-    pub const meta    = KeyModifiers{ .bitset = 1 << 5 };
-    pub const keypad  = KeyModifiers{ .bitset = 1 << 6 };
-    pub const caps    = KeyModifiers{ .bitset = 1 << 7 };
-    pub const numlock = KeyModifiers{ .bitset = 1 << 8 };
-    pub const all     = KeyModifiers{ .bitset = 0x1ff };
+    pub const none = KeyModifiers.join(&.{});
+    pub const all  = KeyModifiers.join(&.{
+        .shift,
+        .control,
+        .alt,
+        .super,
+        .hyper,
+        .meta,
+        .keypad,
+        .caps,
+        .numlock,
+    });
     // zig fmt: on
 
     bitset: u16,
+
+    pub fn join(modifiers: []const KeyModifier) KeyModifiers {
+        var target = KeyModifiers{ .bitset = 0 };
+        target.set(modifiers);
+        return target;
+    }
+
+    pub fn set(self: *KeyModifiers, modifiers: []const KeyModifier) void {
+        for (modifiers) |modifier| {
+            self.bitset |= modifier.bitset();
+        }
+    }
+
+    pub fn reset(self: *KeyModifiers, modifiers: []const KeyModifier) void {
+        for (modifiers) |modifier| {
+            self.bitset &= ~modifier.bitset();
+        }
+    }
+
+    pub fn contain(self: KeyModifiers, modifiers: []const KeyModifier) bool {
+        for (modifiers) |modifier| {
+            if ((self.bitset & modifier.bitset()) == 0)
+                return false;
+        }
+        return true;
+    }
 
     pub fn format(
         self: KeyModifiers,
@@ -27,66 +96,62 @@ pub const KeyModifiers = struct {
         _ = fmt;
         _ = options;
 
-        var modifiers = [_][]const u8{""} ** 9;
+        var modifiers = [_]KeyModifier{.shift} ** 9;
         var nmodifiers: usize = 0;
 
-        if ((self.bitset & KeyModifiers.shift.bitset) != 0) {
-            modifiers[nmodifiers] = "shift";
+        if (self.contain(&.{.shift})) {
+            modifiers[nmodifiers] = .shift;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.control.bitset) != 0) {
-            modifiers[nmodifiers] = "control";
+        if (self.contain(&.{.control})) {
+            modifiers[nmodifiers] = .control;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.alt.bitset) != 0) {
-            modifiers[nmodifiers] = "alt";
+        if (self.contain(&.{.alt})) {
+            modifiers[nmodifiers] = .alt;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.super.bitset) != 0) {
-            modifiers[nmodifiers] = "super";
+        if (self.contain(&.{.super})) {
+            modifiers[nmodifiers] = .super;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.hyper.bitset) != 0) {
-            modifiers[nmodifiers] = "hyper";
+        if (self.contain(&.{.hyper})) {
+            modifiers[nmodifiers] = .hyper;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.meta.bitset) != 0) {
-            modifiers[nmodifiers] = "meta";
+        if (self.contain(&.{.meta})) {
+            modifiers[nmodifiers] = .meta;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.keypad.bitset) != 0) {
-            modifiers[nmodifiers] = "keypad";
+        if (self.contain(&.{.keypad})) {
+            modifiers[nmodifiers] = .keypad;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.caps.bitset) != 0) {
-            modifiers[nmodifiers] = "caps";
+        if (self.contain(&.{.caps})) {
+            modifiers[nmodifiers] = .caps;
             nmodifiers += 1;
         }
-        if ((self.bitset & KeyModifiers.numlock.bitset) != 0) {
-            modifiers[nmodifiers] = "numlock";
+        if (self.contain(&.{.numlock})) {
+            modifiers[nmodifiers] = .numlock;
             nmodifiers += 1;
         }
 
-        try writer.print("[", .{});
-        for (0..nmodifiers -| 1) |i|
-            try writer.print("{s}+", .{modifiers[i]});
-        try writer.print("{s}", .{modifiers[nmodifiers -| 1]});
-        try writer.print("]", .{});
+        try writer.print("{any}", .{modifiers[0..nmodifiers]});
     }
 
     pub fn fromCrosstermKeyModifiers(modifiers: c.crossterm_key_modifiers) KeyModifiers {
-        var target = KeyModifiers{ .bitset = 0 };
+        var target = KeyModifiers.none;
 
         // zig fmt: off
-        if ((modifiers & c.CROSSTERM_SHIFT_KEY_MODIFIER)     != 0) target.bitset |= KeyModifiers.shift.bitset;
-        if ((modifiers & c.CROSSTERM_CONTROL_KEY_MODIFIER)   != 0) target.bitset |= KeyModifiers.control.bitset;
-        if ((modifiers & c.CROSSTERM_ALT_KEY_MODIFIER)       != 0) target.bitset |= KeyModifiers.alt.bitset;
-        if ((modifiers & c.CROSSTERM_SUPER_KEY_MODIFIER)     != 0) target.bitset |= KeyModifiers.super.bitset;
-        if ((modifiers & c.CROSSTERM_HYPER_KEY_MODIFIER)     != 0) target.bitset |= KeyModifiers.hyper.bitset;
-        if ((modifiers & c.CROSSTERM_META_KEY_MODIFIER)      != 0) target.bitset |= KeyModifiers.meta.bitset;
-        if ((modifiers & c.CROSSTERM_KEYPAD_KEY_MODIFIER)    != 0) target.bitset |= KeyModifiers.keypad.bitset;
-        if ((modifiers & c.CROSSTERM_CAPS_LOCK_KEY_MODIFIER) != 0) target.bitset |= KeyModifiers.caps.bitset;
-        if ((modifiers & c.CROSSTERM_NUM_LOCK_KEY_MODIFIER)  != 0) target.bitset |= KeyModifiers.numlock.bitset;
+        if ((modifiers & c.CROSSTERM_SHIFT_KEY_MODIFIER)     != 0) target.set(&.{.shift});
+        if ((modifiers & c.CROSSTERM_CONTROL_KEY_MODIFIER)   != 0) target.set(&.{.control});
+        if ((modifiers & c.CROSSTERM_ALT_KEY_MODIFIER)       != 0) target.set(&.{.alt});
+        if ((modifiers & c.CROSSTERM_SUPER_KEY_MODIFIER)     != 0) target.set(&.{.super});
+        if ((modifiers & c.CROSSTERM_HYPER_KEY_MODIFIER)     != 0) target.set(&.{.hyper});
+        if ((modifiers & c.CROSSTERM_META_KEY_MODIFIER)      != 0) target.set(&.{.meta});
+        if ((modifiers & c.CROSSTERM_KEYPAD_KEY_MODIFIER)    != 0) target.set(&.{.keypad});
+        if ((modifiers & c.CROSSTERM_CAPS_LOCK_KEY_MODIFIER) != 0) target.set(&.{.caps});
+        if ((modifiers & c.CROSSTERM_NUM_LOCK_KEY_MODIFIER)  != 0) target.set(&.{.numlock});
         // zig fmt: on
 
         return target;
@@ -256,144 +321,148 @@ pub const Event = union(enum) {
 //
 
 test "no-key-modifiers" {
-    try std.testing.expectEqual(
-        0,
-        // zig fmt: off
-        (KeyModifiers.shift.bitset     |
-         KeyModifiers.control.bitset   |
-         KeyModifiers.alt.bitset       |
-         KeyModifiers.super.bitset     |
-         KeyModifiers.hyper.bitset     |
-         KeyModifiers.meta.bitset      |
-         KeyModifiers.keypad.bitset    |
-         KeyModifiers.caps.bitset      |
-         KeyModifiers.numlock.bitset)  & KeyModifiers.none.bitset
-        // zig fmt: on
-        ,
-    );
+    try std.testing.expectEqual(0, KeyModifiers.none.bitset);
 }
 
 test "all-key-modifiers" {
-    try std.testing.expectEqual(
-        // zig fmt: off
-        KeyModifiers.shift.bitset      |
-        KeyModifiers.control.bitset    |
-        KeyModifiers.alt.bitset        |
-        KeyModifiers.super.bitset      |
-        KeyModifiers.hyper.bitset      |
-        KeyModifiers.meta.bitset       |
-        KeyModifiers.keypad.bitset     |
-        KeyModifiers.caps.bitset       |
-        KeyModifiers.numlock.bitset
-        // zig fmt: on
-        ,
-        KeyModifiers.all.bitset,
-    );
+    try std.testing.expect(KeyModifiers.all.contain(&.{
+        .shift,
+        .control,
+        .alt,
+        .super,
+        .hyper,
+        .meta,
+        .keypad,
+        .caps,
+        .numlock,
+    }));
 }
 
-test "format-none-key-modifier" {
-    try std.testing.expectFmt("[]", "{}", .{KeyModifiers.none});
+test "key-modifiers-contain" {
+    var modifiers = KeyModifiers.all;
+    modifiers.reset(&.{ .hyper, .super });
+
+    try std.testing.expect(!modifiers.contain(&.{.hyper}));
+    try std.testing.expect(!modifiers.contain(&.{.super}));
+    try std.testing.expect(!modifiers.contain(&.{ .hyper, .super }));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .hyper }));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .super }));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .hyper, .super }));
+    try std.testing.expect(modifiers.contain(&.{.alt}));
+}
+
+test "key-modifiers-set-reset" {
+    var left = KeyModifiers.none;
+    left.set(&.{ .shift, .control });
+    var right = KeyModifiers.all;
+    right.reset(&.{ .alt, .super, .hyper, .keypad, .meta, .caps, .numlock });
+
+    try std.testing.expectEqual(left.bitset, right.bitset);
 }
 
 test "format-shift-key-modifier" {
-    try std.testing.expectFmt("[shift]", "{}", .{KeyModifiers.shift});
+    try std.testing.expectFmt("shift", "{}", .{KeyModifier.shift});
 }
 
 test "format-control-key-modifier" {
-    try std.testing.expectFmt("[control]", "{}", .{KeyModifiers.control});
+    try std.testing.expectFmt("control", "{}", .{KeyModifier.control});
 }
 
 test "format-alt-key-modifier" {
-    try std.testing.expectFmt("[alt]", "{}", .{KeyModifiers.alt});
+    try std.testing.expectFmt("alt", "{}", .{KeyModifier.alt});
 }
 
 test "format-super-key-modifier" {
-    try std.testing.expectFmt("[super]", "{}", .{KeyModifiers.super});
+    try std.testing.expectFmt("super", "{}", .{KeyModifier.super});
 }
 
 test "format-hyper-key-modifier" {
-    try std.testing.expectFmt("[hyper]", "{}", .{KeyModifiers.hyper});
+    try std.testing.expectFmt("hyper", "{}", .{KeyModifier.hyper});
 }
 
 test "format-meta-key-modifier" {
-    try std.testing.expectFmt("[meta]", "{}", .{KeyModifiers.meta});
+    try std.testing.expectFmt("meta", "{}", .{KeyModifier.meta});
 }
 
 test "format-keypad-key-modifier" {
-    try std.testing.expectFmt("[keypad]", "{}", .{KeyModifiers.keypad});
+    try std.testing.expectFmt("keypad", "{}", .{KeyModifier.keypad});
 }
 
 test "format-caps-key-modifier" {
-    try std.testing.expectFmt("[caps]", "{}", .{KeyModifiers.caps});
+    try std.testing.expectFmt("caps", "{}", .{KeyModifier.caps});
 }
 
 test "format-numlock-key-modifier" {
-    try std.testing.expectFmt("[numlock]", "{}", .{KeyModifiers.numlock});
+    try std.testing.expectFmt("numlock", "{}", .{KeyModifier.numlock});
+}
+
+test "format-empty-key-modifier-set" {
+    try std.testing.expectFmt("{  }", "{}", .{KeyModifiers.none});
 }
 
 test "format-all-key-modifiers" {
-    try std.testing.expectFmt("[shift+control+alt+super+hyper+meta+keypad+caps+numlock]", "{}", .{KeyModifiers.all});
+    try std.testing.expectFmt("{ shift, control, alt, super, hyper, meta, keypad, caps, numlock }", "{}", .{KeyModifiers.all});
 }
 
 test "from-crossterm-to-fuizon-shift-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.shift.bitset,
+        KeyModifiers.join(&.{.shift}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_SHIFT_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-control-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.control.bitset,
+        KeyModifiers.join(&.{.control}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_CONTROL_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-alt-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.alt.bitset,
+        KeyModifiers.join(&.{.alt}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_ALT_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-super-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.super.bitset,
+        KeyModifiers.join(&.{.super}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_SUPER_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-hyper-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.hyper.bitset,
+        KeyModifiers.join(&.{.hyper}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_HYPER_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-meta-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.meta.bitset,
+        KeyModifiers.join(&.{.meta}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_META_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-keypad-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.keypad.bitset,
+        KeyModifiers.join(&.{.keypad}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_KEYPAD_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-caps-lock-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.caps.bitset,
+        KeyModifiers.join(&.{.caps}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_CAPS_LOCK_KEY_MODIFIER).bitset,
     );
 }
 
 test "from-crossterm-to-fuizon-num-lock-key-modifier" {
     try std.testing.expectEqual(
-        KeyModifiers.numlock.bitset,
+        KeyModifiers.join(&.{.numlock}).bitset,
         KeyModifiers.fromCrosstermKeyModifiers(c.CROSSTERM_NUM_LOCK_KEY_MODIFIER).bitset,
     );
 }

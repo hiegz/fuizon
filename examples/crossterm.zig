@@ -161,7 +161,7 @@ fn Demo(comptime WriterType: type) type {
                 .key => switch (event.key.code) {
                     .escape => try self.enableNormalMode(),
                     .char => {
-                        if ((event.key.modifiers.bitset & fuizon.KeyModifiers.control.bitset) == 0) {
+                        if (!event.key.modifiers.contain(&.{.control})) {
                             try self.writer.print("{u}", .{event.key.code.char});
                             return;
                         }
@@ -186,6 +186,7 @@ fn Demo(comptime WriterType: type) type {
             if (self.mode == .move)
                 try fuizon.crossterm.cursor.restore(self.writer);
             if (self.mode == .insert) {
+                self.attributes = fuizon.Attributes.none;
                 try fuizon.crossterm.text.attributes.reset(self.writer);
                 try self.writer.print("\n\r", .{});
             }
@@ -296,58 +297,60 @@ fn Demo(comptime WriterType: type) type {
         }
 
         fn toggleBoldAttribute(self: *Self) !void {
-            if ((self.attributes.bitset & fuizon.Attributes.bold.bitset) == 0) {
-                self.attributes.bitset |= fuizon.Attributes.bold.bitset;
-                try fuizon.crossterm.text.attribute.bold.set(self.writer);
-            } else {
-                self.attributes.bitset &= ~fuizon.Attributes.bold.bitset;
+            if (self.attributes.contain(&.{.bold})) {
+                self.attributes.reset(&.{.bold});
                 try fuizon.crossterm.text.attribute.bold.reset(self.writer);
+            } else {
+                self.attributes.set(&.{.bold});
+                try fuizon.crossterm.text.attribute.bold.set(self.writer);
             }
-            if ((self.attributes.bitset & fuizon.Attributes.dim.bitset) != 0) {
+
+            if (self.attributes.contain(&.{.dim})) {
                 try fuizon.crossterm.text.attribute.dim.set(self.writer);
             }
         }
 
         fn toggleDimAttribute(self: *Self) !void {
-            if ((self.attributes.bitset & fuizon.Attributes.dim.bitset) == 0) {
-                self.attributes.bitset |= fuizon.Attributes.dim.bitset;
-                try fuizon.crossterm.text.attribute.dim.set(self.writer);
-            } else {
-                self.attributes.bitset &= ~fuizon.Attributes.dim.bitset;
+            if (self.attributes.contain(&.{.dim})) {
+                self.attributes.reset(&.{.dim});
                 try fuizon.crossterm.text.attribute.dim.reset(self.writer);
+            } else {
+                self.attributes.set(&.{.dim});
+                try fuizon.crossterm.text.attribute.dim.set(self.writer);
             }
-            if ((self.attributes.bitset & fuizon.Attributes.bold.bitset) != 0) {
+
+            if (self.attributes.contain(&.{.bold})) {
                 try fuizon.crossterm.text.attribute.bold.set(self.writer);
             }
         }
 
         fn toggleUnderlinedAttribute(self: *Self) !void {
-            if ((self.attributes.bitset & fuizon.Attributes.underlined.bitset) == 0) {
-                self.attributes.bitset |= fuizon.Attributes.underlined.bitset;
-                try fuizon.crossterm.text.attribute.underline.set(self.writer);
-            } else {
-                self.attributes.bitset &= ~fuizon.Attributes.underlined.bitset;
+            if (self.attributes.contain(&.{.underlined})) {
+                self.attributes.reset(&.{.underlined});
                 try fuizon.crossterm.text.attribute.underline.reset(self.writer);
+            } else {
+                self.attributes.set(&.{.underlined});
+                try fuizon.crossterm.text.attribute.underline.set(self.writer);
             }
         }
 
         fn toggleReverseAttribute(self: *Self) !void {
-            if ((self.attributes.bitset & fuizon.Attributes.reverse.bitset) == 0) {
-                self.attributes.bitset |= fuizon.Attributes.reverse.bitset;
-                try fuizon.crossterm.text.attribute.reverse.set(self.writer);
-            } else {
-                self.attributes.bitset &= ~fuizon.Attributes.reverse.bitset;
+            if (self.attributes.contain(&.{.reverse})) {
+                self.attributes.reset(&.{.reverse});
                 try fuizon.crossterm.text.attribute.reverse.reset(self.writer);
+            } else {
+                self.attributes.set(&.{.reverse});
+                try fuizon.crossterm.text.attribute.reverse.set(self.writer);
             }
         }
 
         fn toggleHiddenAttribute(self: *Self) !void {
-            if ((self.attributes.bitset & fuizon.Attributes.hidden.bitset) == 0) {
-                self.attributes.bitset |= fuizon.Attributes.hidden.bitset;
-                try fuizon.crossterm.text.attribute.hidden.set(self.writer);
-            } else {
-                self.attributes.bitset &= ~fuizon.Attributes.hidden.bitset;
+            if (self.attributes.contain(&.{.hidden})) {
+                self.attributes.reset(&.{.hidden});
                 try fuizon.crossterm.text.attribute.hidden.reset(self.writer);
+            } else {
+                self.attributes.set(&.{.hidden});
+                try fuizon.crossterm.text.attribute.hidden.set(self.writer);
             }
         }
     };
