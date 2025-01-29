@@ -8,10 +8,11 @@ fn Demo(comptime WriterType: type) type {
         backend: fuizon.crossterm.Backend(WriterType),
 
         state: enum { terminated, running },
-        mode: enum { normal, debug, move, scroll },
+        mode: enum { normal, debug, move, scroll, insert },
         alternate_screen: enum { disabled, enabled },
         polling: enum { disabled, enabled },
         cursor: enum { hidden, visible },
+        insert_style: fuizon.Style,
 
         fn init(allocator: std.mem.Allocator, writer: WriterType) !Self {
             var self: Self = undefined;
@@ -24,6 +25,12 @@ fn Demo(comptime WriterType: type) type {
             self.alternate_screen = .disabled;
             self.polling = .disabled;
             self.cursor = .visible;
+
+            self.insert_style = .{
+                .foreground_color = null,
+                .background_color = null,
+                .attributes = fuizon.Attributes.none,
+            };
 
             return self;
         }
@@ -54,6 +61,7 @@ fn Demo(comptime WriterType: type) type {
                 .debug => try self.handleDebugEvent(event),
                 .move => try self.handleMoveEvent(event),
                 .scroll => try self.handleScrollEvent(event),
+                .insert => try self.handleInsertMode(event),
             }
         }
 
@@ -71,6 +79,7 @@ fn Demo(comptime WriterType: type) type {
                         'd' => self.enableDebugMode(),
                         'm' => try self.enableMoveMode(),
                         's' => self.enableScrollMode(),
+                        'i' => self.enableInsertMode(),
                         else => {},
                     },
                     else => {},
@@ -149,9 +158,37 @@ fn Demo(comptime WriterType: type) type {
             }
         }
 
+        fn handleInsertMode(self: *Self, event: fuizon.Event) !void {
+            switch (event) {
+                .key => switch (event.key.code) {
+                    .escape => try self.enableNormalMode(),
+                    .char => {
+                        if ((event.key.modifiers.bitset & fuizon.KeyModifiers.control.bitset) == 0) {
+                            try self.backend.put(event.key.code.char, self.insert_style);
+                            return;
+                        }
+
+                        switch (event.key.code.char) {
+                            'b' => self.toggleBoldAttribute(),
+                            'd' => self.toggleDimAttribute(),
+                            'u' => self.toggleUnderlinedAttribute(),
+                            'r' => self.toggleReverseAttribute(),
+                            'h' => self.toggleHiddenAttribute(),
+                            else => {},
+                        }
+                    },
+                    .enter => try self.backend.write("\n\r", null),
+                    else => {},
+                },
+                else => {},
+            }
+        }
+
         fn enableNormalMode(self: *Self) !void {
             if (self.mode == .move)
                 try self.backend.restoreCursorPosition();
+            if (self.mode == .insert)
+                try self.backend.write("\n\r", null);
             self.mode = .normal;
 
             std.debug.print("Normal mode enabled\n\r", .{});
@@ -162,6 +199,7 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("      'd' to enable debug mode,\n\r", .{});
             std.debug.print("      'm' to enable move/clear mode,\n\r", .{});
             std.debug.print("      's' to enable scroll mode\n\r", .{});
+            std.debug.print("      'i' to enable insert mode\n\r", .{});
         }
 
         fn enableDebugMode(self: *Self) void {
@@ -203,6 +241,18 @@ fn Demo(comptime WriterType: type) type {
             std.debug.print("      'k' to scroll up\n\r", .{});
         }
 
+        fn enableInsertMode(self: *Self) void {
+            self.mode = .insert;
+            std.debug.print("Insert mode enabled\n\r", .{});
+            std.debug.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+            std.debug.print("      'Ctrl-b' to toggle the attribute 'bold'\n\r", .{});
+            std.debug.print("      'Ctrl-d' to toggle the attribute 'dim'\n\r", .{});
+            std.debug.print("      'Ctrl-u' to toggle the attribute 'underlined'\n\r", .{});
+            std.debug.print("      'Ctrl-r' to toggle the attribute 'reverse'\n\r", .{});
+            std.debug.print("      'Ctrl-h' to toggle the attribute 'hidden'\n\r", .{});
+            std.debug.print("      or any other key that can be displayed as readable text\n\r", .{});
+        }
+
         fn toggleAlternateScreen(self: *Self) !void {
             switch (self.alternate_screen) {
                 .enabled => {
@@ -242,6 +292,46 @@ fn Demo(comptime WriterType: type) type {
                     self.cursor = .hidden;
                     try self.backend.hideCursor();
                 },
+            }
+        }
+
+        fn toggleBoldAttribute(self: *Self) void {
+            if ((self.insert_style.attributes.bitset & fuizon.Attributes.bold.bitset) == 0) {
+                self.insert_style.attributes.bitset |= fuizon.Attributes.bold.bitset;
+            } else {
+                self.insert_style.attributes.bitset &= ~fuizon.Attributes.bold.bitset;
+            }
+        }
+
+        fn toggleDimAttribute(self: *Self) void {
+            if ((self.insert_style.attributes.bitset & fuizon.Attributes.dim.bitset) == 0) {
+                self.insert_style.attributes.bitset |= fuizon.Attributes.dim.bitset;
+            } else {
+                self.insert_style.attributes.bitset &= ~fuizon.Attributes.dim.bitset;
+            }
+        }
+
+        fn toggleUnderlinedAttribute(self: *Self) void {
+            if ((self.insert_style.attributes.bitset & fuizon.Attributes.underlined.bitset) == 0) {
+                self.insert_style.attributes.bitset |= fuizon.Attributes.underlined.bitset;
+            } else {
+                self.insert_style.attributes.bitset &= ~fuizon.Attributes.underlined.bitset;
+            }
+        }
+
+        fn toggleReverseAttribute(self: *Self) void {
+            if ((self.insert_style.attributes.bitset & fuizon.Attributes.reverse.bitset) == 0) {
+                self.insert_style.attributes.bitset |= fuizon.Attributes.reverse.bitset;
+            } else {
+                self.insert_style.attributes.bitset &= ~fuizon.Attributes.reverse.bitset;
+            }
+        }
+
+        fn toggleHiddenAttribute(self: *Self) void {
+            if ((self.insert_style.attributes.bitset & fuizon.Attributes.hidden.bitset) == 0) {
+                self.insert_style.attributes.bitset |= fuizon.Attributes.hidden.bitset;
+            } else {
+                self.insert_style.attributes.bitset &= ~fuizon.Attributes.hidden.bitset;
             }
         }
     };
