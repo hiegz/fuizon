@@ -88,6 +88,7 @@ pub const RgbColor = struct {
 };
 
 pub const Color = union(enum) {
+    default,
     black,
     white,
     red,
@@ -111,6 +112,7 @@ pub const Color = union(enum) {
     pub fn toCrosstermColor(color: Color) c.crossterm_color {
         // zig fmt: off
         switch (color) {
+            .default      => return .{ .type = c.CROSSTERM_RESET_COLOR,        .unnamed_0 = undefined },
             .black        => return .{ .type = c.CROSSTERM_BLACK_COLOR,        .unnamed_0 = undefined },
             .white        => return .{ .type = c.CROSSTERM_WHITE_COLOR,        .unnamed_0 = undefined },
             .red          => return .{ .type = c.CROSSTERM_RED_COLOR,          .unnamed_0 = undefined },
@@ -253,6 +255,13 @@ test "from-fuizon-to-crossterm-hidden-attribute" {
     try std.testing.expectEqual(
         c.CROSSTERM_HIDDEN_ATTRIBUTE,
         Attributes.hidden.toCrosstermAttributes(),
+    );
+}
+
+test "from-fuizon-to-crossterm-default-color" {
+    try std.testing.expectEqual(
+        @as(c_uint, @intCast(c.CROSSTERM_RESET_COLOR)),
+        Color.toCrosstermColor(.default).type,
     );
 }
 

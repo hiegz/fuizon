@@ -20,43 +20,43 @@ fn style(color: fuizon.AnsiColor) fuizon.Style {
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
     const stdout = std.io.getStdOut();
     const writer = stdout.writer();
-    var backend = try fuizon.crossterm.Backend(@TypeOf(writer)).init(allocator, writer);
-    defer backend.deinit();
 
-    inline for (0..16) |c| {
-        try backend.write(
-            std.fmt.comptimePrint("{: >3}", .{c}),
-            style(.{ .value = @intCast(c) }),
-        );
-        try backend.write(" ", null);
+    for (0..16) |c| {
+        const s = style(.{ .value = @intCast(c) });
+        try fuizon.crossterm.text.foreground.set(writer, s.foreground_color.?);
+        try fuizon.crossterm.text.background.set(writer, s.background_color.?);
+        try writer.print("{: >3}", .{c});
+        try fuizon.crossterm.text.foreground.set(writer, .default);
+        try fuizon.crossterm.text.background.set(writer, .default);
+        try writer.print(" ", .{});
     }
-    try backend.write("\n\r", null);
-    try backend.write("\n\r", null);
+    try writer.print("\n\r", .{});
+    try writer.print("\n\r", .{});
 
-    inline for (16..232) |c| {
+    for (16..232) |c| {
         if (c != 16 and (c - 16) % 36 == 0)
-            try backend.write("\n\r", null);
-        try backend.write(
-            std.fmt.comptimePrint("{: >3}", .{c}),
-            style(.{ .value = @intCast(c) }),
-        );
-        try backend.write(" ", null);
+            try writer.print("\n\r", .{});
+        const s = style(.{ .value = @intCast(c) });
+        try fuizon.crossterm.text.foreground.set(writer, s.foreground_color.?);
+        try fuizon.crossterm.text.background.set(writer, s.background_color.?);
+        try writer.print("{: >3}", .{c});
+        try fuizon.crossterm.text.foreground.set(writer, .default);
+        try fuizon.crossterm.text.background.set(writer, .default);
+        try writer.print(" ", .{});
     }
-    try backend.write("\n\r", null);
-    try backend.write("\n\r", null);
+    try writer.print("\n\r", .{});
+    try writer.print("\n\r", .{});
 
-    inline for (232..256) |c| {
-        try backend.write(
-            std.fmt.comptimePrint("{: >3}", .{c}),
-            style(.{ .value = @intCast(c) }),
-        );
-        try backend.write(" ", null);
+    for (232..256) |c| {
+        const s = style(.{ .value = @intCast(c) });
+        try fuizon.crossterm.text.foreground.set(writer, s.foreground_color.?);
+        try fuizon.crossterm.text.background.set(writer, s.background_color.?);
+        try writer.print("{: >3}", .{c});
+        try fuizon.crossterm.text.foreground.set(writer, .default);
+        try fuizon.crossterm.text.background.set(writer, .default);
+        try writer.print(" ", .{});
     }
-    try backend.write("\n\r", null);
+    try writer.print("\n\r", .{});
 }
