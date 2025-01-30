@@ -5,6 +5,7 @@ var b:         *std.Build                = undefined;
 var target:     std.Build.ResolvedTarget = undefined;
 var optimize:   std.builtin.OptimizeMode = undefined;
 var fuizon:    *std.Build.Module         = undefined;
+var crossterm:  std.Build.LazyPath       = undefined;
 var test_step: *std.Build.Step           = undefined;
 // zig fmt: on
 
@@ -25,6 +26,8 @@ fn addTest(
     });
     t.linkLibC();
     t.linkLibCpp();
+    t.addLibraryPath(crossterm);
+    t.addIncludePath(b.path("include"));
     t.linkSystemLibrary("crossterm_ffi");
 
     artifact = b.addRunArtifact(t);
@@ -61,6 +64,14 @@ pub fn build(b_: *std.Build) void {
     target = b_.standardTargetOptions(.{});
     optimize = b.standardOptimizeOption(.{});
 
+    const build_crossterm = b.addSystemCommand(&.{ "cargo", "build", "--release" });
+    build_crossterm.setCwd(b.path("crossterm-ffi"));
+    build_crossterm.addArgs(&.{"--target-dir"});
+    crossterm = build_crossterm.addOutputDirectoryArg("build/target").path(b, "release");
+
+    const test_crossterm = b.addSystemCommand(&.{ "cargo", "test" });
+    test_crossterm.setCwd(b.path("crossterm-ffi"));
+
     fuizon = b.addModule("fuizon", .{
         .root_source_file = b.path("src/fuizon.zig"),
         .target = target,
@@ -70,9 +81,12 @@ pub fn build(b_: *std.Build) void {
         .link_libcpp = true,
         .valgrind = true,
     });
+    fuizon.addLibraryPath(crossterm);
+    fuizon.addIncludePath(b.path("include"));
     fuizon.linkSystemLibrary("crossterm_ffi", .{ .needed = true });
 
     test_step = b.step("test", "Run all tests");
+    test_step.dependOn(&test_crossterm.step);
 
     addTest("event", b.path("src/event.zig"));
     addTest("style", b.path("src/style.zig"));

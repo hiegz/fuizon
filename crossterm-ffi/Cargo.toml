@@ -1,0 +1,12 @@
+[package]
+name = "crossterm-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+src = "./src/lib.rs"
+
+[dependencies]
+crossterm = "0.28.1"
+libc = "0.2.167"

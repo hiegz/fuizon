@@ -139,7 +139,7 @@ pub const KeyModifiers = struct {
         try writer.print("{any}", .{modifiers[0..nmodifiers]});
     }
 
-    pub fn fromCrosstermKeyModifiers(modifiers: c.crossterm_key_modifiers) KeyModifiers {
+    pub fn fromCrosstermKeyModifiers(modifiers: u16) KeyModifiers {
         var target = KeyModifiers.none;
 
         // zig fmt: off
@@ -237,7 +237,7 @@ pub const KeyCode = union(enum) {
 
     pub fn fromCrosstermKeyCode(
         keytype: c.crossterm_key_type,
-        keycode: c.crossterm_uint21_t,
+        keycode: u32,
     ) ?KeyCode {
         // zig fmt: off
         switch (keytype) {
