@@ -1,2 +1,6 @@
+.cache
+build
+target
+node_modules
 .zig-cache/
 zig-out/
