@@ -335,7 +335,7 @@ pub const text = struct {
     /// ...
     pub const foreground = struct {
         /// Updates the current foreground color.
-        pub fn set(writer: anytype, color: fuizon.Color) error{BackendError}!void {
+        pub fn set(writer: anytype, color: fuizon.style.Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
                 .context = @ptrCast(@constCast(&writer)),
                 .write_fn = _write(@TypeOf(writer)),
@@ -353,7 +353,7 @@ pub const text = struct {
     /// ...
     pub const background = struct {
         /// Updates the current background color.
-        pub fn set(writer: anytype, color: fuizon.Color) error{BackendError}!void {
+        pub fn set(writer: anytype, color: fuizon.style.Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
                 .context = @ptrCast(@constCast(&writer)),
                 .write_fn = _write(@TypeOf(writer)),
@@ -541,13 +541,13 @@ pub const event = struct {
     }
 
     /// Reads a single event from standard input.
-    pub fn read() error{BackendError}!fuizon.Event {
+    pub fn read() error{BackendError}!fuizon.event.Event {
         var ret: c_int = undefined;
         var ev: c.crossterm_event = undefined;
         ret = c.crossterm_event_read(&ev);
         if (0 != ret) return error.BackendError;
 
-        if (fuizon.Event.fromCrosstermEvent(ev)) |e| {
+        if (fuizon.event.Event.fromCrosstermEvent(ev)) |e| {
             return e;
         } else {
             return error.BackendError;
