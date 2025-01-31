@@ -31,8 +31,8 @@ pub fn main() !void {
 
     try writer.print("\n\r", .{});
     try writer.print("Your color: ", .{});
-    try fuizon.crossterm.text.background.set(writer, .{ .rgb = .{ .r = r, .g = g, .b = b } });
+    try fuizon.backend.text.background.set(writer, .{ .rgb = .{ .r = r, .g = g, .b = b } });
     try writer.print("            ", .{});
-    try fuizon.crossterm.text.background.set(writer, .default);
+    try fuizon.backend.text.background.set(writer, .default);
     try writer.print("\n\r", .{});
 }

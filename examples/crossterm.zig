@@ -12,14 +12,14 @@ fn Demo(comptime WriterType: type) type {
         polling: enum { disabled, enabled },
         cursor: enum { hidden, visible },
 
-        attributes: fuizon.Attributes,
+        attributes: fuizon.style.Attributes,
 
         fn init(writer: WriterType) !Self {
             var self: Self = undefined;
             errdefer self.deinit() catch {};
 
-            try fuizon.crossterm.raw_mode.enable();
-            std.debug.assert(try fuizon.crossterm.raw_mode.isEnabled() == true);
+            try fuizon.backend.raw_mode.enable();
+            std.debug.assert(try fuizon.backend.raw_mode.isEnabled() == true);
 
             self.writer = writer;
             self.state = .terminated;
@@ -27,20 +27,20 @@ fn Demo(comptime WriterType: type) type {
             self.alternate_screen = .disabled;
             self.polling = .disabled;
             self.cursor = .visible;
-            self.attributes = fuizon.Attributes.none;
+            self.attributes = fuizon.style.Attributes.none;
 
             return self;
         }
 
         fn deinit(self: *Self) !void {
             if (self.alternate_screen == .enabled)
-                try fuizon.crossterm.alternate_screen.leave(self.writer);
+                try fuizon.backend.alternate_screen.leave(self.writer);
             if (self.cursor == .hidden)
-                try fuizon.crossterm.cursor.show(self.writer);
+                try fuizon.backend.cursor.show(self.writer);
             if (self.mode == .move)
-                try fuizon.crossterm.cursor.restore(self.writer);
-            try fuizon.crossterm.raw_mode.disable();
-            std.debug.assert(try fuizon.crossterm.raw_mode.isEnabled() == false);
+                try fuizon.backend.cursor.restore(self.writer);
+            try fuizon.backend.raw_mode.disable();
+            std.debug.assert(try fuizon.backend.raw_mode.isEnabled() == false);
         }
 
         fn run(self: *Self) !void {
@@ -51,8 +51,8 @@ fn Demo(comptime WriterType: type) type {
 
         fn runOnce(self: *Self) !void {
             self.state = .running;
-            if (self.polling == .enabled and !try fuizon.crossterm.event.poll()) return;
-            const event = try fuizon.crossterm.event.read();
+            if (self.polling == .enabled and !try fuizon.backend.event.poll()) return;
+            const event = try fuizon.backend.event.read();
 
             switch (self.mode) {
                 .normal => try self.handleNormalEvent(event),
@@ -63,13 +63,13 @@ fn Demo(comptime WriterType: type) type {
             }
         }
 
-        fn handleNormalEvent(self: *Self, event: fuizon.Event) !void {
+        fn handleNormalEvent(self: *Self, event: fuizon.event.Event) !void {
             switch (event) {
                 .key => switch (event.key.code) {
                     .char => switch (event.key.code.char) {
                         'q' => self.state = .terminated,
                         't' => {
-                            const size = try fuizon.crossterm.screen.size();
+                            const size = try fuizon.backend.screen.size();
                             try self.writer.print("{}x{}\n\r", .{ size.width, size.height });
                         },
                         'a' => try self.toggleAlternateScreen(),
@@ -86,7 +86,7 @@ fn Demo(comptime WriterType: type) type {
             }
         }
 
-        fn handleDebugEvent(self: *Self, event: fuizon.Event) !void {
+        fn handleDebugEvent(self: *Self, event: fuizon.event.Event) !void {
             if (event == .key and event.key.code == .escape) {
                 try self.enableNormalMode();
                 return;
@@ -94,36 +94,36 @@ fn Demo(comptime WriterType: type) type {
             try self.writer.print("{}\n\r", .{event});
         }
 
-        fn handleMoveEvent(self: *Self, event: fuizon.Event) !void {
+        fn handleMoveEvent(self: *Self, event: fuizon.event.Event) !void {
             switch (event) {
                 .key => switch (event.key.code) {
                     .escape => try self.enableNormalMode(),
-                    .left_arrow => try fuizon.crossterm.cursor.moveToCol(self.writer, 0),
-                    .up_arrow => try fuizon.crossterm.cursor.moveToRow(self.writer, 0),
+                    .left_arrow => try fuizon.backend.cursor.moveToCol(self.writer, 0),
+                    .up_arrow => try fuizon.backend.cursor.moveToRow(self.writer, 0),
                     .char => switch (event.key.code.char) {
                         'c' => try self.toggleCursorVisiblity(),
-                        'a' => try fuizon.crossterm.screen.clearAll(self.writer),
-                        'A' => try fuizon.crossterm.screen.clearPurge(self.writer),
-                        'J' => try fuizon.crossterm.screen.clearFromCursorDown(self.writer),
-                        'K' => try fuizon.crossterm.screen.clearFromCursorUp(self.writer),
-                        'd' => try fuizon.crossterm.screen.clearCurrentLine(self.writer),
-                        'n' => try fuizon.crossterm.screen.clearUntilNewLine(self.writer),
-                        's' => try fuizon.crossterm.cursor.moveTo(self.writer, 0, 0),
-                        'h' => try fuizon.crossterm.cursor.moveLeft(self.writer, 1),
-                        'j' => try fuizon.crossterm.cursor.moveDown(self.writer, 1),
-                        'k' => try fuizon.crossterm.cursor.moveUp(self.writer, 1),
-                        'l' => try fuizon.crossterm.cursor.moveRight(self.writer, 1),
+                        'a' => try fuizon.backend.screen.clearAll(self.writer),
+                        'A' => try fuizon.backend.screen.clearPurge(self.writer),
+                        'J' => try fuizon.backend.screen.clearFromCursorDown(self.writer),
+                        'K' => try fuizon.backend.screen.clearFromCursorUp(self.writer),
+                        'd' => try fuizon.backend.screen.clearCurrentLine(self.writer),
+                        'n' => try fuizon.backend.screen.clearUntilNewLine(self.writer),
+                        's' => try fuizon.backend.cursor.moveTo(self.writer, 0, 0),
+                        'h' => try fuizon.backend.cursor.moveLeft(self.writer, 1),
+                        'j' => try fuizon.backend.cursor.moveDown(self.writer, 1),
+                        'k' => try fuizon.backend.cursor.moveUp(self.writer, 1),
+                        'l' => try fuizon.backend.cursor.moveRight(self.writer, 1),
                         'p' => {
-                            const pos = try fuizon.crossterm.cursor.position();
-                            try fuizon.crossterm.cursor.restore(self.writer);
+                            const pos = try fuizon.backend.cursor.position();
+                            try fuizon.backend.cursor.restore(self.writer);
                             try self.writer.print("x={}, y={}\n\r", .{ pos.x, pos.y });
-                            try fuizon.crossterm.cursor.save(self.writer);
-                            try fuizon.crossterm.cursor.moveTo(self.writer, pos.x, pos.y);
+                            try fuizon.backend.cursor.save(self.writer);
+                            try fuizon.backend.cursor.moveTo(self.writer, pos.x, pos.y);
                         },
                         else => {},
                     },
-                    .enter => try fuizon.crossterm.cursor.moveToNextLine(self.writer, 1),
-                    .backspace => try fuizon.crossterm.cursor.moveToPreviousLine(self.writer, 1),
+                    .enter => try fuizon.backend.cursor.moveToNextLine(self.writer, 1),
+                    .backspace => try fuizon.backend.cursor.moveToPreviousLine(self.writer, 1),
                     else => {},
                 },
 
@@ -131,21 +131,21 @@ fn Demo(comptime WriterType: type) type {
             }
         }
 
-        fn handleScrollEvent(self: *Self, event: fuizon.Event) !void {
+        fn handleScrollEvent(self: *Self, event: fuizon.event.Event) !void {
             switch (event) {
                 .key => switch (event.key.code) {
                     .escape => try self.enableNormalMode(),
                     .char => switch (event.key.code.char) {
                         'j' => {
-                            if ((try fuizon.crossterm.cursor.position()).y + 1 ==
-                                (try fuizon.crossterm.screen.size()).height)
+                            if ((try fuizon.backend.cursor.position()).y + 1 ==
+                                (try fuizon.backend.screen.size()).height)
                                 return;
-                            try fuizon.crossterm.screen.scrollDown(self.writer, 1);
-                            try fuizon.crossterm.cursor.moveDown(self.writer, 1);
+                            try fuizon.backend.screen.scrollDown(self.writer, 1);
+                            try fuizon.backend.cursor.moveDown(self.writer, 1);
                         },
                         'k' => {
-                            try fuizon.crossterm.screen.scrollUp(self.writer, 1);
-                            try fuizon.crossterm.cursor.moveUp(self.writer, 1);
+                            try fuizon.backend.screen.scrollUp(self.writer, 1);
+                            try fuizon.backend.cursor.moveUp(self.writer, 1);
                         },
                         else => {},
                     },
@@ -156,7 +156,7 @@ fn Demo(comptime WriterType: type) type {
             }
         }
 
-        fn handleInsertMode(self: *Self, event: fuizon.Event) !void {
+        fn handleInsertMode(self: *Self, event: fuizon.event.Event) !void {
             switch (event) {
                 .key => switch (event.key.code) {
                     .escape => try self.enableNormalMode(),
@@ -184,10 +184,10 @@ fn Demo(comptime WriterType: type) type {
 
         fn enableNormalMode(self: *Self) !void {
             if (self.mode == .move)
-                try fuizon.crossterm.cursor.restore(self.writer);
+                try fuizon.backend.cursor.restore(self.writer);
             if (self.mode == .insert) {
-                self.attributes = fuizon.Attributes.none;
-                try fuizon.crossterm.text.attributes.reset(self.writer);
+                self.attributes = fuizon.style.Attributes.none;
+                try fuizon.backend.text.attributes.reset(self.writer);
                 try self.writer.print("\n\r", .{});
             }
             self.mode = .normal;
@@ -231,7 +231,7 @@ fn Demo(comptime WriterType: type) type {
             try self.writer.print("      'l' to move right\n\r", .{});
             try self.writer.print("      'enter' to move to the next line,\n\r", .{});
             try self.writer.print("      'backspace' to move to the previous line,\n\r", .{});
-            try fuizon.crossterm.cursor.save(self.writer);
+            try fuizon.backend.cursor.save(self.writer);
         }
 
         fn enableScrollMode(self: *Self) !void {
@@ -258,12 +258,12 @@ fn Demo(comptime WriterType: type) type {
             switch (self.alternate_screen) {
                 .enabled => {
                     self.alternate_screen = .disabled;
-                    try fuizon.crossterm.alternate_screen.leave(self.writer);
+                    try fuizon.backend.alternate_screen.leave(self.writer);
                 },
                 .disabled => {
                     self.alternate_screen = .enabled;
-                    try fuizon.crossterm.alternate_screen.enter(self.writer);
-                    try fuizon.crossterm.cursor.moveTo(self.writer, 0, 0);
+                    try fuizon.backend.alternate_screen.enter(self.writer);
+                    try fuizon.backend.cursor.moveTo(self.writer, 0, 0);
                     // Duplicate hints.
                     try self.enableNormalMode();
                 },
@@ -287,11 +287,11 @@ fn Demo(comptime WriterType: type) type {
             switch (self.cursor) {
                 .hidden => {
                     self.cursor = .visible;
-                    try fuizon.crossterm.cursor.show(self.writer);
+                    try fuizon.backend.cursor.show(self.writer);
                 },
                 .visible => {
                     self.cursor = .hidden;
-                    try fuizon.crossterm.cursor.hide(self.writer);
+                    try fuizon.backend.cursor.hide(self.writer);
                 },
             }
         }
@@ -299,58 +299,58 @@ fn Demo(comptime WriterType: type) type {
         fn toggleBoldAttribute(self: *Self) !void {
             if (self.attributes.contain(&.{.bold})) {
                 self.attributes.reset(&.{.bold});
-                try fuizon.crossterm.text.attribute.bold.reset(self.writer);
+                try fuizon.backend.text.attribute.bold.reset(self.writer);
             } else {
                 self.attributes.set(&.{.bold});
-                try fuizon.crossterm.text.attribute.bold.set(self.writer);
+                try fuizon.backend.text.attribute.bold.set(self.writer);
             }
 
             if (self.attributes.contain(&.{.dim})) {
-                try fuizon.crossterm.text.attribute.dim.set(self.writer);
+                try fuizon.backend.text.attribute.dim.set(self.writer);
             }
         }
 
         fn toggleDimAttribute(self: *Self) !void {
             if (self.attributes.contain(&.{.dim})) {
                 self.attributes.reset(&.{.dim});
-                try fuizon.crossterm.text.attribute.dim.reset(self.writer);
+                try fuizon.backend.text.attribute.dim.reset(self.writer);
             } else {
                 self.attributes.set(&.{.dim});
-                try fuizon.crossterm.text.attribute.dim.set(self.writer);
+                try fuizon.backend.text.attribute.dim.set(self.writer);
             }
 
             if (self.attributes.contain(&.{.bold})) {
-                try fuizon.crossterm.text.attribute.bold.set(self.writer);
+                try fuizon.backend.text.attribute.bold.set(self.writer);
             }
         }
 
         fn toggleUnderlinedAttribute(self: *Self) !void {
             if (self.attributes.contain(&.{.underlined})) {
                 self.attributes.reset(&.{.underlined});
-                try fuizon.crossterm.text.attribute.underline.reset(self.writer);
+                try fuizon.backend.text.attribute.underline.reset(self.writer);
             } else {
                 self.attributes.set(&.{.underlined});
-                try fuizon.crossterm.text.attribute.underline.set(self.writer);
+                try fuizon.backend.text.attribute.underline.set(self.writer);
             }
         }
 
         fn toggleReverseAttribute(self: *Self) !void {
             if (self.attributes.contain(&.{.reverse})) {
                 self.attributes.reset(&.{.reverse});
-                try fuizon.crossterm.text.attribute.reverse.reset(self.writer);
+                try fuizon.backend.text.attribute.reverse.reset(self.writer);
             } else {
                 self.attributes.set(&.{.reverse});
-                try fuizon.crossterm.text.attribute.reverse.set(self.writer);
+                try fuizon.backend.text.attribute.reverse.set(self.writer);
             }
         }
 
         fn toggleHiddenAttribute(self: *Self) !void {
             if (self.attributes.contain(&.{.hidden})) {
                 self.attributes.reset(&.{.hidden});
-                try fuizon.crossterm.text.attribute.hidden.reset(self.writer);
+                try fuizon.backend.text.attribute.hidden.reset(self.writer);
             } else {
                 self.attributes.set(&.{.hidden});
-                try fuizon.crossterm.text.attribute.hidden.set(self.writer);
+                try fuizon.backend.text.attribute.hidden.set(self.writer);
             }
         }
     };
