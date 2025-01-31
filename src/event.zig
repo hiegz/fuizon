@@ -2,14 +2,17 @@ const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const c = @import("headers.zig").c;
 
+const KeyCode = fuizon.keyboard.KeyCode;
+const KeyModifiers = fuizon.keyboard.KeyModifiers;
+
 pub const KeyEvent = struct {
-    code: fuizon.KeyCode,
-    modifiers: fuizon.KeyModifiers,
+    code: KeyCode,
+    modifiers: KeyModifiers,
 
     pub fn fromCrosstermKeyEvent(event: c.crossterm_key_event) ?KeyEvent {
         return .{
-            .code = fuizon.KeyCode.fromCrosstermKeyCode(event.type, event.code) orelse return null,
-            .modifiers = fuizon.KeyModifiers.fromCrosstermKeyModifiers(event.modifiers),
+            .code = KeyCode.fromCrosstermKeyCode(event.type, event.code) orelse return null,
+            .modifiers = KeyModifiers.fromCrosstermKeyModifiers(event.modifiers),
         };
     }
 };
@@ -68,7 +71,7 @@ test "from-crossterm-to-fuizon-key-event" {
         Event{
             .key = .{
                 .code = .{ .char = 59 },
-                .modifiers = fuizon.KeyModifiers.all,
+                .modifiers = KeyModifiers.all,
             },
         },
         Event.fromCrosstermEvent(c.crossterm_event{
