@@ -1,78 +1,37 @@
 const std = @import("std");
 
-// zig fmt: off
-var b:         *std.Build                = undefined;
-var target:     std.Build.ResolvedTarget = undefined;
-var optimize:   std.builtin.OptimizeMode = undefined;
-var fuizon:    *std.Build.Module         = undefined;
-var crossterm:  std.Build.LazyPath       = undefined;
-var test_step: *std.Build.Step           = undefined;
-// zig fmt: on
+///
+/// ...
+///
+const Crossterm = struct {
+    library_path: std.Build.LazyPath,
+    include_path: std.Build.LazyPath,
 
-fn addTest(
-    comptime name: []const u8,
-    path: std.Build.LazyPath,
-) void {
-    // zig fmt: off
-    var t:        *std.Build.Step.Compile = undefined;
-    var artifact: *std.Build.Step.Run     = undefined;
-    // zig fmt: on
+    pub fn linkModule(self: Crossterm, module: *std.Build.Module) void {
+        module.link_libc = true;
+        module.link_libcpp = true;
+        module.addLibraryPath(self.library_path);
+        module.addIncludePath(self.include_path);
+        module.linkSystemLibrary("crossterm_ffi", .{});
+    }
+};
 
-    t = b.addTest(.{
-        .name = name,
-        .root_source_file = path,
-        .target = target,
-        .optimize = optimize,
-    });
-    t.linkLibC();
-    t.linkLibCpp();
-    t.addLibraryPath(crossterm);
-    t.addIncludePath(b.path("include"));
-    t.linkSystemLibrary("crossterm_ffi");
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
-    artifact = b.addRunArtifact(t);
-    test_step.dependOn(&artifact.step);
-}
+    var crossterm: Crossterm = undefined;
+    {
+        const crossterm_build = b.addSystemCommand(&.{ "cargo", "build", "--release" });
+        crossterm_build.setCwd(b.path("crossterm-ffi"));
+        crossterm_build.addArgs(&.{"--target-dir"});
+        crossterm.library_path = crossterm_build
+            .addOutputDirectoryArg("build/target")
+            .path(b, "release");
+        crossterm.include_path = b.path("include");
+    }
 
-fn addExample(
-    comptime name: []const u8,
-    comptime description: []const u8,
-    path: std.Build.LazyPath,
-) void {
-    // zig fmt: off
-    var example:  *std.Build.Step.Compile = undefined;
-    var artifact: *std.Build.Step.Run     = undefined;
-    var step:     *std.Build.Step         = undefined;
-    // zig fmt: on
-
-    example = b.addExecutable(.{
-        .name = name,
-        .root_source_file = path,
-        .target = target,
-        .optimize = optimize,
-    });
-    example.root_module.addImport("fuizon", fuizon);
-
-    artifact = b.addRunArtifact(example);
-    step = b.step("run" ++ "-" ++ name, description);
-    step.dependOn(&artifact.step);
-}
-
-pub fn build(b_: *std.Build) void {
-    b = b_;
-
-    target = b_.standardTargetOptions(.{});
-    optimize = b.standardOptimizeOption(.{});
-
-    const build_crossterm = b.addSystemCommand(&.{ "cargo", "build", "--release" });
-    build_crossterm.setCwd(b.path("crossterm-ffi"));
-    build_crossterm.addArgs(&.{"--target-dir"});
-    crossterm = build_crossterm.addOutputDirectoryArg("build/target").path(b, "release");
-
-    const test_crossterm = b.addSystemCommand(&.{ "cargo", "test" });
-    test_crossterm.setCwd(b.path("crossterm-ffi"));
-
-    fuizon = b.addModule("fuizon", .{
+    const fuizon_module = b.addModule("fuizon", .{
         .root_source_file = b.path("src/fuizon.zig"),
         .target = target,
         .optimize = optimize,
@@ -81,18 +40,52 @@ pub fn build(b_: *std.Build) void {
         .link_libcpp = true,
         .valgrind = true,
     });
-    fuizon.addLibraryPath(crossterm);
-    fuizon.addIncludePath(b.path("include"));
-    fuizon.linkSystemLibrary("crossterm_ffi", .{ .needed = true });
+    crossterm.linkModule(fuizon_module);
 
-    test_step = b.step("test", "Run all tests");
-    test_step.dependOn(&test_crossterm.step);
+    // Tests
+    {
+        const test_step = b.step("test", "Run all tests");
 
-    addTest("event", b.path("src/event.zig"));
-    addTest("style", b.path("src/style.zig"));
+        const crossterm_tests = b.addSystemCommand(&.{ "cargo", "test" });
+        crossterm_tests.setCwd(b.path("crossterm-ffi"));
+        test_step.dependOn(&crossterm_tests.step);
 
-    addExample("crossterm", "Run the crossterm demo", b.path("examples/crossterm.zig"));
-    addExample("4-bit-color-demo", "Run the 4-bit color code demo", b.path("examples/base_colors.zig"));
-    addExample("8-bit-color-demo", "Run the 8-bit color code demo", b.path("examples/ansi_colors.zig"));
-    addExample("24-bit-color-demo", "Run the 24-bit color code demo", b.path("examples/rgb_colors.zig"));
+        const fuizon_tests = b.addTest(.{
+            .name = "fuizon",
+            .root_source_file = b.path("src/fuizon.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        crossterm.linkModule(&fuizon_tests.root_module);
+        test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
+    }
+
+    // Examples
+    {
+        const examples = &[_]struct {
+            name: []const u8,
+            desc: []const u8,
+            path: []const u8,
+        }{
+            // zig fmt: off
+            .{ .name = "crossterm-demo",  .desc = "Run the crossterm demo",  .path = "examples/crossterm.zig" },
+            .{ .name = "base-color-demo", .desc = "Run the base color demo", .path = "examples/base_colors.zig" },
+            .{ .name = "ansi-color-demo", .desc = "Run the ANSI color demo", .path = "examples/ansi_colors.zig" },
+            .{ .name = "rgb-color-demo",  .desc = "Run the RGB color demo",  .path = "examples/rgb_colors.zig" },
+            // zig fmt: on
+        };
+
+        inline for (examples) |example| {
+            const exe = b.addExecutable(.{
+                .name = example.name,
+                .root_source_file = b.path(example.path),
+                .target = target,
+                .optimize = optimize,
+            });
+            exe.root_module.addImport("fuizon", fuizon_module);
+            const run_exe = b.addRunArtifact(exe);
+            const run_step = b.step("run-" ++ example.name, example.desc);
+            run_step.dependOn(&run_exe.step);
+        }
+    }
 }
