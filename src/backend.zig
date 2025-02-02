@@ -2,6 +2,15 @@ const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const c = @import("headers.zig").c;
 
+const Area = fuizon.area.Area;
+const Frame = fuizon.frame.Frame;
+const FrameCell = fuizon.frame.FrameCell;
+
+const Coordinate = fuizon.coordinate.Coordinate;
+
+const Color = fuizon.style.Color;
+const Attributes = fuizon.style.Attributes;
+
 /// ...
 pub const raw_mode = struct {
     /// Checks whether the raw mode is enabled.
@@ -160,6 +169,115 @@ pub const screen = struct {
         ret = c.crossterm_get_size(&sz);
         if (0 != ret) return error.BackendError;
         return .{ .width = sz.width, .height = sz.height };
+    }
+};
+
+/// ...
+pub const area = union(enum) {
+    _fullscreen,
+    _fixed: u16,
+
+    pub fn fullscreen() area {
+        return area._fullscreen;
+    }
+
+    pub fn fixed(height: u16) area {
+        return area{ ._fixed = height };
+    }
+
+    /// Renders the specified `area` on the screen and returns an `Area` with
+    /// the computed dimensions and origin.
+    pub fn render(self: area, writer: anytype) !Area {
+        const scr = try screen.size();
+        const cur = try cursor.position();
+
+        const h = switch (self) {
+            ._fullscreen => scr.height,
+            ._fixed => |_| f: {
+                if (self._fixed > scr.height)
+                    @panic("Render height exceeds available screen height");
+                break :f self._fixed;
+            },
+        };
+        const diff = h -| (scr.height - cur.y);
+
+        try screen.scrollUp(writer, diff);
+        try cursor.moveUp(writer, diff);
+
+        return Area{
+            .width = scr.width,
+            .height = h,
+            .origin = .{ .x = 0, .y = cur.y - diff },
+        };
+    }
+};
+
+pub const frame = struct {
+    /// ...
+    pub fn render(writer: anytype, curr: Frame, prev: Frame) anyerror!void {
+        var foreground_color: Color = .default;
+        var background_color: Color = .default;
+        var attributes = Attributes.none;
+
+        try fuizon.backend.text.foreground.set(writer, foreground_color);
+        try fuizon.backend.text.background.set(writer, background_color);
+        try fuizon.backend.text.attributes.reset(writer);
+
+        var i: usize = 0;
+        while (i < curr.buffer.len) {
+            const pos = curr.posOf(i);
+            const cell = &curr.buffer[i];
+
+            if (i < prev.buffer.len and
+                std.meta.eql(pos, prev.posOf(i)) and
+                std.meta.eql(curr.buffer[i], prev.buffer[i]))
+            {
+                i += curr.buffer[i].width;
+                continue;
+            }
+
+            try fuizon.backend.cursor.moveTo(writer, pos.x, pos.y);
+
+            if (cell.style.foreground_color) |color| {
+                if (!std.meta.eql(foreground_color, color)) {
+                    foreground_color = color;
+                    try fuizon.backend.text.foreground.set(writer, color);
+                }
+            }
+
+            if (cell.style.background_color) |color| {
+                if (!std.meta.eql(background_color, color)) {
+                    background_color = color;
+                    try fuizon.backend.text.background.set(writer, color);
+                }
+            }
+
+            // zig fmt: off
+            const on  = Attributes{ .bitset = ~attributes.bitset & cell.style.attributes.bitset };
+            const off = Attributes{ .bitset = attributes.bitset  & ~cell.style.attributes.bitset };
+
+            if (on.contain(&.{.bold}))        try fuizon.backend.text.attribute.bold.set(writer);
+            if (on.contain(&.{.dim}))         try fuizon.backend.text.attribute.dim.set(writer);
+            if (on.contain(&.{.underlined}))  try fuizon.backend.text.attribute.underline.set(writer);
+            if (on.contain(&.{.reverse}))     try fuizon.backend.text.attribute.reverse.set(writer);
+            if (on.contain(&.{.hidden}))      try fuizon.backend.text.attribute.hidden.set(writer);
+
+            if (off.contain(&.{.bold}))       try fuizon.backend.text.attribute.bold.reset(writer);
+            if (off.contain(&.{.dim}))        try fuizon.backend.text.attribute.dim.reset(writer);
+            if (off.contain(&.{.underlined})) try fuizon.backend.text.attribute.underline.reset(writer);
+            if (off.contain(&.{.reverse}))    try fuizon.backend.text.attribute.reverse.reset(writer);
+            if (off.contain(&.{.hidden}))     try fuizon.backend.text.attribute.hidden.reset(writer);
+
+            attributes = cell.style.attributes;
+            // zig fmt: on
+
+            try writer.print("{u}", .{cell.content});
+            i += cell.width;
+        }
+
+        try fuizon.backend.text.foreground.set(writer, .default);
+        try fuizon.backend.text.background.set(writer, .default);
+        try fuizon.backend.text.attributes.reset(writer);
     }
 };
 
