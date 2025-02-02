@@ -68,10 +68,11 @@ pub fn build(b: *std.Build) void {
             path: []const u8,
         }{
             // zig fmt: off
-            .{ .name = "backend-demo",  .desc = "Run the backend demo",  .path = "examples/backend.zig" },
-            .{ .name = "color-demo", .desc = "Run the base color demo", .path = "examples/colors.zig" },
-            .{ .name = "ansi-demo", .desc = "Run the ANSI color demo", .path = "examples/ansi.zig" },
-            .{ .name = "rgb-demo",  .desc = "Run the RGB color demo",  .path = "examples/rgb.zig" },
+            .{ .name = "backend-demo", .desc = "Run the backend demo",    .path = "examples/backend.zig" },
+            .{ .name = "color-demo",   .desc = "Run the base color demo", .path = "examples/colors.zig" },
+            .{ .name = "ansi-demo",    .desc = "Run the ANSI color demo", .path = "examples/ansi.zig" },
+            .{ .name = "rgb-demo",     .desc = "Run the RGB color demo",  .path = "examples/rgb.zig" },
+            .{ .name = "snake-demo",   .desc = "Run the snake demo",      .path = "examples/snake.zig" },
             // zig fmt: on
         };
 
