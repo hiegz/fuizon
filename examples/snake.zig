@@ -161,8 +161,8 @@ const Snake = struct {
         const tail = &self.parts.items[self.parts.items.len - 1];
 
         // zig fmt: off
-        const bottom = @as(i16, @intCast(self.area.bottom() + 1));
-        const right  = @as(i16, @intCast(self.area.right() + 1));
+        const bottom = @as(i16, @intCast(self.area.bottom()));
+        const right  = @as(i16, @intCast(self.area.right()));
         const x      = @as(i16, @intCast(tail.position.x));
         const y      = @as(i16, @intCast(tail.position.y));
 
@@ -187,8 +187,8 @@ const Snake = struct {
         var head = &self.parts.items[0];
 
         // zig fmt: off
-        const bottom = @as(i16, @intCast(self.area.bottom() + 1));
-        const right  = @as(i16, @intCast(self.area.right() + 1));
+        const bottom = @as(i16, @intCast(self.area.bottom()));
+        const right  = @as(i16, @intCast(self.area.right()));
         const x      = @as(i16, @intCast(head.position.x));
         const y      = @as(i16, @intCast(head.position.y));
 
