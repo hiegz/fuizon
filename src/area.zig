@@ -11,30 +11,22 @@ pub const Area = struct {
 
     /// Returns the topmost coordinate of the area.
     pub fn top(self: Area) u16 {
-        if (self.height == 0)
-            @panic("Invalid Area");
         return self.origin.y;
     }
 
     /// Returns the bottommost coordinate of the area.
     pub fn bottom(self: Area) u16 {
-        if (self.height == 0)
-            @panic("Invalid Area");
-        return self.height + self.origin.y - 1;
+        return self.height + self.origin.y;
     }
 
     /// Returns the leftmost coordinate of the area.
     pub fn left(self: Area) u16 {
-        if (self.width == 0)
-            @panic("Invalid Area");
         return self.origin.x;
     }
 
     /// Returns the rightmost coordinate of the area.
     pub fn right(self: Area) u16 {
-        if (self.width == 0)
-            @panic("Invalid Area");
-        return self.width + self.origin.x - 1;
+        return self.width + self.origin.x;
     }
 };
 
@@ -51,7 +43,7 @@ test "top() should return the topmost coordinate" {
 }
 
 test "bottom() should return the bottommost coordinate" {
-    try std.testing.expectEqual(13, (Area{
+    try std.testing.expectEqual(14, (Area{
         .width = 5,
         .height = 9,
         .origin = .{ .x = 1, .y = 5 },
@@ -67,7 +59,7 @@ test "left() should return the leftmost coordinate" {
 }
 
 test "right() should return the rightmost coordinate" {
-    try std.testing.expectEqual(5, (Area{
+    try std.testing.expectEqual(6, (Area{
         .width = 5,
         .height = 9,
         .origin = .{ .x = 1, .y = 5 },

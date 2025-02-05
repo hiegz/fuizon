@@ -111,9 +111,9 @@ pub const Frame = struct {
     /// Computes an index into the underlying frame based on absolute coordinates.
     pub fn indexOf(self: Frame, x: u16, y: u16) usize {
         if (self.area.top() > y or
-            self.area.bottom() < y or
+            self.area.bottom() <= y or
             self.area.left() > x or
-            self.area.right() < x)
+            self.area.right() <= x)
             @panic("Out of Bounds");
 
         return (y - self.area.top()) * self.area.width + (x - self.area.left());
