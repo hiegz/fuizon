@@ -2,6 +2,7 @@ use libc;
 
 #[repr(C)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum crossterm_error {
     CROSSTERM_SUCCESS = 0,
     CROSSTERM_EUNDEF,
