@@ -7,6 +7,8 @@ pub const area       = @import("area.zig");
 pub const frame      = @import("frame.zig");
 pub const layout     = @import("layout.zig");
 pub const coordinate = @import("coordinate.zig");
+
+pub const widgets    = @import("widgets.zig");
 // zig fmt: on
 
 test "fuizon" {
