@@ -181,8 +181,8 @@ pub const Color = union(enum) {
 };
 
 pub const Style = struct {
-    foreground_color: ?Color = null,
-    background_color: ?Color = null,
+    foreground_color: ?Color = .default,
+    background_color: ?Color = .default,
 
     attributes: Attributes = Attributes.none,
 };
