@@ -106,6 +106,12 @@ pub const Attributes = struct {
     }
 };
 
+pub const Alignment = enum {
+    start,
+    center,
+    end,
+};
+
 pub const AnsiColor = struct {
     value: u8,
 
