@@ -38,6 +38,61 @@ pub const Frame = struct {
         return frame;
     }
 
+    /// Initializes a new Frame with the provided contents and style.
+    ///
+    /// This functions expects the content to be provided as a rectangular
+    /// (W x H) string matrix. Rows with varying widths may cause undefined
+    /// behavior.
+    ///
+    /// UTF-8 sequences with character widths greater than one cell are not
+    /// supported at the moment.
+    pub fn initContent(
+        allocator: std.mem.Allocator,
+        content: []const []const u8,
+        style: Style,
+    ) std.mem.Allocator.Error!Frame {
+        if (content.len == 0)
+            return init(allocator);
+
+        // Construct a grid of unicode codepoints from the provided list of
+        // UTF-8 sequences.
+
+        var grid = try std.ArrayList(std.ArrayList(u21)).initCapacity(allocator, content.len);
+        defer {
+            for (grid.items) |content_list|
+                content_list.deinit();
+            grid.deinit();
+        }
+        for (0..content.len) |i| {
+            const content_list = try grid.addOne();
+            content_list.* = std.ArrayList(u21).init(allocator);
+            var content_iterator = (std.unicode.Utf8View.init(content[i]) catch unreachable).iterator();
+            while (content_iterator.nextCodepoint()) |code_point| {
+                try content_list.append(code_point);
+            }
+        }
+
+        //
+
+        var frame = try Frame.initArea(allocator, .{
+            .width = @intCast(grid.items[0].items.len),
+            .height = @intCast(grid.items.len),
+            .origin = .{ .x = 0, .y = 0 },
+        });
+        errdefer frame.deinit();
+
+        for (0..grid.items.len) |y| {
+            for (0..grid.items[y].items.len) |x| {
+                const cell = frame.index(@intCast(x), @intCast(y));
+                cell.content = grid.items[y].items[x];
+                cell.width = 1;
+                cell.style = style;
+            }
+        }
+
+        return frame;
+    }
+
     /// Deinitializes the Frame and frees its dynamically allocated memory.
     pub fn deinit(self: Frame) void {
         self.allocator.free(self.buffer);
