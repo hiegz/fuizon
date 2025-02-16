@@ -155,8 +155,12 @@ pub const FrameCell = struct {
     };
 
     width: u2 = 1,
-    content: u21,
-    style: Style = .{},
+    content: u21 = ' ',
+    style: Style = .{
+        .foreground_color = .default,
+        .background_color = .default,
+        .attributes = Attributes.none,
+    },
 
     /// Resets the cell to the empty state.
     pub fn reset(self: *FrameCell) void {
