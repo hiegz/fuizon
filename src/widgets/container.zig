@@ -1,4 +1,261 @@
 const std = @import("std");
+const fuizon = @import("../fuizon.zig");
+
+const Style = fuizon.style.Style;
+const Alignment = fuizon.style.Alignment;
+const Frame = fuizon.frame.Frame;
+const FrameCell = fuizon.frame.FrameCell;
+const Area = fuizon.area.Area;
+
+pub const Container = struct {
+    allocator: std.mem.Allocator,
+
+    title: ?[]u8 = null,
+    title_style: Style = .{},
+    title_alignment: Alignment = .start,
+
+    borders: Borders = Borders.none,
+    border_style: Style = .{},
+    border_type: BorderType = .plain,
+
+    //
+
+    /// Initializes a new Container with the provided allocator.
+    pub fn init(allocator: std.mem.Allocator) Container {
+        return Container{ .allocator = allocator };
+    }
+
+    /// Deinitializes the Container.
+    pub fn deinit(self: Container) void {
+        if (self.title) |title| {
+            self.allocator.free(title);
+        }
+    }
+
+    ///
+    pub fn inner(
+        self: Container,
+        area: Area,
+    ) Area {
+        var ret = area;
+
+        if (self.borders.contain(&.{.top})) {
+            ret.height -|= 1;
+            ret.origin.y += 1;
+        }
+        if (self.borders.contain(&.{.bottom})) {
+            ret.height -|= 1;
+        }
+
+        if (self.borders.contain(&.{.left})) {
+            ret.width -|= 1;
+            ret.origin.x += 1;
+        }
+        if (self.borders.contain(&.{.right})) {
+            ret.width -|= 1;
+        }
+
+        return ret;
+    }
+
+    /// Renders the container within a section of the specified frame,
+    /// as defined by the provided area.
+    pub fn render(
+        self: Container,
+        frame: *Frame,
+        area: Area,
+    ) void {
+        if (area.width == 0 or area.height == 0)
+            return;
+
+        self.renderBorders(frame, area);
+        self.renderTitle(frame, area);
+    }
+
+    /// Updates the title of the container.
+    pub fn setTitle(
+        self: *Container,
+        title: []const u8,
+    ) std.mem.Allocator.Error!void {
+        if (self.title == null) {
+            self.title = try self.allocator.alloc(u8, title.len);
+        }
+        if (self.title.?.len != title.len) {
+            const new_memory = try self.allocator.alloc(u8, title.len);
+            self.allocator.free(self.title.?);
+            self.title = new_memory;
+        }
+        @memcpy(self.title.?, title);
+    }
+
+    //
+
+    fn renderTitle(self: Container, frame: *Frame, area: Area) void {
+        const left = area.left() + 1;
+        const right = area.right() - 1;
+
+        if (self.title == null or left >= right or !self.borders.contain(&.{.top}))
+            return;
+
+        const available_length = right - left;
+        const title_length = self.title.?.len;
+        const missing_length = title_length -| available_length;
+
+        // The displayable string fraction is irrelevant and can be omitted at this stage.
+        if (missing_length > 0 and self.title.?.len - missing_length < 7)
+            return;
+
+        if (missing_length > 0) {
+            const title = self.title.?[0 .. self.title.?.len - missing_length - 3];
+            var it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+            var x = left;
+            const y = area.top();
+            while (it.nextCodepoint()) |code_point| : (x += 1) {
+                std.debug.assert(x < right);
+                const cell = frame.index(x, y);
+                cell.content = code_point;
+                cell.width = 1;
+                cell.style = self.title_style;
+            }
+            while (x < right) : (x += 1) {
+                const cell = frame.index(x, y);
+                cell.content = '.';
+                cell.width = 1;
+                cell.style = self.title_style;
+            }
+            return;
+        }
+
+        const free_space = available_length - title_length;
+        const start = switch (self.title_alignment) {
+            // zig fmt: off
+            .start  => left,
+            .center => left + free_space / 2,
+            .end    => left + free_space,
+            // zig fmt: on
+        };
+        var it = (std.unicode.Utf8View.init(self.title.?) catch unreachable).iterator();
+        var x = start;
+        const y = area.top();
+        while (it.nextCodepoint()) |code_point| : (x += 1) {
+            std.debug.assert(x < right);
+            const cell = frame.index(@intCast(x), @intCast(y));
+            cell.content = code_point;
+            cell.width = 1;
+            cell.style = self.title_style;
+        }
+    }
+
+    //
+
+    fn renderBorders(self: Container, frame: *Frame, area: Area) void {
+        self.renderTopSide(frame, area);
+        self.renderBottomSide(frame, area);
+        self.renderLeftSide(frame, area);
+        self.renderRightSide(frame, area);
+
+        self.renderTopLeftCorner(frame, area);
+        self.renderTopRightCorner(frame, area);
+        self.renderBottomLeftCorner(frame, area);
+        self.renderBottomRightCorner(frame, area);
+    }
+
+    fn renderTopSide(self: Container, frame: *Frame, area: Area) void {
+        if (!self.borders.contain(&.{.top}))
+            return;
+
+        const y = area.top();
+        const content = BorderSet.fromBorderType(self.border_type).h;
+
+        for (area.left()..area.right()) |x| {
+            const cell = frame.index(@intCast(x), @intCast(y));
+            cell.width = 1;
+            cell.content = content;
+            cell.style = self.border_style;
+        }
+    }
+
+    fn renderBottomSide(self: Container, frame: *Frame, area: Area) void {
+        if (!self.borders.contain(&.{.bottom}))
+            return;
+
+        const y = area.bottom() - 1;
+        const content = BorderSet.fromBorderType(self.border_type).h;
+
+        for (area.left()..area.right()) |x| {
+            const cell = frame.index(@intCast(x), @intCast(y));
+            cell.width = 1;
+            cell.content = content;
+            cell.style = self.border_style;
+        }
+    }
+
+    fn renderLeftSide(self: Container, frame: *Frame, area: Area) void {
+        if (!self.borders.contain(&.{.left}))
+            return;
+
+        const x = area.left();
+        const content = BorderSet.fromBorderType(self.border_type).v;
+
+        for (area.top()..area.bottom()) |y| {
+            const cell = frame.index(@intCast(x), @intCast(y));
+            cell.width = 1;
+            cell.content = content;
+            cell.style = self.border_style;
+        }
+    }
+
+    fn renderRightSide(self: Container, frame: *Frame, area: Area) void {
+        if (!self.borders.contain(&.{.right}))
+            return;
+
+        const x = area.right() - 1;
+        const content = BorderSet.fromBorderType(self.border_type).v;
+
+        for (area.top()..area.bottom()) |y| {
+            const cell = frame.index(@intCast(x), @intCast(y));
+            cell.width = 1;
+            cell.content = content;
+            cell.style = self.border_style;
+        }
+    }
+
+    fn renderTopLeftCorner(self: Container, frame: *Frame, area: Area) void {
+        if (area.width == 0 or area.height == 0 or !self.borders.contain(&.{ .top, .left }))
+            return;
+        const cell = frame.index(area.left(), area.top());
+        cell.width = 1;
+        cell.content = BorderSet.fromBorderType(self.border_type).tl;
+        cell.style = self.border_style;
+    }
+
+    fn renderTopRightCorner(self: Container, frame: *Frame, area: Area) void {
+        if (area.width == 0 or area.height == 0 or !self.borders.contain(&.{ .top, .right }))
+            return;
+        const cell = frame.index(area.right() - 1, area.top());
+        cell.width = 1;
+        cell.content = BorderSet.fromBorderType(self.border_type).tr;
+        cell.style = self.border_style;
+    }
+
+    fn renderBottomLeftCorner(self: Container, frame: *Frame, area: Area) void {
+        if (area.width == 0 or area.height == 0 or !self.borders.contain(&.{ .bottom, .left }))
+            return;
+        const cell = frame.index(area.left(), area.bottom() - 1);
+        cell.width = 1;
+        cell.content = BorderSet.fromBorderType(self.border_type).bl;
+        cell.style = self.border_style;
+    }
+
+    fn renderBottomRightCorner(self: Container, frame: *Frame, area: Area) void {
+        if (area.width == 0 or area.height == 0 or !self.borders.contain(&.{ .bottom, .right }))
+            return;
+        const cell = frame.index(area.right() - 1, area.bottom() - 1);
+        cell.width = 1;
+        cell.content = BorderSet.fromBorderType(self.border_type).br;
+        cell.style = self.border_style;
+    }
+};
 
 pub const Border = enum(u8) {
     // zig fmt: off
@@ -217,7 +474,7 @@ const BorderSet = struct {
 };
 
 //
-// Tests
+// Border Tests
 //
 
 test "Border.format() the top border" {
@@ -267,4 +524,574 @@ test "Borders.set() should add and Borders.reset() should remove the specified b
     right.reset(&.{ .left, .right });
 
     try std.testing.expectEqual(left.bitset, right.bitset);
+}
+
+//
+// Container Tests
+//
+
+test "Container.render() should render borders" {
+    const TestCase = struct {
+        const Self = @This();
+
+        id: usize,
+        content: []const []const u8,
+        borders: Borders,
+        border_type: BorderType,
+
+        title: ?[]const u8 = null,
+        title_style: Style = undefined,
+        title_alignment: Alignment = undefined,
+
+        pub fn test_fn(self: Self) type {
+            return struct {
+                test {
+                    const expected_frame = try Frame.initContent(std.testing.allocator, self.content, .{});
+                    defer expected_frame.deinit();
+
+                    var actual_frame = try Frame.initArea(std.testing.allocator, expected_frame.area);
+                    defer actual_frame.deinit();
+                    actual_frame.reset();
+
+                    var container = Container.init(std.testing.allocator);
+                    defer container.deinit();
+
+                    container.borders = self.borders;
+                    container.border_type = self.border_type;
+                    if (self.title) |title| {
+                        try container.setTitle(title);
+                        container.title_style = self.title_style;
+                        container.title_alignment = self.title_alignment;
+                    }
+
+                    container.render(&actual_frame, actual_frame.area);
+
+                    try std.testing.expectEqualSlices(
+                        FrameCell,
+                        expected_frame.buffer,
+                        actual_frame.buffer,
+                    );
+                }
+            };
+        }
+    };
+
+    inline for ([_]TestCase{
+        .{
+            .id = 0,
+            .borders = Borders.all,
+            .border_type = .plain,
+            .content = &[_][]const u8{},
+        },
+        .{
+            .id = 1,
+            .borders = Borders.all,
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "",
+            },
+        },
+        .{
+            .id = 2,
+            .borders = comptime Borders.join(&.{.top}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "─",
+            },
+        },
+        .{
+            .id = 3,
+            .borders = comptime Borders.join(&.{.top}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "──",
+            },
+        },
+        .{
+            .id = 4,
+            .borders = comptime Borders.join(&.{.bottom}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "─",
+            },
+        },
+        .{
+            .id = 5,
+            .borders = comptime Borders.join(&.{.bottom}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "──",
+            },
+        },
+        .{
+            .id = 6,
+            .borders = comptime Borders.join(&.{ .top, .bottom }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "─",
+            },
+        },
+        .{
+            .id = 7,
+            .borders = comptime Borders.join(&.{ .top, .bottom }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "──",
+            },
+        },
+        .{
+            .id = 8,
+            .borders = comptime Borders.join(&.{.left}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+            },
+        },
+        .{
+            .id = 9,
+            .borders = comptime Borders.join(&.{.left}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+                "│",
+            },
+        },
+        .{
+            .id = 10,
+            .borders = comptime Borders.join(&.{.right}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+            },
+        },
+        .{
+            .id = 11,
+            .borders = comptime Borders.join(&.{.right}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+                "│",
+            },
+        },
+        .{
+            .id = 12,
+            .borders = comptime Borders.join(&.{ .left, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+            },
+        },
+        .{
+            .id = 13,
+            .borders = comptime Borders.join(&.{ .left, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│",
+                "│",
+            },
+        },
+        .{
+            .id = 14,
+            .borders = comptime Borders.join(&.{ .top, .left }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┌",
+            },
+        },
+        .{
+            .id = 15,
+            .borders = comptime Borders.join(&.{ .top, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┐",
+            },
+        },
+        .{
+            .id = 16,
+            .borders = comptime Borders.join(&.{ .bottom, .left }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "└",
+            },
+        },
+        .{
+            .id = 17,
+            .borders = comptime Borders.join(&.{ .bottom, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┘",
+            },
+        },
+        .{
+            .id = 18,
+            .borders = Borders.all,
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┌┐",
+                "└┘",
+            },
+        },
+        .{
+            .id = 19,
+            .borders = comptime Borders.join(&.{.top}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "──",
+                "  ",
+            },
+        },
+        .{
+            .id = 20,
+            .borders = comptime Borders.join(&.{.bottom}),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "  ",
+                "──",
+            },
+        },
+        .{
+            .id = 21,
+            .borders = comptime Borders.join(&.{ .top, .bottom }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "──",
+                "──",
+            },
+        },
+        .{
+            .id = 22,
+            .borders = comptime Borders.join(&.{ .top, .left }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┌─",
+                "│ ",
+            },
+        },
+        .{
+            .id = 23,
+            .borders = comptime Borders.join(&.{ .top, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "─┐",
+                " │",
+            },
+        },
+        .{
+            .id = 24,
+            .borders = comptime Borders.join(&.{ .bottom, .right }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                " │",
+                "─┘",
+            },
+        },
+        .{
+            .id = 25,
+            .borders = comptime Borders.join(&.{ .bottom, .left }),
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "│ ",
+                "└─",
+            },
+        },
+        .{
+            .id = 26,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .content = &[_][]const u8{
+                "┌──┐",
+                "│  │",
+                "└──┘",
+            },
+        },
+        .{
+            .id = 27,
+            .borders = comptime Borders.all,
+            .border_type = .rounded,
+            .content = &[_][]const u8{
+                "╭──╮",
+                "│  │",
+                "╰──╯",
+            },
+        },
+        .{
+            .id = 28,
+            .borders = comptime Borders.all,
+            .border_type = .double,
+            .content = &[_][]const u8{
+                "╔══╗",
+                "║  ║",
+                "╚══╝",
+            },
+        },
+        .{
+            .id = 29,
+            .borders = comptime Borders.all,
+            .border_type = .thick,
+            .content = &[_][]const u8{
+                "┏━━┓",
+                "┃  ┃",
+                "┗━━┛",
+            },
+        },
+        .{
+            .id = 30,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌Title┐",
+                "│     │",
+                "└─────┘",
+            },
+        },
+        .{
+            .id = 31,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .center,
+            .content = &[_][]const u8{
+                "┌Title┐",
+                "│     │",
+                "└─────┘",
+            },
+        },
+        .{
+            .id = 32,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .end,
+            .content = &[_][]const u8{
+                "┌Title┐",
+                "│     │",
+                "└─────┘",
+            },
+        },
+        .{
+            .id = 33,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌──────┐",
+                "│      │",
+                "└──────┘",
+            },
+        },
+        .{
+            .id = 34,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .center,
+            .content = &[_][]const u8{
+                "┌──────┐",
+                "│      │",
+                "└──────┘",
+            },
+        },
+        .{
+            .id = 35,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .end,
+            .content = &[_][]const u8{
+                "┌──────┐",
+                "│      │",
+                "└──────┘",
+            },
+        },
+        .{
+            .id = 36,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌Titl...┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 37,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .center,
+            .content = &[_][]const u8{
+                "┌Titl...┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 38,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .end,
+            .content = &[_][]const u8{
+                "┌Titl...┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 39,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌Title──┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 40,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .center,
+            .content = &[_][]const u8{
+                "┌─Title─┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 41,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .end,
+            .content = &[_][]const u8{
+                "┌──Title┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+    }) |test_case| {
+        _ = test_case.test_fn();
+    }
+}
+
+test "Container.inner() should return the area inside the container, taking into account its borders" {
+    const TestCase = struct {
+        const Self = @This();
+
+        id: usize,
+        borders: Borders,
+        outer: Area,
+        inner: Area,
+
+        pub fn test_fn(self: Self) type {
+            return struct {
+                test {
+                    var container = Container.init(std.testing.allocator);
+                    defer container.deinit();
+
+                    container.borders = self.borders;
+
+                    try std.testing.expectEqualDeep(self.inner, container.inner(self.outer));
+                }
+            };
+        }
+    };
+
+    inline for ([_]TestCase{
+        .{
+            .id = 0,
+            .borders = Borders.all,
+            .outer = .{ .width = 2, .height = 2, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 1, .y = 1 } },
+        },
+        .{
+            .id = 1,
+            .borders = Borders.all,
+            .outer = .{ .width = 0, .height = 0, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 1, .y = 1 } },
+        },
+        .{
+            .id = 2,
+            .borders = comptime Borders.join(&.{.top}),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 1, .height = 0, .origin = .{ .x = 0, .y = 1 } },
+        },
+        .{
+            .id = 3,
+            .borders = comptime Borders.join(&.{.bottom}),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 1, .height = 0, .origin = .{ .x = 0, .y = 0 } },
+        },
+        .{
+            .id = 4,
+            .borders = comptime Borders.join(&.{.left}),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 1, .origin = .{ .x = 1, .y = 0 } },
+        },
+        .{
+            .id = 5,
+            .borders = comptime Borders.join(&.{.right}),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+        },
+        .{
+            .id = 6,
+            .borders = comptime Borders.join(&.{ .top, .left }),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 1, .y = 1 } },
+        },
+        .{
+            .id = 7,
+            .borders = comptime Borders.join(&.{ .right, .bottom }),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 0, .y = 0 } },
+        },
+        .{
+            .id = 8,
+            .borders = comptime Borders.join(&.{ .top, .right, .bottom }),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 0, .y = 1 } },
+        },
+        .{
+            .id = 9,
+            .borders = comptime Borders.join(&.{ .left, .right, .bottom }),
+            .outer = .{ .width = 1, .height = 1, .origin = .{ .x = 0, .y = 0 } },
+            .inner = .{ .width = 0, .height = 0, .origin = .{ .x = 1, .y = 0 } },
+        },
+        .{
+            .id = 10,
+            .borders = Borders.all,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 3, .height = 7, .origin = .{ .x = 2, .y = 6 } },
+        },
+        .{
+            .id = 11,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+        },
+    }) |test_case| {
+        _ = test_case.test_fn();
+    }
 }
