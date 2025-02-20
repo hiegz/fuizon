@@ -1,6 +1,7 @@
 const std = @import("std");
 const fuizon = @import("../fuizon.zig");
 
+const Color = fuizon.style.Color;
 const Style = fuizon.style.Style;
 const Alignment = fuizon.style.Alignment;
 const Frame = fuizon.frame.Frame;
@@ -18,6 +19,8 @@ pub const Container = struct {
     borders: Borders = Borders.none,
     border_style: Style = .{},
     border_type: BorderType = .plain,
+
+    background_color: Color = .default,
 
     ///
     pub fn inner(
@@ -59,6 +62,13 @@ pub const Container = struct {
         self.renderBorders(frame, area);
         if (state.title) |title|
             self.renderTitle(frame, area, title);
+        
+        for (area.left()..area.right()) |x| {
+            for (area.top()..area.bottom()) |y| {
+                const cell = frame.index(@intCast(x), @intCast(y));
+                cell.style.background_color = self.background_color;
+            }
+        }
     }
 
     //
