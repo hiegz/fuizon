@@ -62,7 +62,7 @@ pub const Container = struct {
         self.renderBorders(frame, area);
         if (state.title) |title|
             self.renderTitle(frame, area, title);
-        
+
         for (area.left()..area.right()) |x| {
             for (area.top()..area.bottom()) |y| {
                 const cell = frame.index(@intCast(x), @intCast(y));
@@ -80,20 +80,27 @@ pub const Container = struct {
         if (left >= right or !self.borders.contain(&.{.top}))
             return;
 
+        var utf8it: std.unicode.Utf8Iterator = undefined;
+
+        var title_length: usize = 0;
+        utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+        while (utf8it.nextCodepoint()) |_| : (title_length += 1) {}
+
         const available_length = right - left;
-        const title_length = title.len;
         const missing_length = title_length -| available_length;
 
         // The displayable string fraction is irrelevant and can be omitted at this stage.
-        if (missing_length > 0 and title.len - missing_length < 7)
+        if (missing_length > 0 and title_length - missing_length < 7)
             return;
 
         if (missing_length > 0) {
-            const sliced_title = title[0 .. title.len - missing_length - 3];
-            var it = (std.unicode.Utf8View.init(sliced_title) catch unreachable).iterator();
+            const title_end = title_length - missing_length - 3;
+            utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
             var x = left;
             const y = area.top();
-            while (it.nextCodepoint()) |code_point| : (x += 1) {
+            while (utf8it.nextCodepoint()) |code_point| : (x += 1) {
+                if (x - left >= title_end)
+                    break;
                 std.debug.assert(x < right);
                 const cell = frame.index(x, y);
                 cell.content = code_point;
@@ -117,10 +124,10 @@ pub const Container = struct {
             .end    => left + free_space,
             // zig fmt: on
         };
-        var it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+        utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
         var x = start;
         const y = area.top();
-        while (it.nextCodepoint()) |code_point| : (x += 1) {
+        while (utf8it.nextCodepoint()) |code_point| : (x += 1) {
             std.debug.assert(x < right);
             const cell = frame.index(@intCast(x), @intCast(y));
             cell.content = code_point;
@@ -969,6 +976,45 @@ test "Container.render() should render borders" {
                 "┌──Title┐",
                 "│       │",
                 "└───────┘",
+            },
+        },
+        .{
+            .id = 40,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "Title ö",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌Title ö┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 40,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "ä Title ö",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌ä Ti...┐",
+                "│       │",
+                "└───────┘",
+            },
+        },
+        .{
+            .id = 41,
+            .borders = comptime Borders.all,
+            .border_type = .plain,
+            .title = "ä Title ö and some other text that doesn't fit",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "┌──────┐",
+                "│      │",
+                "└──────┘",
             },
         },
     }) |test_case| {
