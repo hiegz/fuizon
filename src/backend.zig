@@ -228,6 +228,8 @@ pub const frame = struct {
             const pos = curr.posOf(i);
             const cell = &curr.buffer[i];
 
+            std.debug.assert(curr.buffer[i].width > 0);
+
             if (i < prev.buffer.len and
                 std.meta.eql(pos, prev.posOf(i)) and
                 std.meta.eql(curr.buffer[i], prev.buffer[i]))
