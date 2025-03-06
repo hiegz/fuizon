@@ -8,11 +8,10 @@ const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 const Area = fuizon.area.Area;
 
-pub const ContainerState = struct {
-    title: ?[]const u8 = null,
-};
-
 pub const Container = struct {
+    allocator: std.mem.Allocator,
+
+    title: []const u8 = "",
     title_style: Style = .{},
     title_alignment: Alignment = .start,
 
@@ -21,6 +20,25 @@ pub const Container = struct {
     border_type: BorderType = .plain,
 
     background_color: Color = .default,
+
+    pub fn init(allocator: std.mem.Allocator) Container {
+        return .{ .allocator = allocator };
+    }
+
+    pub fn deinit(self: Container) void {
+        if (self.title.len != 0)
+            self.allocator.free(self.title);
+    }
+
+    pub fn setTitle(self: *Container, title: []const u8) std.mem.Allocator.Error!void {
+        if (self.title.len != 0)
+            self.allocator.free(self.title);
+        if (title.len == 0) {
+            self.title = "";
+        } else {
+            self.title = try self.allocator.dupe(u8, title);
+        }
+    }
 
     ///
     pub fn inner(
@@ -50,18 +68,12 @@ pub const Container = struct {
 
     /// Renders the container within a section of the specified frame,
     /// as defined by the provided area.
-    pub fn render(
-        self: Container,
-        frame: *Frame,
-        area: Area,
-        state: ContainerState,
-    ) void {
+    pub fn render(self: Container, frame: *Frame, area: Area) void {
         if (area.width == 0 or area.height == 0)
             return;
 
         self.renderBorders(frame, area);
-        if (state.title) |title|
-            self.renderTitle(frame, area, title);
+        self.renderTitle(frame, area);
 
         for (area.left()..area.right()) |x| {
             for (area.top()..area.bottom()) |y| {
@@ -73,17 +85,19 @@ pub const Container = struct {
 
     //
 
-    fn renderTitle(self: Container, frame: *Frame, area: Area, title: []const u8) void {
+    fn renderTitle(self: Container, frame: *Frame, area: Area) void {
         const left = area.left() + 1;
         const right = area.right() - 1;
 
+        if (self.title.len == 0)
+            return;
         if (left >= right or !self.borders.contain(&.{.top}))
             return;
 
         var utf8it: std.unicode.Utf8Iterator = undefined;
 
         var title_length: usize = 0;
-        utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+        utf8it = (std.unicode.Utf8View.init(self.title) catch unreachable).iterator();
         while (utf8it.nextCodepoint()) |_| : (title_length += 1) {}
 
         const available_length = right - left;
@@ -95,7 +109,7 @@ pub const Container = struct {
 
         if (missing_length > 0) {
             const title_end = title_length - missing_length - 3;
-            utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+            utf8it = (std.unicode.Utf8View.init(self.title) catch unreachable).iterator();
             var x = left;
             const y = area.top();
             while (utf8it.nextCodepoint()) |code_point| : (x += 1) {
@@ -124,7 +138,7 @@ pub const Container = struct {
             .end    => left + free_space,
             // zig fmt: on
         };
-        utf8it = (std.unicode.Utf8View.init(title) catch unreachable).iterator();
+        utf8it = (std.unicode.Utf8View.init(self.title) catch unreachable).iterator();
         var x = start;
         const y = area.top();
         while (utf8it.nextCodepoint()) |code_point| : (x += 1) {
@@ -543,16 +557,18 @@ test "Container.render() should render borders" {
                     defer actual_frame.deinit();
                     actual_frame.reset();
 
-                    var container = Container{};
+                    var container = Container.init(std.testing.allocator);
+                    defer container.deinit();
 
                     container.borders = self.borders;
                     container.border_type = self.border_type;
-                    if (self.title) |_| {
+                    if (self.title) |title| {
+                        try container.setTitle(title);
                         container.title_style = self.title_style;
                         container.title_alignment = self.title_alignment;
                     }
 
-                    container.render(&actual_frame, actual_frame.area, .{ .title = self.title });
+                    container.render(&actual_frame, actual_frame.area);
 
                     try std.testing.expectEqualSlices(
                         FrameCell,
@@ -1034,7 +1050,8 @@ test "Container.inner() should return the area inside the container, taking into
         pub fn test_fn(self: Self) type {
             return struct {
                 test {
-                    var container = Container{};
+                    var container = Container.init(std.testing.allocator);
+                    defer container.deinit();
                     container.borders = self.borders;
                     try std.testing.expectEqualDeep(self.inner, container.inner(self.outer));
                 }
