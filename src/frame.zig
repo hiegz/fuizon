@@ -107,13 +107,11 @@ pub const Frame = struct {
 
     /// Resizes the Frame to the specified width and height.
     pub fn resize(self: *Frame, width: u16, height: u16) std.mem.Allocator.Error!void {
-        if (width * height != self.buffer.len) {
-            const buffer = try self.allocator.alloc(FrameCell, width * height);
-            errdefer self.allocator.free(buffer);
-            self.allocator.free(self.buffer);
-            self.buffer.ptr = buffer.ptr;
-            self.buffer.len = buffer.len;
-        }
+        const old_buffer_length = self.buffer.len;
+        if (width * height != self.buffer.len)
+            self.buffer = try self.allocator.realloc(self.buffer, width * height);
+        if (self.buffer.len > old_buffer_length)
+            @memset(self.buffer[old_buffer_length..], FrameCell.empty);
         self.area.width = width;
         self.area.height = height;
     }
