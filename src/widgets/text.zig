@@ -282,7 +282,7 @@ pub const Text = struct {
         frame: *Frame,
         area: Area,
     ) void {
-        frame.fill(FrameCell.empty);
+        (fuizon.widgets.filler.Filler{ .width = 1, .content = ' ', .style = .{} }).render(frame, area);
         self.container.render(frame, area);
         const inner_area = self.container.inner(area);
         var render_y = inner_area.top();
