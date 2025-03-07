@@ -2,10 +2,11 @@ const std = @import("std");
 const fuizon = @import("fuizon");
 
 const Area = fuizon.area.Area;
-const Coordinate = fuizon.coordinate.Coordinate;
 
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
+
+const Filler = fuizon.widgets.filler.Filler;
 
 const Style = fuizon.style.Style;
 const Color = fuizon.style.Color;
@@ -14,15 +15,17 @@ const RgbColor = fuizon.style.RgbColor;
 const Attribute = fuizon.style.Attribute;
 const Attributes = fuizon.style.Attributes;
 
-const Direction = struct {
-    x: i3,
-    y: i3,
-};
+const Direction = struct { x: i3, y: i3 };
+const Position = struct { x: i17, y: i17 };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    //
+    // Terminal Render Environment Setup
+    //
 
     var buffer = std.io.bufferedWriter(std.io.getStdOut().writer());
     const stdout = buffer.writer();
@@ -35,198 +38,314 @@ pub fn main() !void {
     try fuizon.backend.cursor.hide(stdout);
     defer fuizon.backend.cursor.show(stdout) catch {};
 
-    var game: Game = undefined;
-    var area: Area = undefined;
-    var frame: [2]Frame = undefined;
+    var renderer = try Renderer.initFullscreen(allocator, stdout);
+    defer renderer.deinit();
 
-    area = try fuizon.backend.area.fullscreen().render(stdout);
+    try buffer.flush();
 
-    frame[0] = try Frame.initArea(allocator, area);
-    defer frame[0].deinit();
-    frame[1] = Frame.init(allocator);
-    defer frame[1].deinit();
-    game = try Game.init(allocator, area);
+    //
+    // Game
+    //
+
+    var game = try Game.initRandom(allocator, renderer.frame().area, 20);
     defer game.deinit();
 
+    //
+    // Event Loop
+    //
+
     while (true) {
-        game.render(&frame[0]);
-        try fuizon.backend.frame.render(
-            stdout,
-            frame[0],
-            frame[1],
-        );
+        GameRenderer.render(game, renderer.frame());
+        try renderer.render(stdout);
         try buffer.flush();
-        try frame[1].copy(frame[0]);
-        try game.tick();
+
         if (try fuizon.backend.event.poll()) {
             const event = try fuizon.backend.event.read();
             switch (event) {
-                .key => {
-                    if (event.key.code == .char) {
-                        switch (event.key.code.char) {
-                            'q' => break,
-                            'h' => game.snake.parts.items[0].direction = .{ .x = -2, .y = 0 },
-                            'j' => game.snake.parts.items[0].direction = .{ .x = 0, .y = 1 },
-                            'k' => game.snake.parts.items[0].direction = .{ .x = 0, .y = -1 },
-                            'l' => game.snake.parts.items[0].direction = .{ .x = 2, .y = 0 },
-                            else => {},
-                        }
-                    }
+                .key => switch (event.key.code) {
+                    .char => switch (event.key.code.char) {
+                        'q' => break,
+                        // zig fmt: off
+                        'h' => game.snake.redirect(.{ .x = -1, .y =  0 }),
+                        'j' => game.snake.redirect(.{ .x =  0, .y =  1 }),
+                        'k' => game.snake.redirect(.{ .x =  0, .y = -1 }),
+                        'l' => game.snake.redirect(.{ .x =  1, .y =  0 }),
+                        // zig fmt: on
+                        else => {},
+                    },
+                    else => {},
                 },
                 .resize => {
-                    area.width = event.resize.width;
-                    area.height = event.resize.height;
-
-                    try frame[0].resize(area.width, area.height);
                     game.deinit();
-                    game = try Game.init(allocator, area);
+                    try renderer.frame().resize(event.resize.width, event.resize.height);
+                    game = try Game.initRandom(allocator, renderer.frame().area, 20);
+                    continue;
                 },
             }
         }
 
+        try game.tick();
+        if (!game.validate())
+            break;
+
         std.time.sleep(16 * std.time.ns_per_ms / 1);
     }
+
+    _ = try fuizon.backend.event.read();
 }
 
+const Renderer = struct {
+    frames: [2]Frame,
+
+    pub fn init(allocator: std.mem.Allocator) Renderer {
+        var renderer: Renderer = undefined;
+        renderer.frames[0] = Frame.init(allocator);
+        renderer.frames[1] = Frame.init(allocator);
+        return renderer;
+    }
+
+    pub fn initFullscreen(allocator: std.mem.Allocator, writer: anytype) !Renderer {
+        var renderer = Renderer.init(allocator);
+        errdefer renderer.deinit();
+
+        const render_area = try fuizon.backend.area.fullscreen().render(writer);
+        const render_frame: *Frame = renderer.frame();
+
+        try render_frame.resize(render_area.width, render_area.height);
+        render_frame.moveTo(render_area.origin.x, render_area.origin.y);
+
+        return renderer;
+    }
+
+    pub fn deinit(self: Renderer) void {
+        self.frames[0].deinit();
+        self.frames[1].deinit();
+    }
+
+    pub fn frame(self: anytype) switch (@TypeOf(self)) {
+        *const Renderer => *const Frame,
+        *Renderer => *Frame,
+        else => unreachable,
+    } {
+        return &self.frames[0];
+    }
+
+    pub fn save(self: *Renderer) std.mem.Allocator.Error!void {
+        self.frames[1].copy(self.frames[0]);
+    }
+
+    pub fn render(self: Renderer, writer: anytype) !void {
+        try fuizon.backend.frame.render(writer, self.frames[0], self.frames[1]);
+    }
+};
+
+const GameRenderer = struct {
+    pub fn render(game: Game, frame: *Frame) void {
+        (Filler{ .width = 1, .content = ' ', .style = .{} })
+            .render(frame, game.area);
+        for (game.snake.body.items) |item| {
+            frame.index(@intCast(item.position.x + 0), @intCast(item.position.y)).style.background_color = .blue;
+            frame.index(@intCast(item.position.x + 1), @intCast(item.position.y)).style.background_color = .blue;
+        }
+        for (game.apple_list.items) |item| {
+            frame.index(@intCast(item.position.x + 0), @intCast(item.position.y)).style.background_color = .red;
+            frame.index(@intCast(item.position.x + 1), @intCast(item.position.y)).style.background_color = .red;
+        }
+    }
+};
+
+//
+
 const Game = struct {
+    score: u64,
     area: Area,
     snake: Snake,
-    apples: [20]Apple,
+    apple_list: std.ArrayList(Apple),
 
-    pub fn init(allocator: std.mem.Allocator, area: Area) !Game {
+    pub fn init(allocator: std.mem.Allocator, area: Area) std.mem.Allocator.Error!Game {
         var game: Game = undefined;
+        game.score = 0;
         game.area = area;
-        game.snake = try Snake.init(allocator, area, .{ .x = 2, .y = 0 });
-        for (&game.apples) |*apple| {
-            apple.position.x = std.crypto.random.intRangeLessThan(u16, game.area.left(), game.area.right());
-            if (apple.position.x % 2 != 0) apple.position.x -= 1;
-            apple.position.y = std.crypto.random.intRangeLessThan(u16, game.area.top(), game.area.bottom());
-            if (apple.position.y % 2 != 0) apple.position.y -= 1;
-        }
+        game.snake = try Snake.init(allocator, .{ .x = area.origin.x, .y = area.origin.y }, .{ .x = 1, .y = 0 });
+        errdefer game.snake.deinit();
+        game.apple_list = std.ArrayList(Apple).init(allocator);
+        return game;
+    }
+
+    pub fn initRandom(
+        allocator: std.mem.Allocator,
+        area: Area,
+        napples: usize,
+    ) std.mem.Allocator.Error!Game {
+        var game = try Game.init(allocator, area);
+        errdefer game.deinit();
+        game.area = area;
+        for (0..napples) |_|
+            try game.apple_list.append(Apple.random(area));
         return game;
     }
 
     pub fn deinit(self: Game) void {
         self.snake.deinit();
+        self.apple_list.deinit();
     }
+
+    //
 
     pub fn tick(self: *Game) !void {
         self.snake.tick();
-        for (&self.apples) |*apple| {
-            if (!std.meta.eql(apple.position, self.snake.parts.items[0].position)) continue;
-            apple.position.x = std.crypto.random.intRangeLessThan(u16, self.area.left(), self.area.right());
-            if (apple.position.x % 2 != 0) apple.position.x -= 1;
-            apple.position.y = std.crypto.random.intRangeLessThan(u16, self.area.top(), self.area.bottom());
-            if (apple.position.y % 2 != 0) apple.position.y -= 1;
-            try self.snake.append();
+        for (self.apple_list.items) |*apple| {
+            if (self.snake.body.items[0].position.x == apple.position.x and
+                self.snake.body.items[0].position.y == apple.position.y)
+            {
+                try self.snake.grow(self.*);
+                self.score += 1;
+                apple.* = Apple.random(self.area);
+            }
         }
     }
 
-    pub fn render(self: Game, frame: *Frame) void {
-        std.debug.assert(std.meta.eql(frame.area, self.area));
-        frame.reset();
-        self.snake.render(frame);
-        for (self.apples) |apple| {
-            apple.render(frame);
-        }
+    pub fn validate(self: Game) bool {
+        return self.snake.validate(self);
     }
 };
 
 const Snake = struct {
-    area: Area = .{ .width = 0, .height = 0, .origin = .{ .x = 0, .y = 0 } },
-    parts: std.ArrayList(SnakePart),
+    body: std.ArrayList(SnakeBodyPart),
 
-    pub fn init(allocator: std.mem.Allocator, area: Area, direction: Direction) !Snake {
+    pub fn init(
+        allocator: std.mem.Allocator,
+        position: Position,
+        direction: Direction,
+    ) std.mem.Allocator.Error!Snake {
         var snake: Snake = undefined;
-        snake.area = area;
-        snake.parts = std.ArrayList(SnakePart).init(allocator);
-        try snake.parts.append(SnakePart{
-            .direction = direction,
-            .position = .{
-                .x = area.left(),
-                .y = area.bottom() / 2 + 1,
-            },
-        });
+        snake.body = std.ArrayList(SnakeBodyPart).init(allocator);
+        errdefer snake.body.deinit();
+        try snake.body.insert(0, .{ .position = position, .direction = direction });
         return snake;
     }
 
     pub fn deinit(self: Snake) void {
-        self.parts.deinit();
+        self.body.deinit();
     }
 
-    ///
-    pub fn append(self: *Snake) !void {
-        std.debug.assert(self.parts.items.len > 0);
+    //
 
-        const tail = &self.parts.items[self.parts.items.len - 1];
+    pub fn grow(self: *Snake, game: Game) std.mem.Allocator.Error!void {
+        std.debug.assert(self.body.items.len > 0);
 
-        // zig fmt: off
-        const bottom = @as(i16, @intCast(self.area.bottom()));
-        const right  = @as(i16, @intCast(self.area.right()));
-        const x      = @as(i16, @intCast(tail.position.x));
-        const y      = @as(i16, @intCast(tail.position.y));
+        const tail = &self.body.items[self.body.items.len - 1];
+        var new_direction = @as(?Direction, null);
 
-        try self.parts.append(.{
-            .direction = tail.direction,
-            .position = .{
-                .x = @intCast(@as(u16, @intCast(right  - tail.direction.x + x)) % @as(u16, @intCast(right))),
-                .y = @intCast(@as(u16, @intCast(bottom - tail.direction.y + y)) % @as(u16, @intCast(bottom))),
-            },
-        });
-        // zig fmt: on
+        for ([_]Direction{
+            // zig fmt: off
+            .{ .x =  1, .y =  0 },
+            .{ .x = -1, .y =  0 },
+            .{ .x =  0, .y =  1 },
+            .{ .x =  0, .y = -1 },
+            // zig fmt: on
+        }) |direction| {
+            const x: i17 = tail.position.x - direction.x * 2;
+            const y: i17 = tail.position.y - direction.y;
+
+            // zig fmt: off
+            if (x >= game.area.left()   and
+                x <  game.area.right()  and
+                y >= game.area.top()    and
+                y <  game.area.bottom()) 
+            {
+                new_direction = direction;
+            } else 
+                continue;
+            // zig fmt: on
+
+            if (direction.x == tail.direction.x and
+                direction.y == tail.direction.y)
+                break;
+        }
+
+        if (new_direction == null)
+            unreachable;
+
+        try self.append(new_direction.?);
     }
+
+    pub fn append(self: *Snake, direction: Direction) std.mem.Allocator.Error!void {
+        std.debug.assert(self.body.items.len > 0);
+        var position = self.body.items[self.body.items.len - 1].position;
+        position.x -= direction.x * 2;
+        position.y -= direction.y;
+        try self.body.append(.{ .position = position, .direction = direction });
+    }
+
+    //
+
+    pub fn redirect(self: *Snake, direction: Direction) void {
+        std.debug.assert(self.body.items.len > 0);
+        self.body.items[0].direction = direction;
+    }
+
+    //
 
     pub fn tick(self: *Snake) void {
-        std.debug.assert(self.parts.items.len > 0);
-
-        var i = self.parts.items.len - 1;
-        while (i > 0) : (i -= 1) {
-            self.parts.items[i] = self.parts.items[i - 1];
-        }
-
-        var head = &self.parts.items[0];
-
-        // zig fmt: off
-        const bottom = @as(i16, @intCast(self.area.bottom()));
-        const right  = @as(i16, @intCast(self.area.right()));
-        const x      = @as(i16, @intCast(head.position.x));
-        const y      = @as(i16, @intCast(head.position.y));
-
-        head.position = .{
-            .x = @intCast(@as(u16, @intCast(right  + head.direction.x + x)) % @as(u16, @intCast(right))),
-            .y = @intCast(@as(u16, @intCast(bottom + head.direction.y + y)) % @as(u16, @intCast(bottom))),
-        };
-        // zig fmt: on
+        std.debug.assert(self.body.items.len > 0);
+        var index = self.body.items.len - 1;
+        while (index > 0) : (index -= 1)
+            self.body.items[index] = self.body.items[index - 1];
+        self.body.items[0].position.x += self.body.items[0].direction.x * 2;
+        self.body.items[0].position.y += self.body.items[0].direction.y;
     }
 
-    pub fn render(self: Snake, frame: *Frame) void {
-        var cell: *FrameCell = undefined;
-        for (self.parts.items) |part| {
-            cell = frame.index(part.position.x, part.position.y);
-            cell.content = ' ';
-            cell.style.background_color = .blue;
-            cell = frame.index((part.position.x + 1) % self.area.width, part.position.y);
-            cell.content = ' ';
-            cell.style.background_color = .blue;
+    pub fn validate(self: Snake, game: Game) bool {
+        if (self.body.items.len == 0)
+            return false;
+
+        for (self.body.items) |item| {
+            // zig fmt: off
+            if (item.position.x <  game.area.left()    or
+                item.position.x >= game.area.right()   or
+                item.position.y <  game.area.top()     or
+                item.position.y >= game.area.bottom()) return false;
+            // zig fmt: on
         }
+
+        for (0..self.body.items.len) |i| {
+            for (i + 1..self.body.items.len) |j| {
+                const lhs = &self.body.items[i];
+                const rhs = &self.body.items[j];
+
+                if (lhs.position.x == rhs.position.x and
+                    lhs.position.y == rhs.position.y)
+                    return false;
+            }
+        }
+
+        return true;
     }
+
+    //
 };
 
-const SnakePart = struct {
-    position: Coordinate = .{ .x = 0, .y = 0 },
+const SnakeBodyPart = struct {
+    position: Position,
     direction: Direction,
 };
 
 const Apple = struct {
-    position: Coordinate,
+    position: Position,
 
-    pub fn render(self: Apple, frame: *Frame) void {
-        var cell: *FrameCell = undefined;
-        cell = frame.index(self.position.x, self.position.y);
-        cell.content = ' ';
-        cell.style.background_color = .red;
-        cell = frame.index(self.position.x + 1, self.position.y);
-        cell.content = ' ';
-        cell.style.background_color = .red;
+    pub fn random(area: Area) Apple {
+        const x = randomEvenInRangeLessThan(i17, 0, @intCast(area.width)) + area.left();
+        const y = randomEvenInRangeLessThan(i17, 0, @intCast(area.height)) + area.top();
+
+        return .{ .position = .{ .x = x, .y = y } };
+    }
+
+    fn randomEvenInRangeLessThan(comptime T: type, at_least: T, less_than: T) T {
+        const r = std.crypto.random.intRangeLessThan(T, at_least, less_than);
+        if (@mod(r, 2) == 0) return r;
+        if (r + 1 < less_than) return r + 1;
+        if (r - 1 >= at_least) return r - 1;
+        unreachable;
     }
 };
