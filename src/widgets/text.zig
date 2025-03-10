@@ -161,7 +161,7 @@ pub const Text = struct {
     pub fn init(allocator: std.mem.Allocator) Text {
         var text: Text = undefined;
         text.allocator = allocator;
-        text.container = Container.init(allocator);
+        text.container = Container{};
         text.line_list = std.ArrayList(Line).init(allocator);
         text.content_width = 0;
         return text;
@@ -172,7 +172,6 @@ pub const Text = struct {
         for (self.line_list.items) |line|
             line.deinit();
         self.line_list.deinit();
-        self.container.deinit();
     }
 
     //
