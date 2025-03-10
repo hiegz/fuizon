@@ -24,7 +24,7 @@ pub const Container = struct {
     ) Area {
         var ret = area;
 
-        if (self.borders.contain(&.{.top})) {
+        if (self.borders.contain(&.{.top}) or self.title.len != 0) {
             ret.height -|= 1;
             ret.origin.y += 1;
         }
@@ -56,12 +56,12 @@ pub const Container = struct {
     //
 
     fn renderTitle(self: Container, frame: *Frame, area: Area) void {
-        const left = area.left() + 1;
-        const right = area.right() - 1;
+        const left: u16 = area.left() + if (self.borders.contain(&.{.left})) @as(u16, 1) else @as(u16, 0);
+        const right: u16 = area.right() - if (self.borders.contain(&.{.right})) @as(u16, 1) else @as(u16, 0);
 
         if (self.title.len == 0)
             return;
-        if (left >= right or !self.borders.contain(&.{.top}))
+        if (left >= right)
             return;
 
         var utf8it: std.unicode.Utf8Iterator = undefined;
@@ -510,8 +510,8 @@ test "Container.render() should render borders" {
 
         id: usize,
         content: []const []const u8,
-        borders: Borders,
-        border_type: BorderType,
+        borders: Borders = Borders.none,
+        border_type: BorderType = .plain,
 
         title: ?[]const u8 = null,
         title_style: Style = undefined,
@@ -1000,6 +1000,42 @@ test "Container.render() should render borders" {
                 "┌──────┐",
                 "│      │",
                 "└──────┘",
+            },
+        },
+        .{
+            .id = 42,
+            .borders = comptime Borders.none,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .start,
+            .content = &[_][]const u8{
+                "Title    ",
+                "         ",
+                "         ",
+            },
+        },
+        .{
+            .id = 43,
+            .borders = comptime Borders.none,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .center,
+            .content = &[_][]const u8{
+                "  Title  ",
+                "         ",
+                "         ",
+            },
+        },
+        .{
+            .id = 44,
+            .borders = comptime Borders.none,
+            .title = "Title",
+            .title_style = .{},
+            .title_alignment = .end,
+            .content = &[_][]const u8{
+                "    Title",
+                "         ",
+                "         ",
             },
         },
     }) |test_case| {
