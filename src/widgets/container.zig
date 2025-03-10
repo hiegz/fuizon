@@ -17,12 +17,22 @@ pub const Container = struct {
     border_style: Style = .{},
     border_type: BorderType = .plain,
 
+    margin_top: u16 = 0,
+    margin_bottom: u16 = 0,
+    margin_left: u16 = 0,
+    margin_right: u16 = 0,
+
     ///
     pub fn inner(
         self: Container,
         area: Area,
     ) Area {
         var ret = area;
+
+        ret.width -|= (self.margin_left + self.margin_right);
+        ret.height -|= (self.margin_top + self.margin_bottom);
+        ret.origin.x += self.margin_left;
+        ret.origin.y += self.margin_top;
 
         if (self.borders.contain(&.{.top}) or self.title.len != 0) {
             ret.height -|= 1;
@@ -1052,11 +1062,20 @@ test "Container.inner() should return the area inside the container, taking into
         outer: Area,
         inner: Area,
 
+        margin_top: u16 = 0,
+        margin_bottom: u16 = 0,
+        margin_left: u16 = 0,
+        margin_right: u16 = 0,
+
         pub fn test_fn(self: Self) type {
             return struct {
                 test {
                     var container = Container{};
                     container.borders = self.borders;
+                    container.margin_top = self.margin_top;
+                    container.margin_bottom = self.margin_bottom;
+                    container.margin_left = self.margin_left;
+                    container.margin_right = self.margin_right;
                     try std.testing.expectEqualDeep(self.inner, container.inner(self.outer));
                 }
             };
@@ -1135,6 +1154,54 @@ test "Container.inner() should return the area inside the container, taking into
             .borders = Borders.none,
             .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
             .inner = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+        },
+        .{
+            .id = 12,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 5, .height = 8, .origin = .{ .x = 1, .y = 6 } },
+            .margin_top = 1,
+        },
+        .{
+            .id = 13,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 5, .height = 8, .origin = .{ .x = 1, .y = 5 } },
+            .margin_bottom = 1,
+        },
+        .{
+            .id = 14,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 4, .height = 9, .origin = .{ .x = 2, .y = 5 } },
+            .margin_left = 1,
+        },
+        .{
+            .id = 15,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 4, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .margin_right = 1,
+        },
+        .{
+            .id = 16,
+            .borders = Borders.none,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 3, .height = 7, .origin = .{ .x = 2, .y = 6 } },
+            .margin_top = 1,
+            .margin_bottom = 1,
+            .margin_left = 1,
+            .margin_right = 1,
+        },
+        .{
+            .id = 17,
+            .borders = Borders.all,
+            .outer = .{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } },
+            .inner = .{ .width = 1, .height = 5, .origin = .{ .x = 3, .y = 7 } },
+            .margin_top = 1,
+            .margin_bottom = 1,
+            .margin_left = 1,
+            .margin_right = 1,
         },
     }) |test_case| {
         _ = test_case.test_fn();
