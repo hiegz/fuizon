@@ -318,21 +318,17 @@ pub const Layout = struct {
 
     //
 
-    /// Modifies the layout size.
-    pub fn resize(self: *Layout, width: u16, height: u16) error{OutOfMemory}!void {
-        self.area.width = width;
-        self.area.height = height;
+    /// Changes the layout dimensions and origin to fit the given area.
+    pub fn fit(self: *Layout, area: Area) error{OutOfMemory}!void {
         const length = switch (self.direction) {
-            .horizontal => self.area.width,
-            .vertical => self.area.height,
+            // zig fmt: off
+            .horizontal => area.width,
+            .vertical   => area.height,
+            // zig fmt: on
         };
         try self.solver.suggestValue(self.length_variable, @floatFromInt(length));
-    }
 
-    /// Modifies the layout position.
-    pub fn reposition(self: *Layout, x: u16, y: u16) void {
-        self.area.origin.x = x;
-        self.area.origin.y = y;
+        self.area = area;
     }
 
     /// Modifies the layout direction.
@@ -341,7 +337,13 @@ pub const Layout = struct {
         for (0..self.segment_list.items.len - 1) |i|
             self.unlink(i);
         self.direction = direction;
-        try self.resize(self.area.width, self.area.height);
+        const length = switch (self.direction) {
+            // zig fmt: off
+            .horizontal => self.area.width,
+            .vertical   => self.area.height,
+            // zig fmt: on
+        };
+        try self.solver.suggestValue(self.length_variable, @floatFromInt(length));
         for (0..self.segment_list.items.len - 1) |i|
             self.link(i) catch |err| return handleInternalError(err);
     }
@@ -858,8 +860,7 @@ test "memory errors" {
             try layout.append(.{ .fill = 1 });
             try layout.prepend(.{ .fraction = .{ .numerator = 1, .denominator = 5 } });
 
-            try layout.resize(100, 100);
-            layout.reposition(5, 9);
+            try layout.fit(.{ .width = 100, .height = 100, .origin = .{ .x = 5, .y = 9 } });
             try layout.refresh();
 
             try layout.redirect(if (direction == .horizontal) .vertical else .horizontal);
@@ -913,8 +914,7 @@ test "static layout" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
                     const actual = try letters(std.testing.allocator, layout.areas(), .horizontal);
@@ -930,12 +930,10 @@ test "static layout" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
                     try layout.redirect(.vertical);
                     try layout.refresh();
 
@@ -952,8 +950,7 @@ test "static layout" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
                     const actual = try letters(std.testing.allocator, layout.areas(), .vertical);
@@ -969,12 +966,10 @@ test "static layout" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
                     try layout.redirect(.horizontal);
                     try layout.refresh();
 
@@ -1149,8 +1144,7 @@ test "prepend() should add a new segment at the beginning" {
                     try layout.prepend(.{ .fill = 1 });
                     try layout.prepend(.{ .fill = 2 });
 
-                    try layout.resize(14, 14);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 14, .height = 14, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
                     const expected = "aaaaaabbbccccc";
@@ -1188,8 +1182,7 @@ test "insert() should add a new segment at the specified position" {
                     try layout.append(.{ .min = 2 });
                     try layout.insert(1, .{ .fill = 2 });
 
-                    try layout.resize(14, 14);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 14, .height = 14, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
                     const expected = "aaaabbbbccccdd";
@@ -1228,8 +1221,7 @@ test "remove() should remove the segment at the specified position" {
 
                     try layout.remove(1);
 
-                    try layout.resize(14, 14);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 14, .height = 14, .origin = .{ .x = 0, .y = 0 } });
                     try layout.refresh();
 
                     const expected = "aaaaabbbbbbbbb";
@@ -1266,8 +1258,7 @@ test "should fail due to an improper set constraints" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
                 }
@@ -1279,13 +1270,11 @@ test "should fail due to an improper set constraints" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
                     try layout.redirect(.vertical);
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
@@ -1298,8 +1287,7 @@ test "should fail due to an improper set constraints" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
                 }
@@ -1311,13 +1299,11 @@ test "should fail due to an improper set constraints" {
                     for (self.constraints) |constraint|
                         try layout.append(constraint);
 
-                    try layout.resize(0, 10);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 0, .height = 10, .origin = .{ .x = 0, .y = 0 } });
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
 
-                    try layout.resize(10, 0);
-                    layout.reposition(0, 0);
+                    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
                     try layout.redirect(.horizontal);
 
                     try std.testing.expectEqual(error.LayoutViolated, layout.refresh());
@@ -1411,7 +1397,7 @@ test "should recover from an unsatisfiable constraint" {
 
     try layout.prepend(.{ .fill = 1 });
 
-    try layout.resize(10, 0);
+    try layout.fit(.{ .width = 10, .height = 0, .origin = .{ .x = 0, .y = 0 } });
     try layout.refresh();
 
     const expected = "aaaabccccc";
