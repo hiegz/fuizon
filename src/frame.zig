@@ -180,10 +180,13 @@ pub const Frame = struct {
         };
     }
 
-    /// Fills every cell in the frame with the specified cell value.
-    pub fn fill(self: *Frame, cell: FrameCell) void {
-        for (self.buffer) |*c| {
-            c.* = cell;
+    /// Fills every cell in the given area of the frame with the specified
+    /// cell value.
+    pub fn fill(self: *Frame, area: Area, cell: FrameCell) void {
+        for (area.top()..area.bottom()) |y| {
+            for (area.left()..area.right()) |x| {
+                self.index(@intCast(x), @intCast(y)).* = cell;
+            }
         }
     }
 
@@ -245,12 +248,12 @@ test "copy() with matching frame dimensions should copy the source frame" {
     const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
-    src.fill(.{ .content = 59, .style = .{} });
+    src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
-    dest.fill(.{ .content = 15, .style = .{} });
+    dest.fill(dest.area, .{ .content = 15, .style = .{} });
 
     try std.testing.expect(!std.meta.eql(src, dest));
     try dest.copy(src);
@@ -261,12 +264,12 @@ test "copy() with matching frame dimensions should not reallocate the underlying
     const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
-    src.fill(.{ .content = 59, .style = .{} });
+    src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
-    dest.fill(.{ .content = 15, .style = .{} });
+    dest.fill(dest.area, .{ .content = 15, .style = .{} });
     const dest_content = dest.buffer;
 
     try dest.copy(src);
@@ -277,12 +280,12 @@ test "copy() with different frame dimensions should copy the source frame" {
     const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
-    src.fill(.{ .content = 59, .style = .{} });
+    src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 1, .height = 5, .origin = .{ .x = 5, .y = 9 } };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
-    dest.fill(.{ .content = 15, .style = .{} });
+    dest.fill(dest.area, .{ .content = 15, .style = .{} });
 
     try std.testing.expect(!std.meta.eql(src, dest));
     try dest.copy(src);
@@ -293,12 +296,12 @@ test "copy() with different frame dimensions should reallocate the underlying de
     const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
-    src.fill(.{ .content = 59, .style = .{} });
+    src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 1, .height = 5, .origin = .{ .x = 5, .y = 9 } };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
-    dest.fill(.{ .content = 15, .style = .{} });
+    dest.fill(dest.area, .{ .content = 15, .style = .{} });
     const dest_content = dest.buffer;
 
     try dest.copy(src);
@@ -469,7 +472,7 @@ test "fill() should fill every cell in the frame with the specified cell value" 
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
-    frame.fill(FrameCell.empty);
+    frame.fill(frame.area, FrameCell.empty);
 
     for (frame.buffer) |cell| {
         try std.testing.expectEqual(
