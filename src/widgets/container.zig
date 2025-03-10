@@ -17,8 +17,6 @@ pub const Container = struct {
     border_style: Style = .{},
     border_type: BorderType = .plain,
 
-    background_color: Color = .default,
-
     ///
     pub fn inner(
         self: Container,
@@ -53,13 +51,6 @@ pub const Container = struct {
 
         self.renderBorders(frame, area);
         self.renderTitle(frame, area);
-
-        for (area.left()..area.right()) |x| {
-            for (area.top()..area.bottom()) |y| {
-                const cell = frame.index(@intCast(x), @intCast(y));
-                cell.style.background_color = self.background_color;
-            }
-        }
     }
 
     //
