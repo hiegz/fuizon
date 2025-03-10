@@ -9,8 +9,6 @@ const FrameCell = fuizon.frame.FrameCell;
 const Area = fuizon.area.Area;
 
 pub const Container = struct {
-    allocator: std.mem.Allocator,
-
     title: []const u8 = "",
     title_style: Style = .{},
     title_alignment: Alignment = .start,
@@ -20,25 +18,6 @@ pub const Container = struct {
     border_type: BorderType = .plain,
 
     background_color: Color = .default,
-
-    pub fn init(allocator: std.mem.Allocator) Container {
-        return .{ .allocator = allocator };
-    }
-
-    pub fn deinit(self: Container) void {
-        if (self.title.len != 0)
-            self.allocator.free(self.title);
-    }
-
-    pub fn setTitle(self: *Container, title: []const u8) std.mem.Allocator.Error!void {
-        if (self.title.len != 0)
-            self.allocator.free(self.title);
-        if (title.len == 0) {
-            self.title = "";
-        } else {
-            self.title = try self.allocator.dupe(u8, title);
-        }
-    }
 
     ///
     pub fn inner(
@@ -557,13 +536,12 @@ test "Container.render() should render borders" {
                     defer actual_frame.deinit();
                     actual_frame.reset();
 
-                    var container = Container.init(std.testing.allocator);
-                    defer container.deinit();
+                    var container = Container{};
 
                     container.borders = self.borders;
                     container.border_type = self.border_type;
                     if (self.title) |title| {
-                        try container.setTitle(title);
+                        container.title = title;
                         container.title_style = self.title_style;
                         container.title_alignment = self.title_alignment;
                     }
@@ -1050,8 +1028,7 @@ test "Container.inner() should return the area inside the container, taking into
         pub fn test_fn(self: Self) type {
             return struct {
                 test {
-                    var container = Container.init(std.testing.allocator);
-                    defer container.deinit();
+                    var container = Container{};
                     container.borders = self.borders;
                     try std.testing.expectEqualDeep(self.inner, container.inner(self.outer));
                 }
