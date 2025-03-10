@@ -6,8 +6,6 @@ const Area = fuizon.area.Area;
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 
-const Filler = fuizon.widgets.filler.Filler;
-
 const Style = fuizon.style.Style;
 const Color = fuizon.style.Color;
 const AnsiColor = fuizon.style.AnsiColor;
@@ -141,8 +139,7 @@ const Renderer = struct {
 
 const GameRenderer = struct {
     pub fn render(game: Game, frame: *Frame) void {
-        (Filler{ .width = 1, .content = ' ', .style = .{} })
-            .render(frame, game.area);
+        frame.fill(game.area, .{ .width = 1, .content = ' ', .style = .{} });
         for (game.snake.body.items) |item| {
             frame.index(@intCast(item.position.x + 0), @intCast(item.position.y)).style.background_color = .blue;
             frame.index(@intCast(item.position.x + 1), @intCast(item.position.y)).style.background_color = .blue;

@@ -121,7 +121,7 @@ pub const Line = struct {
             try self.frame.resize(self.content_width, line_width / self.content_width);
         }
 
-        self.frame.fill(FrameCell.empty);
+        self.frame.fill(self.frame.area, FrameCell.empty);
 
         var it: usize = 0;
         for (self.character_list.items) |character| {
@@ -282,7 +282,7 @@ pub const Text = struct {
         frame: *Frame,
         area: Area,
     ) void {
-        (fuizon.widgets.filler.Filler{ .width = 1, .content = ' ', .style = .{} }).render(frame, area);
+        frame.fill(frame.area, .{ .width = 1, .content = ' ', .style = .{} });
         self.container.render(frame, area);
         const inner_area = self.container.inner(area);
         var render_y = inner_area.top();
