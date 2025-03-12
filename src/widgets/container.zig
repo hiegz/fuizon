@@ -22,7 +22,8 @@ pub const Container = struct {
     margin_left: u16 = 0,
     margin_right: u16 = 0,
 
-    ///
+    /// Calculates the inner area of the container based on its borders and
+    /// margins.
     pub fn inner(
         self: Container,
         area: Area,
