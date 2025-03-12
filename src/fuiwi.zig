@@ -30,6 +30,11 @@ pub const Variable = struct {
     }
 };
 
+pub const Term = struct {
+    variable: Variable,
+    constant: f64 = 1.0,
+};
+
 pub const Expression = struct {
     allocator: std.mem.Allocator,
     ptr: ?*anyopaque,
@@ -95,6 +100,48 @@ pub const Constraint = struct {
         );
         if (ptr == null) return error.OutOfMemory;
         return .{ .allocator = allocator, .ptr = ptr };
+    }
+
+    pub fn initExpressions(
+        allocator: std.mem.Allocator,
+        expression: anytype,
+        strength: f64,
+    ) error{OutOfMemory}!Constraint {
+        var relation: ?Relation = null;
+        var lhs = try Expression.init(allocator);
+        defer lhs.deinit();
+        var rhs = try Expression.init(allocator);
+        defer rhs.deinit();
+
+        var expr: *Expression = &lhs;
+
+        inline for (std.meta.fields(@TypeOf(expression))) |field| {
+            const val = @field(expression, field.name);
+            switch (@TypeOf(val)) {
+                Variable => try expr.addTerm(val, 1.0),
+                Term => try expr.addTerm(val.variable, val.constant),
+                Relation => {
+                    std.debug.assert(relation == null);
+                    expr = &rhs;
+                    relation = val;
+                },
+                else => switch (@typeInfo(@TypeOf(val))) {
+                    .Int => try expr.addConstant(@floatFromInt(val)),
+                    .ComptimeInt => try expr.addConstant(@floatFromInt(val)),
+                    .Float => try expr.addConstant(val),
+                    .ComptimeFloat => try expr.addConstant(val),
+                    else => unreachable,
+                },
+            }
+        }
+
+        return Constraint.init(
+            allocator,
+            lhs,
+            rhs,
+            relation.?,
+            strength,
+        );
     }
 
     /// Deinitializes the constraint.
