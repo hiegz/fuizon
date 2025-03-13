@@ -22,37 +22,67 @@ pub const Container = struct {
     margin_left: u16 = 0,
     margin_right: u16 = 0,
 
+    //
+
     /// Calculates the inner area of the container based on its borders and
     /// margins.
     pub fn inner(
         self: Container,
         area: Area,
     ) Area {
-        var ret = area;
-
-        ret.width -|= (self.margin_left + self.margin_right);
-        ret.height -|= (self.margin_top + self.margin_bottom);
-        ret.origin.x += self.margin_left;
-        ret.origin.y += self.margin_top;
-
-        if (self.borders.contain(&.{.top}) or self.title.len != 0) {
-            ret.height -|= 1;
-            ret.origin.y += 1;
-        }
-        if (self.borders.contain(&.{.bottom})) {
-            ret.height -|= 1;
-        }
-
-        if (self.borders.contain(&.{.left})) {
-            ret.width -|= 1;
-            ret.origin.x += 1;
-        }
-        if (self.borders.contain(&.{.right})) {
-            ret.width -|= 1;
-        }
-
-        return ret;
+        return .{
+            .width = self.innerWidth(area.width),
+            .height = self.innerHeight(area.height),
+            .origin = .{
+                .x = self.innerX(area.origin.x),
+                .y = self.innerY(area.origin.y),
+            },
+        };
     }
+
+    /// Calculates the inner width of the container based on its borders and
+    /// margins.
+    pub fn innerWidth(self: Container, outer_width: u16) u16 {
+        // zig fmt: off
+        return outer_width
+            -| (self.margin_left + self.margin_right)
+            -| (if (self.borders.contain(&.{.left}))  @as(u16, 1) else @as(u16, 0))
+            -| (if (self.borders.contain(&.{.right})) @as(u16, 1) else @as(u16, 0));
+        // zig fmt: on
+    }
+
+    /// Calculates the inner height of the container based on its borders and
+    /// margins.
+    pub fn innerHeight(self: Container, outer_heigth: u16) u16 {
+        // zig fmt: off
+        return outer_heigth
+            -| (self.margin_top + self.margin_bottom)
+            -| (if (self.borders.contain(&.{.top}))    @as(u16, 1) else @as(u16, 0))
+            -| (if (self.borders.contain(&.{.bottom})) @as(u16, 1) else @as(u16, 0));
+        // zig fmt: on
+    }
+
+    /// Calculates the x coordinate of the inner origin based on the
+    /// container's borders and margins.
+    pub fn innerX(self: Container, outer_x: u16) u16 {
+        // zig fmt: off
+        return outer_x
+            + self.margin_left
+            + (if (self.borders.contain(&.{.left})) @as(u16, 1) else @as(u16, 0));
+        // zig fmt: on
+    }
+
+    /// Calculates the y coordinate of the inner origin based on the
+    /// container's borders and margins.
+    pub fn innerY(self: Container, outer_y: u16) u16 {
+        // zig fmt: off
+        return outer_y
+            + self.margin_top
+            + (if (self.borders.contain(&.{.top})) @as(u16, 1) else @as(u16, 0));
+        // zig fmt: on
+    }
+
+    //
 
     /// Renders the container within a section of the specified frame,
     /// as defined by the provided area.
