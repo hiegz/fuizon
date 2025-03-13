@@ -12,5 +12,5 @@ pub const widgets    = @import("widgets.zig");
 // zig fmt: on
 
 test "fuizon" {
-    @import("std").testing.refAllDecls(@This());
+    @import("std").testing.refAllDeclsRecursive(@This());
 }
