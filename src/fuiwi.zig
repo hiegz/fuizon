@@ -89,25 +89,6 @@ pub const Constraint = struct {
     /// Initializes a new constraint.
     pub fn init(
         allocator: std.mem.Allocator,
-        lhs: Expression,
-        rhs: Expression,
-        relation: Relation,
-        strength: f64,
-    ) error{OutOfMemory}!Constraint {
-        const ptr = c.fuiwi_constraint_new(
-            lhs.ptr,
-            rhs.ptr,
-            @intFromEnum(relation),
-            strength,
-            @ptrCast(@constCast(&allocator)),
-            fuiwi_alloc_fn,
-        );
-        if (ptr == null) return error.OutOfMemory;
-        return .{ .allocator = allocator, .ptr = ptr };
-    }
-
-    pub fn initExpressions(
-        allocator: std.mem.Allocator,
         expression: anytype,
         strength: f64,
     ) error{OutOfMemory}!Constraint {
@@ -139,13 +120,27 @@ pub const Constraint = struct {
             }
         }
 
-        return Constraint.init(
-            allocator,
-            lhs,
-            rhs,
-            relation.?,
+        return initExpression(allocator, lhs, rhs, relation.?, strength);
+    }
+
+    /// Initializes a new constraint.
+    pub fn initExpression(
+        allocator: std.mem.Allocator,
+        lhs: Expression,
+        rhs: Expression,
+        relation: Relation,
+        strength: f64,
+    ) std.mem.Allocator.Error!Constraint {
+        const ptr = c.fuiwi_constraint_new(
+            lhs.ptr,
+            rhs.ptr,
+            @intFromEnum(relation),
             strength,
+            @ptrCast(@constCast(&allocator)),
+            fuiwi_alloc_fn,
         );
+        if (ptr == null) return error.OutOfMemory;
+        return .{ .allocator = allocator, .ptr = ptr };
     }
 
     /// Deinitializes the constraint.
