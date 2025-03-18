@@ -35,6 +35,10 @@ pub const Term = struct {
     constant: f64 = 1.0,
 };
 
+pub inline fn term(constant: f64, variable: Variable) Term {
+    return .{ .variable = variable, .constant = constant };
+}
+
 pub const Expression = struct {
     allocator: std.mem.Allocator,
     ptr: ?*anyopaque,
