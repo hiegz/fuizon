@@ -1,7 +1,7 @@
 const std = @import("std");
 const fuizon = @import("fuizon.zig");
 
-const Area = fuizon.area.Area;
+const Area = fuizon.layout.Area;
 const Attributes = fuizon.style.Attributes;
 const Style = fuizon.style.Style;
 const Coordinate = fuizon.layout.Coordinate;

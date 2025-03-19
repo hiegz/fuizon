@@ -6,7 +6,7 @@ const Style = fuizon.style.Style;
 const Alignment = fuizon.style.Alignment;
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
-const Area = fuizon.area.Area;
+const Area = fuizon.layout.Area;
 
 pub const Container = struct {
     title: []const u8 = "",

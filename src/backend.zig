@@ -2,7 +2,7 @@ const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const c = @import("headers.zig").c;
 
-const Area = fuizon.area.Area;
+const Area = fuizon.layout.Area;
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 
