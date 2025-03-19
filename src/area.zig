@@ -1,7 +1,7 @@
 const std = @import("std");
 const fuizon = @import("fuizon.zig");
 
-const Coordinate = fuizon.coordinate.Coordinate;
+const Coordinate = fuizon.layout.Coordinate;
 
 /// ...
 pub const Area = struct {

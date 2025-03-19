@@ -6,8 +6,6 @@ const Area = fuizon.area.Area;
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 
-const Coordinate = fuizon.coordinate.Coordinate;
-
 const Color = fuizon.style.Color;
 const Attributes = fuizon.style.Attributes;
 
