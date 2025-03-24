@@ -2,6 +2,7 @@ const std = @import("std");
 const fuiwi = @import("fuiwi.zig");
 const fuizon = @import("fuizon.zig");
 
+const Solver = fuiwi.Solver;
 const Variable = fuiwi.Variable;
 const Expression = fuiwi.Expression;
 const Constraint = fuiwi.Constraint;
@@ -15,8 +16,37 @@ const FLOAT_PRECISION_MULTIPLIER: f64 = 100.0;
 
 // ---
 
-pub const Solver = fuiwi.Solver;
 pub const Coordinate = struct { x: u16, y: u16 };
+
+// ---
+
+const Context = struct {
+    solver: Solver,
+
+    /// Indicates whether the solver variables reflect the latest layout
+    /// changes.
+    synced: bool = false,
+
+    fn init(allocator: std.mem.Allocator) std.mem.Allocator.Error!Context {
+        return .{
+            .solver = try Solver.init(allocator),
+            .synced = false,
+        };
+    }
+
+    fn deinit(self: Context) void {
+        self.solver.deinit();
+    }
+
+    /// Makes sure the solver variables actually reflect the latest layout
+    /// changes. If they already do, this function does nothing.
+    fn sync(self: *Context) void {
+        if (!self.synced) {
+            self.solver.updateVariables();
+            self.synced = true;
+        }
+    }
+};
 
 // ---
 
@@ -83,8 +113,8 @@ pub const Area = struct {
 
 /// Represents a rectangular area under dynamic constraints.
 pub const Item = struct {
-    /// The underlying layout solver.
-    solver: *Solver,
+    /// Layout context.
+    context: *Context,
 
     /// Strength of the layout item.
     strength: f64,
@@ -138,11 +168,11 @@ pub const Item = struct {
     // ---
 
     /// Initializes a new layout item with the given strength and adds it to
-    /// the provided solver.
-    fn init(allocator: std.mem.Allocator, solver: *Solver, strength: f32) std.mem.Allocator.Error!Item {
+    /// the provided context.
+    fn init(allocator: std.mem.Allocator, context: *Context, strength: f32) std.mem.Allocator.Error!Item {
         var item: Item = undefined;
 
-        item.solver = solver;
+        item.context = context;
         item.strength = strength;
 
         // ---
@@ -150,17 +180,17 @@ pub const Item = struct {
         item.width_edit = false;
         item.width_var = try Variable.init(allocator);
         errdefer item.width_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.width_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.width_var);
 
         item.min_width_var = try Variable.init(allocator);
         errdefer item.min_width_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.min_width_var);
-        try item.solver.addVariable(item.min_width_var, item.strength);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.min_width_var);
+        try item.context.solver.addVariable(item.min_width_var, item.strength);
 
         item.max_width_var = try Variable.init(allocator);
         errdefer item.max_width_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.max_width_var);
-        try item.solver.addVariable(item.max_width_var, item.strength);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.max_width_var);
+        try item.context.solver.addVariable(item.max_width_var, item.strength);
         try item.suggestMaxWidth(null);
 
         // ---
@@ -168,17 +198,17 @@ pub const Item = struct {
         item.height_edit = false;
         item.height_var = try Variable.init(allocator);
         errdefer item.height_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.height_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.height_var);
 
         item.min_height_var = try Variable.init(allocator);
         errdefer item.min_height_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.min_height_var);
-        try item.solver.addVariable(item.min_height_var, item.strength);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.min_height_var);
+        try item.context.solver.addVariable(item.min_height_var, item.strength);
 
         item.max_height_var = try Variable.init(allocator);
         errdefer item.max_height_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.max_width_var);
-        try item.solver.addVariable(item.max_height_var, item.strength);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.max_width_var);
+        try item.context.solver.addVariable(item.max_height_var, item.strength);
         try item.suggestMaxHeight(null);
 
         // ---
@@ -187,19 +217,19 @@ pub const Item = struct {
 
         item.top_var = try Variable.init(allocator);
         errdefer item.top_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.top_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.top_var);
 
         item.bottom_var = try Variable.init(allocator);
         errdefer item.bottom_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.bottom_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.bottom_var);
 
         item.left_var = try Variable.init(allocator);
         errdefer item.left_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.left_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.left_var);
 
         item.right_var = try Variable.init(allocator);
         errdefer item.right_var.deinit();
-        try restrictToUnsigned16(allocator, item.solver, item.right_var);
+        try restrictToUnsigned16(allocator, &item.context.solver, item.right_var);
 
         // ---
 
@@ -213,7 +243,7 @@ pub const Item = struct {
         );
         defer width_constraint.deinit();
 
-        item.solver.addConstraint(width_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(width_constraint) catch |err| return OOM(err);
 
         // width >= min_width
         //
@@ -226,7 +256,7 @@ pub const Item = struct {
         );
         defer min_width_constraint.deinit();
 
-        item.solver.addConstraint(min_width_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(min_width_constraint) catch |err| return OOM(err);
 
         // width <= max_width
         //
@@ -239,7 +269,7 @@ pub const Item = struct {
         );
         defer max_width_constraint.deinit();
 
-        item.solver.addConstraint(max_width_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(max_width_constraint) catch |err| return OOM(err);
 
         // ---
 
@@ -253,7 +283,7 @@ pub const Item = struct {
         );
         defer height_constraint.deinit();
 
-        item.solver.addConstraint(height_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(height_constraint) catch |err| return OOM(err);
 
         // height >= min_height
         //
@@ -266,7 +296,7 @@ pub const Item = struct {
         );
         defer min_height_constraint.deinit();
 
-        item.solver.addConstraint(min_height_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(min_height_constraint) catch |err| return OOM(err);
 
         // height <= max_height
         //
@@ -279,7 +309,7 @@ pub const Item = struct {
         );
         defer max_height_constraint.deinit();
 
-        item.solver.addConstraint(max_height_constraint) catch |err| return OOM(err);
+        item.context.solver.addConstraint(max_height_constraint) catch |err| return OOM(err);
 
         // ---
 
@@ -305,36 +335,30 @@ pub const Item = struct {
     // ---
 
     /// Allows the solver to determine the optimal width value.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the optimization.
     pub fn optimizeWidth(self: *Item) void {
         if (!self.width_edit) return;
-        self.solver.removeVariable(self.width_var);
+        self.context.synced = false;
+        self.context.solver.removeVariable(self.width_var);
         self.width_edit = false;
     }
 
     /// Suggests a value for the width of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     pub fn suggestWidth(self: *Item, value: u16) error{OutOfMemory}!void {
+        self.context.synced = false;
         if (!self.width_edit) {
-            try self.solver.addVariable(self.width_var, self.strength);
+            try self.context.solver.addVariable(self.width_var, self.strength);
             self.width_edit = true;
         }
-        try self.solver.suggestValue(
+        try self.context.solver.suggestValue(
             self.width_var,
             @as(f64, @floatFromInt(value)) * FLOAT_PRECISION_MULTIPLIER,
         );
     }
 
     /// Suggests a value for the minimum width of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     pub fn suggestMinWidth(self: *Item, value: u16) error{OutOfMemory}!void {
-        return self.solver.suggestValue(
+        self.context.synced = false;
+        return self.context.solver.suggestValue(
             self.min_width_var,
             @as(f64, @floatFromInt(value)) * FLOAT_PRECISION_MULTIPLIER,
         );
@@ -342,47 +366,39 @@ pub const Item = struct {
 
     /// Suggests a value for the maximum width of the item. If no value is
     /// provided, the previous maximum width constraint will be removed.
-    ///
-    /// Make sure to call `refresh()` on the respective layout solver
-    /// instance to apply the provided hint.
     pub fn suggestMaxWidth(self: *Item, value: ?u16) error{OutOfMemory}!void {
-        return self.solver.suggestValue(
+        self.context.synced = false;
+        return self.context.solver.suggestValue(
             self.max_width_var,
             @as(f64, @floatFromInt(value orelse std.math.maxInt(u16))) * FLOAT_PRECISION_MULTIPLIER,
         );
     }
 
     /// Allows the solver to determine the optimal height value.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the optimization.
     pub fn optimizeHeight(self: *Item) void {
         if (!self.height_edit) return;
-        self.solver.removeVariable(self.height_var);
+        self.context.synced = false;
+        self.context.solver.removeVariable(self.height_var);
         self.height_edit = false;
     }
 
     /// Suggests a value for the height of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     pub fn suggestHeight(self: *Item, value: u16) error{OutOfMemory}!void {
+        self.context.synced = false;
         if (!self.height_edit) {
-            try self.solver.addVariable(self.height_var, self.strength);
+            try self.context.solver.addVariable(self.height_var, self.strength);
             self.height_edit = true;
         }
-        try self.solver.suggestValue(
+        try self.context.solver.suggestValue(
             self.height_var,
             @as(f64, @floatFromInt(value)) * FLOAT_PRECISION_MULTIPLIER,
         );
     }
 
     /// Suggests a value for the minimum height of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     pub fn suggestMinHeight(self: *Item, value: u16) error{OutOfMemory}!void {
-        return self.solver.suggestValue(
+        self.context.synced = false;
+        return self.context.solver.suggestValue(
             self.min_height_var,
             @as(f64, @floatFromInt(value)) * FLOAT_PRECISION_MULTIPLIER,
         );
@@ -390,11 +406,9 @@ pub const Item = struct {
 
     /// Suggests a value for the maximum height of the item. If no value is
     /// provided, the previous maximum height constraint will be removed.
-    ///
-    /// Make sure to call `refresh()` on the respective layout solver
-    /// instance to apply the provided hint.
     pub fn suggestMaxHeight(self: *Item, value: ?u16) error{OutOfMemory}!void {
-        return self.solver.suggestValue(
+        self.context.synced = false;
+        return self.context.solver.suggestValue(
             self.max_height_var,
             @as(f64, @floatFromInt(value orelse std.math.maxInt(u16))) * FLOAT_PRECISION_MULTIPLIER,
         );
@@ -402,205 +416,176 @@ pub const Item = struct {
 
     /// Allows the solver to determine the optimal coordinates for the item's
     /// upper and left boundaries.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the optimization.
     fn optimizeOrigin(self: *Item) void {
         if (!self.origin_edit) return;
-        self.solver.removeVariable(self.top_var);
-        self.solver.removeVariable(self.left_var);
+        self.context.synced = false;
+        self.context.solver.removeVariable(self.top_var);
+        self.context.solver.removeVariable(self.left_var);
         self.origin_edit = false;
     }
 
     /// Suggests coordinates for the item's origin.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     fn suggestOrigin(self: *Item, x: u16, y: u16) error{OutOfMemory}!void {
+        self.context.synced = false;
+
         if (!self.origin_edit) {
-            try self.solver.addVariable(self.top_var, self.strength);
-            errdefer self.solver.removeVariable(self.top_var);
-            try self.solver.addVariable(self.left_var, self.strength);
-            errdefer self.solver.removeVariable(self.left_var);
+            try self.context.solver.addVariable(self.top_var, self.strength);
+            errdefer self.context.solver.removeVariable(self.top_var);
+            try self.context.solver.addVariable(self.left_var, self.strength);
+            errdefer self.context.solver.removeVariable(self.left_var);
 
             self.origin_edit = true;
         }
 
         // zig fmt: off
-        try self.solver.suggestValue(self.top_var,  @as(f64, @floatFromInt(y)) * FLOAT_PRECISION_MULTIPLIER);
-        try self.solver.suggestValue(self.left_var, @as(f64, @floatFromInt(x)) * FLOAT_PRECISION_MULTIPLIER);
+        try self.context.solver.suggestValue(self.top_var,  @as(f64, @floatFromInt(y)) * FLOAT_PRECISION_MULTIPLIER);
+        try self.context.solver.suggestValue(self.left_var, @as(f64, @floatFromInt(x)) * FLOAT_PRECISION_MULTIPLIER);
         // zig fmt: on
     }
 
     /// Returns the width of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn width(self: Item) u16 {
+        self.context.sync();
         return self.right() - self.left();
     }
 
     test "width() after suggestWidth()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(1559);
-        item.solver.updateVariables();
 
         try std.testing.expectEqual(1559, item.width());
     }
 
     test "width() after suggestMinWidth()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestMinWidth(1559);
-        item.solver.updateVariables();
 
         try std.testing.expect(item.width() >= 1559);
     }
 
     /// Returns the height of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn height(self: Item) u16 {
+        self.context.sync();
         return self.bottom() - self.top();
     }
 
     test "height() after suggestHeight()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestHeight(1559);
-        item.solver.updateVariables();
 
         try std.testing.expectEqual(1559, item.height());
     }
 
     test "height() after suggestMinHeight()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestMinHeight(1559);
-        item.solver.updateVariables();
 
         try std.testing.expect(item.height() >= 1559);
     }
 
     /// Returns the topmost coordinate of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn top(self: Item) u16 {
+        self.context.sync();
         return @intFromFloat(@round(@round(self.top_var.value()) / FLOAT_PRECISION_MULTIPLIER));
     }
 
     test "top()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(15);
         try item.suggestHeight(59);
         try item.suggestOrigin(59, 15);
-
-        item.solver.updateVariables();
 
         try std.testing.expectEqual(15, item.top());
     }
 
     /// Returns the bottommost coordinate of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn bottom(self: Item) u16 {
+        self.context.sync();
         return @intFromFloat(@round(@round(self.bottom_var.value()) / FLOAT_PRECISION_MULTIPLIER));
     }
 
     test "bottom()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(15);
         try item.suggestHeight(59);
         try item.suggestOrigin(59, 15);
-
-        item.solver.updateVariables();
 
         try std.testing.expectEqual(74, item.bottom());
     }
 
     /// Returns the leftmost coordinate of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn left(self: Item) u16 {
+        self.context.sync();
         return @intFromFloat(@round(@round(self.left_var.value()) / FLOAT_PRECISION_MULTIPLIER));
     }
 
     test "left()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(15);
         try item.suggestHeight(59);
         try item.suggestOrigin(59, 15);
-
-        item.solver.updateVariables();
 
         try std.testing.expectEqual(59, item.left());
     }
 
     /// Returns the rightmost coordinate of the item.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn right(self: Item) u16 {
+        self.context.sync();
         return @intFromFloat(@round(@round(self.right_var.value()) / FLOAT_PRECISION_MULTIPLIER));
     }
 
     test "right()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(15);
         try item.suggestHeight(59);
         try item.suggestOrigin(59, 15);
 
-        item.solver.updateVariables();
-
         try std.testing.expectEqual(74, item.right());
     }
 
     /// Returns the area that the item occupies.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance
-    /// beforehand so that the item reflects the latest layout changes.
     pub fn area(self: Item) Area {
+        self.context.sync();
         return Area{
             .width = self.width(),
             .height = self.height(),
@@ -612,17 +597,15 @@ pub const Item = struct {
     }
 
     test "area()" {
-        var solver = try Solver.init(std.testing.allocator);
-        defer solver.deinit();
+        var context = try Context.init(std.testing.allocator);
+        defer context.deinit();
 
-        var item = try Item.init(std.testing.allocator, &solver, Strength.strong);
+        var item = try Item.init(std.testing.allocator, &context, Strength.strong);
         defer item.deinit();
 
         try item.suggestWidth(15);
         try item.suggestHeight(59);
         try item.suggestOrigin(59, 15);
-
-        item.solver.updateVariables();
 
         const item_area = item.area();
 
@@ -694,12 +677,12 @@ pub const Stack = struct {
         stack.allocator = allocator;
         stack.direction = direction;
 
-        const solver = try stack.allocator.create(Solver);
-        errdefer stack.allocator.destroy(solver);
-        solver.* = try Solver.init(stack.allocator);
-        errdefer solver.deinit();
+        const context = try stack.allocator.create(Context);
+        errdefer stack.allocator.destroy(context);
+        context.* = try Context.init(allocator);
+        errdefer context.deinit();
 
-        stack.root = try Item.init(stack.allocator, solver, Strength.create(5.0, 0.0, 0.0));
+        stack.root = try Item.init(stack.allocator, context, Strength.create(5.0, 0.0, 0.0));
         errdefer stack.root.deinit();
 
         var nitems: usize = 0;
@@ -708,7 +691,7 @@ pub const Stack = struct {
         errdefer for (stack.items[0..nitems]) |item|
             item.deinit();
         for (stack.items) |*item| {
-            item.* = try Item.init(allocator, stack.root.solver, Strength.medium);
+            item.* = try Item.init(allocator, stack.root.context, Strength.medium);
             nitems += 1;
         }
         std.debug.assert(nitems == stack.items.len and nitems == constraints.len);
@@ -720,8 +703,8 @@ pub const Stack = struct {
 
     /// Deinitializes the stack layout.
     pub fn deinit(self: Stack) void {
-        self.root.solver.deinit();
-        self.allocator.destroy(self.root.solver);
+        self.root.context.deinit();
+        self.allocator.destroy(self.root.context);
         for (self.items) |item|
             item.deinit();
         self.allocator.free(self.items);
@@ -731,75 +714,51 @@ pub const Stack = struct {
     // ---
 
     /// Returns the width of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn width(self: Stack) u16 {
         return self.root.width();
     }
 
     /// Allows the solver to determine the optimal width value.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the optimization.
     pub fn optimizeWidth(self: *Stack) void {
         return self.root.optimizeWidth();
     }
 
     /// Modifies the layout to fit the given width.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setWidth(self: *Stack, value: u16) std.mem.Allocator.Error!void {
         return self.root.suggestWidth(value);
     }
 
     /// Modifies the layout to fit the minimum width.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setMinWidth(self: *Stack, value: u16) std.mem.Allocator.Error!void {
         return self.root.suggestMinWidth(value);
     }
 
     /// Modifies the layout to fit the maximum width.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setMaxWidth(self: *Stack, value: ?u16) std.mem.Allocator.Error!void {
         return self.root.suggestMaxWidth(value);
     }
 
     /// Returns the height of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn height(self: Stack) u16 {
         return self.root.height();
     }
 
     /// Allows the solver to determine the optimal height value.
-    ///
-    /// Make sure to call `refresh()` on the respective layout instance to
-    /// apply the provided hint.
     pub fn optimizeHeight(self: *Stack) void {
         return self.root.optimizeHeight();
     }
 
     /// Modifies the layout to fit the given height.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setHeight(self: *Stack, value: u16) std.mem.Allocator.Error!void {
         return self.root.suggestHeight(value);
     }
 
     /// Modifies the layout to fit the minimum height.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setMinHeight(self: *Stack, value: u16) std.mem.Allocator.Error!void {
         return self.root.suggestMinHeight(value);
     }
 
     /// Modifies the layout to fit the maximum height.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setMaxHeight(self: *Stack, value: ?u16) std.mem.Allocator.Error!void {
         return self.root.suggestMaxHeight(value);
     }
@@ -807,40 +766,26 @@ pub const Stack = struct {
     // ---
 
     /// Returns the topmost coordinate of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn top(self: Stack) u16 {
         return self.root.top();
     }
 
     /// Returns the bottommost coordinate of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn bottom(self: Stack) u16 {
         return self.root.bottom();
     }
 
     /// Returns the leftmost coordinate of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn left(self: Stack) u16 {
         return self.root.left();
     }
 
     /// Returns the rightmost coordinate of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn right(self: Stack) u16 {
         return self.root.right();
     }
 
     /// Moves the layout's origin to the provided coordinates.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn setOrigin(self: *Stack, x: u16, y: u16) std.mem.Allocator.Error!void {
         return self.root.suggestOrigin(x, y);
     }
@@ -848,9 +793,6 @@ pub const Stack = struct {
     // ---
 
     /// Returns the area of the layout.
-    ///
-    /// Make sure to call `refresh()` beforehand so that the layout reflects
-    /// the latest changes.
     pub fn area(self: Stack) Area {
         var ret: Area = undefined;
         ret.width = self.width();
@@ -861,8 +803,6 @@ pub const Stack = struct {
     }
 
     /// Modifies the layout to fit the given area.
-    ///
-    /// Make sure to call `refresh()` to apply the layout changes.
     pub fn fit(self: *Stack, target: Area) std.mem.Allocator.Error!void {
         try self.setMinWidth(0);
         try self.setMaxWidth(null);
@@ -871,13 +811,6 @@ pub const Stack = struct {
         try self.setMaxHeight(null);
         try self.setHeight(target.height);
         try self.setOrigin(target.origin.x, target.origin.y);
-    }
-
-    // ---
-
-    /// Applies the latest layout changes.
-    pub fn refresh(self: *Stack) void {
-        self.root.solver.updateVariables();
     }
 
     // ---
@@ -899,7 +832,7 @@ pub const Stack = struct {
                 Strength.required,
             );
             defer solver_constraint.deinit();
-            self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+            self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
         }
 
         for (self.items) |item| {
@@ -914,7 +847,7 @@ pub const Stack = struct {
                 Strength.required,
             );
             defer solver_constraint.deinit();
-            self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+            self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
         }
 
         if (self.items.len > 0) {
@@ -933,7 +866,7 @@ pub const Stack = struct {
                 Strength.required,
             );
             defer solver_constraint.deinit();
-            self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+            self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
         }
 
         for (self.items) |item| {
@@ -950,7 +883,7 @@ pub const Stack = struct {
                 Strength.required,
             );
             defer solver_constraint.deinit();
-            self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+            self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
         }
 
         for (0..self.items.len -| 1) |i| {
@@ -968,7 +901,7 @@ pub const Stack = struct {
                 Strength.required,
             );
             defer connection.deinit();
-            self.root.solver.addConstraint(connection) catch |err| return OOM(err);
+            self.root.context.solver.addConstraint(connection) catch |err| return OOM(err);
         }
 
         for (constraints, 0..) |i, j| {
@@ -1002,7 +935,7 @@ pub const Stack = struct {
                         strength,
                     );
                     defer solver_constraint.deinit();
-                    self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+                    self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
                 },
 
                 // Restrict the item to fill up the available space
@@ -1019,7 +952,7 @@ pub const Stack = struct {
                             Strength.weak,
                         );
                         defer solver_constraint.deinit();
-                        self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+                        self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
                     }
 
                     const lhs = item;
@@ -1039,7 +972,7 @@ pub const Stack = struct {
                             strength,
                         );
                         defer solver_constraint.deinit();
-                        self.root.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
+                        self.root.context.solver.addConstraint(solver_constraint) catch |err| return OOM(err);
                     }
                 },
             }
@@ -1184,8 +1117,6 @@ test "horizontal layout" {
     try stack.items[1].suggestMinHeight(17);
     try stack.items[2].suggestHeight(25);
 
-    stack.refresh();
-
     // zig fmt: off
 
     try std.testing.expectEqual(59, stack.width());
@@ -1283,8 +1214,6 @@ test "vertical layout" {
     try stack.items[1].suggestHeight(15);
     try stack.items[2].suggestMinWidth(10);
     try stack.items[3].suggestMinWidth(17);
-
-    stack.refresh();
 
     // zig fmt: off
     
