@@ -126,6 +126,11 @@ pub fn build(b: *std.Build) void {
             const run_exe = b.addRunArtifact(exe);
             const run_step = b.step("run-" ++ example.name, example.desc);
             run_step.dependOn(&run_exe.step);
+
+            if (std.meta.eql(example.name, "snake-demo")) {
+                const xev = b.dependency("libxev", .{ .target = target, .optimize = optimize });
+                exe.root_module.addImport("xev", xev.module("xev"));
+            }
         }
     }
 
