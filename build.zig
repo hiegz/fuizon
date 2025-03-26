@@ -94,8 +94,8 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        fuiwi.linkModule(&fuizon_tests.root_module);
-        crossterm.linkModule(&fuizon_tests.root_module);
+        fuiwi.linkModule(fuizon_tests.root_module);
+        crossterm.linkModule(fuizon_tests.root_module);
         test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
     }
 
@@ -129,6 +129,8 @@ pub fn build(b: *std.Build) void {
         }
     }
 
+    // Still on zig 0.13.0
+    //
     // Generate compile commands database
-    @import("compile-commands").createStep(b, "cdb", targets.toOwnedSlice() catch @panic("OOM"));
+    // @import("compile-commands").createStep(b, "cdb", targets.toOwnedSlice() catch @panic("OOM"));
 }
