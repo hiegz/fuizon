@@ -111,10 +111,10 @@ pub const Constraint = struct {
                     relation = val;
                 },
                 else => switch (@typeInfo(@TypeOf(val))) {
-                    .Int => try expr.addConstant(@floatFromInt(val)),
-                    .ComptimeInt => try expr.addConstant(@floatFromInt(val)),
-                    .Float => try expr.addConstant(val),
-                    .ComptimeFloat => try expr.addConstant(val),
+                    .int => try expr.addConstant(@floatFromInt(val)),
+                    .comptime_int => try expr.addConstant(@floatFromInt(val)),
+                    .float => try expr.addConstant(val),
+                    .comptime_float => try expr.addConstant(val),
                     else => unreachable,
                 },
             }
