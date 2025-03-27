@@ -20,6 +20,8 @@ var game: Game = undefined;
 
 var fallback: FallbackView = undefined;
 
+var direction: mod.Direction = undefined;
+
 fn poll() !void {
     if (!try fuizon.backend.event.poll())
         return;
@@ -28,14 +30,22 @@ fn poll() !void {
         .key => |kev| switch (kev.code) {
             .char => |char| switch (char) {
                 'q' => loop.stop(),
-                'h' => if (game.snake.body.items[0].direction.x == 0)
-                    game.snake.redirect(.{ .x = -1, .y = 0 }),
-                'j' => if (game.snake.body.items[0].direction.y == 0)
-                    game.snake.redirect(.{ .x = 0, .y = 1 }),
-                'k' => if (game.snake.body.items[0].direction.y == 0)
-                    game.snake.redirect(.{ .x = 0, .y = -1 }),
-                'l' => if (game.snake.body.items[0].direction.x == 0)
-                    game.snake.redirect(.{ .x = 1, .y = 0 }),
+                'h' => {
+                    if (game.snake.body.items[0].direction.x == 0)
+                        direction = .{ .x = -1, .y = 0 };
+                },
+                'j' => {
+                    if (game.snake.body.items[0].direction.y == 0)
+                        direction = .{ .x = 0, .y = 1 };
+                },
+                'k' => {
+                    if (game.snake.body.items[0].direction.y == 0)
+                        direction = .{ .x = 0, .y = -1 };
+                },
+                'l' => {
+                    if (game.snake.body.items[0].direction.x == 0)
+                        direction = .{ .x = 1, .y = 0 };
+                },
                 'r' => {
                     game.apple = Apple.random(game.width, game.height);
                     game.snake.body.shrinkAndFree(1);
@@ -122,6 +132,7 @@ pub fn main() !void {
     game = try Game.init(allocator, 120, 30);
     defer game.deinit();
     game.apple = Apple.random(game.width, game.height);
+    direction = game.snake.body.items[0].direction;
 
     view = try GameView.init(allocator);
     defer view.deinit();
@@ -134,6 +145,7 @@ pub fn main() !void {
 
     game_clock = try Clock.init(&loop, 150, (struct {
         fn callback() void {
+            game.snake.redirect(direction);
             // zig fmt: off
             game.tick() catch @panic("Ooops...");
             redraw()    catch @panic("Ooops...");
