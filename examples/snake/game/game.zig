@@ -52,9 +52,11 @@ pub const Game = struct {
         if (!self.running())
             return;
 
-        var index = self.snake.body.items.len - 1;
+        var index: usize = undefined;
+
+        index = self.snake.body.items.len - 1;
         while (index > 0) : (index -= 1)
-            self.snake.body.items[index] = self.snake.body.items[index - 1];
+            self.snake.body.items[index].position = self.snake.body.items[index - 1].position;
         self.snake.body.items[0].position.x += self.snake.body.items[0].direction.x * 2;
         self.snake.body.items[0].position.y += self.snake.body.items[0].direction.y;
 
@@ -102,6 +104,10 @@ pub const Game = struct {
                 },
             });
         }
+
+        index = self.snake.body.items.len - 1;
+        while (index > 0) : (index -= 1)
+            self.snake.body.items[index].direction = self.snake.body.items[index - 1].direction;
 
         if (!self.validate())
             self.state = .game_over;
