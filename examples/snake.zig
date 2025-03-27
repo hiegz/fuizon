@@ -1,348 +1,252 @@
 const std = @import("std");
+const mod = @import("snake/mod.zig");
+const xev = @import("xev");
 const fuizon = @import("fuizon");
 
-const Area = fuizon.layout.Area;
+const Clock = mod.Clock;
+const Screen = mod.Screen;
+const Apple = mod.Apple;
+const Game = mod.Game;
+const GameView = mod.GameView;
+const FallbackView = mod.FallbackView;
 
-const Frame = fuizon.frame.Frame;
-const FrameCell = fuizon.frame.FrameCell;
+var loop: xev.Loop = undefined;
+var game_clock: Clock = undefined;
+var input_clock: Clock = undefined;
 
-const Style = fuizon.style.Style;
-const Color = fuizon.style.Color;
-const AnsiColor = fuizon.style.AnsiColor;
-const RgbColor = fuizon.style.RgbColor;
-const Attribute = fuizon.style.Attribute;
-const Attributes = fuizon.style.Attributes;
+var screen: Screen = undefined;
+var view: GameView = undefined;
+var game: Game = undefined;
 
-const Direction = struct { x: i3, y: i3 };
-const Position = struct { x: i17, y: i17 };
+var fallback: FallbackView = undefined;
+
+fn poll() !void {
+    if (!try fuizon.backend.event.poll())
+        return;
+
+    switch (try fuizon.backend.event.read()) {
+        .key => |kev| switch (kev.code) {
+            .char => |char| switch (char) {
+                'q' => loop.stop(),
+                'h' => if (game.snake.body.items[0].direction.x == 0)
+                    game.snake.redirect(.{ .x = -1, .y = 0 }),
+                'j' => if (game.snake.body.items[0].direction.y == 0)
+                    game.snake.redirect(.{ .x = 0, .y = 1 }),
+                'k' => if (game.snake.body.items[0].direction.y == 0)
+                    game.snake.redirect(.{ .x = 0, .y = -1 }),
+                'l' => if (game.snake.body.items[0].direction.x == 0)
+                    game.snake.redirect(.{ .x = 1, .y = 0 }),
+                'r' => {
+                    game.apple = Apple.random(game.width, game.height);
+                    game.snake.body.shrinkAndFree(1);
+                    game.snake.body.items[0].position.x = 0;
+                    game.snake.body.items[0].position.y = 0;
+                    game.snake.body.items[0].direction.x = 1;
+                    game.snake.body.items[0].direction.y = 0;
+                    game.run();
+                    game_clock.run();
+                    try redraw();
+                },
+                'p' => {
+                    if (game.paused()) {
+                        game.run();
+                        game_clock.run();
+                    } else if (game.running()) {
+                        game.pause();
+                        game_clock.pause();
+                    }
+                    try redraw();
+                },
+                else => {},
+            },
+            else => {},
+        },
+        .resize => |d| {
+            try resize(d.width, d.height);
+            try redraw();
+        },
+    }
+}
+
+fn resize(width: u16, height: u16) !void {
+    try screen.frame().resize(width, height);
+    try screen.clear();
+
+    if (!game.over()) {
+        if (!view.within(screen.frame().area)) {
+            game.pause();
+            game_clock.pause();
+        }
+    }
+}
+
+fn redraw() !void {
+    screen.frame().reset();
+
+    try view.load(game);
+    if (view.within(screen.frame().area)) {
+        const render_area =
+            mod.utils.center(screen.frame().area, view.width(), view.height());
+
+        try view.render(
+            screen.frame(),
+            render_area.origin.x,
+            render_area.origin.y,
+        );
+    } else {
+        const render_area =
+            mod.utils.center(
+                screen.frame().area,
+                screen.frame().area.width,
+                try fallback.heightForWidth(screen.frame().area.width),
+            );
+
+        try fallback.render(screen.frame(), render_area);
+    }
+
+    try screen.render();
+    try screen.flush();
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    //
-    // Terminal Render Environment Setup
-    //
-
-    var buffer = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout = buffer.writer();
-    defer buffer.flush() catch {};
+    screen = try Screen.init(allocator);
+    defer screen.deinit();
 
     try fuizon.backend.raw_mode.enable();
     defer fuizon.backend.raw_mode.disable() catch {};
-    try fuizon.backend.alternate_screen.enter(stdout);
-    defer fuizon.backend.alternate_screen.leave(stdout) catch {};
-    try fuizon.backend.cursor.hide(stdout);
-    defer fuizon.backend.cursor.show(stdout) catch {};
 
-    var renderer = try Renderer.initFullscreen(allocator, stdout);
-    defer renderer.deinit();
-
-    try buffer.flush();
-
-    //
-    // Game
-    //
-
-    var game = try Game.initRandom(allocator, renderer.frame().area, 20);
+    game = try Game.init(allocator, 120, 30);
     defer game.deinit();
+    game.apple = Apple.random(game.width, game.height);
 
-    //
-    // Event Loop
-    //
+    view = try GameView.init(allocator);
+    defer view.deinit();
 
-    while (true) {
-        GameRenderer.render(game, renderer.frame());
-        try renderer.render(stdout);
-        try buffer.flush();
+    fallback = try FallbackView.init(allocator);
+    defer fallback.deinit();
 
-        if (try fuizon.backend.event.poll()) {
-            const event = try fuizon.backend.event.read();
-            switch (event) {
-                .key => switch (event.key.code) {
-                    .char => switch (event.key.code.char) {
-                        'q' => break,
-                        // zig fmt: off
-                        'h' => game.snake.redirect(.{ .x = -1, .y =  0 }),
-                        'j' => game.snake.redirect(.{ .x =  0, .y =  1 }),
-                        'k' => game.snake.redirect(.{ .x =  0, .y = -1 }),
-                        'l' => game.snake.redirect(.{ .x =  1, .y =  0 }),
-                        // zig fmt: on
-                        else => {},
-                    },
-                    else => {},
-                },
-                .resize => {
-                    game.deinit();
-                    try renderer.frame().resize(event.resize.width, event.resize.height);
-                    game = try Game.initRandom(allocator, renderer.frame().area, 20);
-                    continue;
-                },
-            }
+    loop = try xev.Loop.init(.{});
+    defer loop.deinit();
+
+    game_clock = try Clock.init(&loop, 150, (struct {
+        fn callback() void {
+            // zig fmt: off
+            game.tick() catch @panic("Ooops...");
+            redraw()    catch @panic("Ooops...");
+            // zig fmt: on
         }
+    }).callback);
+    defer game_clock.deinit();
+    game_clock.run();
+    game.run();
 
-        try game.tick();
-        if (!game.validate())
-            break;
+    input_clock = try Clock.init(&loop, 20, (struct {
+        fn callback() void {
+            poll() catch @panic("Ooops...");
+        }
+    }).callback);
+    defer input_clock.deinit();
+    input_clock.run();
 
-        std.time.sleep(16 * std.time.ns_per_ms / 1);
-    }
+    try resize(screen.frame().area.width, screen.frame().area.height);
+    try redraw();
 
-    _ = try fuizon.backend.event.read();
+    try loop.run(.until_done);
 }
 
-const Renderer = struct {
-    frames: [2]Frame,
-
-    pub fn init(allocator: std.mem.Allocator) Renderer {
-        var renderer: Renderer = undefined;
-        renderer.frames[0] = Frame.init(allocator);
-        renderer.frames[1] = Frame.init(allocator);
-        return renderer;
-    }
-
-    pub fn initFullscreen(allocator: std.mem.Allocator, writer: anytype) !Renderer {
-        var renderer = Renderer.init(allocator);
-        errdefer renderer.deinit();
-
-        const render_area = try fuizon.backend.area.fullscreen().render(writer);
-        const render_frame: *Frame = renderer.frame();
-
-        try render_frame.resize(render_area.width, render_area.height);
-        render_frame.moveTo(render_area.origin.x, render_area.origin.y);
-
-        return renderer;
-    }
-
-    pub fn deinit(self: Renderer) void {
-        self.frames[0].deinit();
-        self.frames[1].deinit();
-    }
-
-    pub fn frame(self: anytype) switch (@TypeOf(self)) {
-        *const Renderer => *const Frame,
-        *Renderer => *Frame,
-        else => unreachable,
-    } {
-        return &self.frames[0];
-    }
-
-    pub fn save(self: *Renderer) std.mem.Allocator.Error!void {
-        self.frames[1].copy(self.frames[0]);
-    }
-
-    pub fn render(self: Renderer, writer: anytype) !void {
-        try fuizon.backend.frame.render(writer, self.frames[0], self.frames[1]);
-    }
-};
-
-const GameRenderer = struct {
-    pub fn render(game: Game, frame: *Frame) void {
-        frame.fill(game.area, .{ .width = 1, .content = ' ', .style = .{} });
-        for (game.snake.body.items) |item| {
-            frame.index(@intCast(item.position.x + 0), @intCast(item.position.y)).style.background_color = .blue;
-            frame.index(@intCast(item.position.x + 1), @intCast(item.position.y)).style.background_color = .blue;
-        }
-        for (game.apple_list.items) |item| {
-            frame.index(@intCast(item.position.x + 0), @intCast(item.position.y)).style.background_color = .red;
-            frame.index(@intCast(item.position.x + 1), @intCast(item.position.y)).style.background_color = .red;
-        }
-    }
-};
-
+// while (true) {
+//     const start = try std.time.Instant.now();
 //
-
-const Game = struct {
-    score: u64,
-    area: Area,
-    snake: Snake,
-    apple_list: std.ArrayList(Apple),
-
-    pub fn init(allocator: std.mem.Allocator, area: Area) std.mem.Allocator.Error!Game {
-        var game: Game = undefined;
-        game.score = 0;
-        game.area = area;
-        game.snake = try Snake.init(allocator, .{ .x = area.origin.x, .y = area.origin.y }, .{ .x = 1, .y = 0 });
-        errdefer game.snake.deinit();
-        game.apple_list = std.ArrayList(Apple).init(allocator);
-        return game;
-    }
-
-    pub fn initRandom(
-        allocator: std.mem.Allocator,
-        area: Area,
-        napples: usize,
-    ) std.mem.Allocator.Error!Game {
-        var game = try Game.init(allocator, area);
-        errdefer game.deinit();
-        game.area = area;
-        for (0..napples) |_|
-            try game.apple_list.append(Apple.random(area));
-        return game;
-    }
-
-    pub fn deinit(self: Game) void {
-        self.snake.deinit();
-        self.apple_list.deinit();
-    }
-
-    //
-
-    pub fn tick(self: *Game) !void {
-        self.snake.tick();
-        for (self.apple_list.items) |*apple| {
-            if (self.snake.body.items[0].position.x == apple.position.x and
-                self.snake.body.items[0].position.y == apple.position.y)
-            {
-                try self.snake.grow(self.*);
-                self.score += 1;
-                apple.* = Apple.random(self.area);
-            }
-        }
-    }
-
-    pub fn validate(self: Game) bool {
-        return self.snake.validate(self);
-    }
-};
-
-const Snake = struct {
-    body: std.ArrayList(SnakeBodyPart),
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-        position: Position,
-        direction: Direction,
-    ) std.mem.Allocator.Error!Snake {
-        var snake: Snake = undefined;
-        snake.body = std.ArrayList(SnakeBodyPart).init(allocator);
-        errdefer snake.body.deinit();
-        try snake.body.insert(0, .{ .position = position, .direction = direction });
-        return snake;
-    }
-
-    pub fn deinit(self: Snake) void {
-        self.body.deinit();
-    }
-
-    //
-
-    pub fn grow(self: *Snake, game: Game) std.mem.Allocator.Error!void {
-        std.debug.assert(self.body.items.len > 0);
-
-        const tail = &self.body.items[self.body.items.len - 1];
-        var new_direction = @as(?Direction, null);
-
-        for ([_]Direction{
-            // zig fmt: off
-            .{ .x =  1, .y =  0 },
-            .{ .x = -1, .y =  0 },
-            .{ .x =  0, .y =  1 },
-            .{ .x =  0, .y = -1 },
-            // zig fmt: on
-        }) |direction| {
-            const x: i17 = tail.position.x - direction.x * 2;
-            const y: i17 = tail.position.y - direction.y;
-
-            // zig fmt: off
-            if (x >= game.area.left()   and
-                x <  game.area.right()  and
-                y >= game.area.top()    and
-                y <  game.area.bottom()) 
-            {
-                new_direction = direction;
-            } else 
-                continue;
-            // zig fmt: on
-
-            if (direction.x == tail.direction.x and
-                direction.y == tail.direction.y)
-                break;
-        }
-
-        if (new_direction == null)
-            unreachable;
-
-        try self.append(new_direction.?);
-    }
-
-    pub fn append(self: *Snake, direction: Direction) std.mem.Allocator.Error!void {
-        std.debug.assert(self.body.items.len > 0);
-        var position = self.body.items[self.body.items.len - 1].position;
-        position.x -= direction.x * 2;
-        position.y -= direction.y;
-        try self.body.append(.{ .position = position, .direction = direction });
-    }
-
-    //
-
-    pub fn redirect(self: *Snake, direction: Direction) void {
-        std.debug.assert(self.body.items.len > 0);
-        self.body.items[0].direction = direction;
-    }
-
-    //
-
-    pub fn tick(self: *Snake) void {
-        std.debug.assert(self.body.items.len > 0);
-        var index = self.body.items.len - 1;
-        while (index > 0) : (index -= 1)
-            self.body.items[index] = self.body.items[index - 1];
-        self.body.items[0].position.x += self.body.items[0].direction.x * 2;
-        self.body.items[0].position.y += self.body.items[0].direction.y;
-    }
-
-    pub fn validate(self: Snake, game: Game) bool {
-        if (self.body.items.len == 0)
-            return false;
-
-        for (self.body.items) |item| {
-            // zig fmt: off
-            if (item.position.x <  game.area.left()    or
-                item.position.x >= game.area.right()   or
-                item.position.y <  game.area.top()     or
-                item.position.y >= game.area.bottom()) return false;
-            // zig fmt: on
-        }
-
-        for (0..self.body.items.len) |i| {
-            for (i + 1..self.body.items.len) |j| {
-                const lhs = &self.body.items[i];
-                const rhs = &self.body.items[j];
-
-                if (lhs.position.x == rhs.position.x and
-                    lhs.position.y == rhs.position.y)
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-    //
-};
-
-const SnakeBodyPart = struct {
-    position: Position,
-    direction: Direction,
-};
-
-const Apple = struct {
-    position: Position,
-
-    pub fn random(area: Area) Apple {
-        const x = randomEvenInRangeLessThan(i17, 0, @intCast(area.width)) + area.left();
-        const y = randomEvenInRangeLessThan(i17, 0, @intCast(area.height)) + area.top();
-
-        return .{ .position = .{ .x = x, .y = y } };
-    }
-
-    fn randomEvenInRangeLessThan(comptime T: type, at_least: T, less_than: T) T {
-        const r = std.crypto.random.intRangeLessThan(T, at_least, less_than);
-        if (@mod(r, 2) == 0) return r;
-        if (r + 1 < less_than) return r + 1;
-        if (r - 1 >= at_least) return r - 1;
-        unreachable;
-    }
-};
+//     try view.load(game);
+//
+//     if (view.width() <= screen.frame().area.width and
+//         view.height() <= screen.frame().area.height)
+//     {
+//         if (game.paused())
+//             game.start();
+//
+//         const render_area = mod.utils.center(screen.frame().area, view.width(), view.height());
+//         try view.render(screen.frame(), render_area.origin.x, render_area.origin.y);
+//
+//         try screen.render();
+//         try screen.flush();
+//     }
+//
+//     if (view.width() > screen.frame().area.width or
+//         view.height() > screen.frame().area.height)
+//     {
+//         if (game.running())
+//             game.pause();
+//
+//         // TODO: print the error screen.
+//     }
+//
+//     if (try fuizon.backend.event.poll()) {
+//         switch (try fuizon.backend.event.read()) {
+//             .key => |key| switch (key.code) {
+//                 .char => |char| switch (char) {
+//                     'q' => return,
+//                     't' => try game.tick(),
+//                     'h' => {
+//                         if (game.snake.body.items[0].direction.x != -1 or
+//                             game.snake.body.items[0].direction.y != 0)
+//                         {
+//                             game.snake.redirect(.{ .x = -1, .y = 0 });
+//                             try game.tick();
+//                             continue;
+//                         }
+//                     },
+//                     'j' => {
+//                         if (game.snake.body.items[0].direction.x != 0 or
+//                             game.snake.body.items[0].direction.y != 1)
+//                         {
+//                             game.snake.redirect(.{ .x = 0, .y = 1 });
+//                             try game.tick();
+//                             continue;
+//                         }
+//                     },
+//                     'k' => {
+//                         if (game.snake.body.items[0].direction.x != 0 or
+//                             game.snake.body.items[0].direction.y != -1)
+//                         {
+//                             game.snake.redirect(.{ .x = 0, .y = -1 });
+//                             try game.tick();
+//                             continue;
+//                         }
+//                     },
+//                     'l' => {
+//                         if (game.snake.body.items[0].direction.x != 1 or
+//                             game.snake.body.items[0].direction.y != 0)
+//                         {
+//                             game.snake.redirect(.{ .x = 1, .y = 0 });
+//                             try game.tick();
+//                             continue;
+//                         }
+//                     },
+//                     else => {},
+//                 },
+//                 else => {},
+//             },
+//             .resize => |resize| {
+//                 screen.frames[0].reset();
+//                 screen.frames[1].reset();
+//                 try fuizon.backend.screen.clearAll(screen.buffer.writer());
+//                 try screen.flush();
+//                 try screen.frame().resize(resize.width, resize.height);
+//
+//                 continue;
+//             },
+//         }
+//     }
+//
+//     try game.tick();
+//
+//     const end = try std.time.Instant.now();
+//     const elapsed = end.since(start);
+//
+//     std.time.sleep(std.time.ns_per_s / 10 -| elapsed);
+// }
