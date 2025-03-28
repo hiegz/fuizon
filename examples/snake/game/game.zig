@@ -61,7 +61,11 @@ pub const Game = struct {
         self.snake.body.items[0].position.y += self.snake.body.items[0].direction.y;
 
         if (std.meta.eql(self.snake.body.items[0].position, self.apple.position)) {
-            self.apple = Apple.random(self.width, self.height);
+            while (true) {
+                self.apple = Apple.random(self.width, self.height);
+                if (!std.meta.eql(self.snake.body.items[0].position, self.apple.position))
+                    break;
+            }
 
             const tail = self.snake.body.items[self.snake.body.items.len - 1];
             var new_direction = @as(?Direction, null);
