@@ -51,8 +51,8 @@ fn poll() !void {
                     game.snake.body.shrinkAndFree(1);
                     game.snake.body.items[0].position.x = 0;
                     game.snake.body.items[0].position.y = 0;
-                    game.snake.body.items[0].direction.x = 1;
-                    game.snake.body.items[0].direction.y = 0;
+                    direction.x = 1;
+                    direction.y = 0;
                     game.run();
                     game_clock.run();
                     try redraw();
