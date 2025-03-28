@@ -112,6 +112,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "ansi-demo",    .desc = "Run the ANSI color demo", .path = "examples/ansi.zig" },
             .{ .name = "rgb-demo",     .desc = "Run the RGB color demo",  .path = "examples/rgb.zig" },
             .{ .name = "snake-demo",   .desc = "Run the snake demo",      .path = "examples/snake.zig" },
+            .{ .name = "logo-demo",    .desc = "Run the logo demo",       .path = "examples/logo.zig" },
             // zig fmt: on
         };
 
