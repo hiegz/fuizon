@@ -22,6 +22,7 @@
         "src",
         "crossterm-ffi",
         "include",
+        "fuiwi",
         // For example...
         //"LICENSE",
         //"README.md",
