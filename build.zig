@@ -111,7 +111,6 @@ pub fn build(b: *std.Build) void {
             .{ .name = "color-demo",   .desc = "Run the base color demo", .path = "examples/colors.zig" },
             .{ .name = "ansi-demo",    .desc = "Run the ANSI color demo", .path = "examples/ansi.zig" },
             .{ .name = "rgb-demo",     .desc = "Run the RGB color demo",  .path = "examples/rgb.zig" },
-            .{ .name = "snake-demo",   .desc = "Run the snake demo",      .path = "examples/snake.zig" },
             .{ .name = "logo-demo",    .desc = "Run the logo demo",       .path = "examples/logo.zig" },
             // zig fmt: on
         };
@@ -127,11 +126,6 @@ pub fn build(b: *std.Build) void {
             const run_exe = b.addRunArtifact(exe);
             const run_step = b.step("run-" ++ example.name, example.desc);
             run_step.dependOn(&run_exe.step);
-
-            if (std.meta.eql(example.name, "snake-demo")) {
-                const xev = b.dependency("libxev", .{ .target = target, .optimize = optimize });
-                exe.root_module.addImport("xev", xev.module("xev"));
-            }
         }
     }
 
