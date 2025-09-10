@@ -1,21 +1,6 @@
 const std = @import("std");
 
 ///
-/// Kiwi bindings for the fuizon API
-///
-const Fuiwi = struct {
-    include_path: std.Build.LazyPath,
-    library: *std.Build.Step.Compile,
-
-    pub fn linkModule(self: Fuiwi, module: *std.Build.Module) void {
-        module.link_libc = true;
-        module.link_libcpp = true;
-        module.addIncludePath(self.include_path);
-        module.linkLibrary(self.library);
-    }
-};
-
-///
 /// ...
 ///
 const Crossterm = struct {
@@ -32,30 +17,10 @@ const Crossterm = struct {
 };
 
 pub fn build(b: *std.Build) void {
-    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
+    // var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
-    var fuiwi: Fuiwi = undefined;
-    {
-        const kiwi_dep = b.dependency("kiwi", .{});
-        fuiwi.library = b.addStaticLibrary(.{
-            .name = "fuiwi",
-            .target = target,
-            .optimize = optimize,
-        });
-        fuiwi.library.linkLibC();
-        fuiwi.library.linkLibCpp();
-        fuiwi.library.addIncludePath(kiwi_dep.path(""));
-        fuiwi.library.addCSourceFile(.{
-            .file = b.path("fuiwi/fuiwi.cpp"),
-            .flags = &.{"-fno-sanitize=undefined"},
-        });
-        targets.append(fuiwi.library) catch @panic("OOM");
-
-        fuiwi.include_path = b.path("fuiwi");
-    }
 
     var crossterm: Crossterm = undefined;
     {
@@ -77,7 +42,6 @@ pub fn build(b: *std.Build) void {
         .link_libcpp = true,
         .valgrind = true,
     });
-    fuiwi.linkModule(fuizon_module);
     crossterm.linkModule(fuizon_module);
 
     // Tests
@@ -94,7 +58,6 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        fuiwi.linkModule(fuizon_tests.root_module);
         crossterm.linkModule(fuizon_tests.root_module);
         test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
     }
