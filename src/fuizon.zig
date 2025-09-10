@@ -5,8 +5,6 @@ pub const style    = @import("style.zig");
 pub const backend  = @import("backend.zig");
 pub const frame    = @import("frame.zig");
 pub const layout   = @import("layout.zig");
-pub const text     = @import("text.zig");
-pub const widgets  = @import("widgets.zig");
 // zig fmt: on
 
 test "fuizon" {
