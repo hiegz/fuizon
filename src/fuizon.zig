@@ -1,3 +1,8 @@
+pub const writer = @import("writer.zig");
+pub const getWriter = writer.getWriter;
+pub const useStdout = writer.useStdout;
+pub const useStderr = writer.useStderr;
+
 // zig fmt: off
 pub const event    = @import("event.zig");
 pub const keyboard = @import("keyboard.zig");
