@@ -78,7 +78,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const stdout = std.io.getStdOut().writer();
+    var buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&buffer);
+    const stdout: *std.io.Writer = &stdout_writer.interface;
+    defer stdout.flush() catch unreachable;
 
     try fuizon.backend.raw_mode.enable();
     defer fuizon.backend.raw_mode.disable() catch {};
@@ -112,6 +115,7 @@ pub fn main() !void {
         }
 
         try fuizon.backend.frame.render(stdout, frame, Frame.none);
+        try stdout.flush();
         switch (try fuizon.backend.event.read()) {
             .key => return,
             .resize => |d| try frame.resize(d.width, d.height),

@@ -14,15 +14,7 @@ pub const KeyModifier = enum(u16) {
     numlock = 1 << 8,
     // zig fmt: on
 
-    pub fn format(
-        self: KeyModifier,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: KeyModifier, writer: *std.io.Writer) !void {
         // zig fmt: off
         switch (self) {
             .shift   => _ = try writer.write("shift"),
@@ -87,15 +79,7 @@ pub const KeyModifiers = struct {
         return true;
     }
 
-    pub fn format(
-        self: KeyModifiers,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: KeyModifiers, writer: *std.io.Writer) !void {
         var modifiers = [_]KeyModifier{.shift} ** 9;
         var nmodifiers: usize = 0;
 
@@ -136,7 +120,13 @@ pub const KeyModifiers = struct {
             nmodifiers += 1;
         }
 
-        try writer.print("{any}", .{modifiers[0..nmodifiers]});
+        _ = try writer.write("{");
+        for (modifiers[0..nmodifiers], 0..) |modifier, i| {
+            try writer.print(" {f}", .{modifier});
+            if (i + 1 < nmodifiers)
+                _ = try writer.write(",");
+        }
+        _ = try writer.write(" }");
     }
 
     pub fn fromCrosstermKeyModifiers(modifiers: u16) KeyModifiers {
@@ -191,15 +181,7 @@ pub const KeyCode = union(enum) {
     f11,
     f12,
 
-    pub fn format(
-        self: KeyCode,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: KeyCode, writer: *std.io.Writer) !void {
         // zig fmt: off
         switch (self) {
             .char        => try writer.print("{u}",         .{self.char}),
@@ -324,47 +306,47 @@ test "key-modifiers-set-reset" {
 }
 
 test "format-shift-key-modifier" {
-    try std.testing.expectFmt("shift", "{}", .{KeyModifier.shift});
+    try std.testing.expectFmt("shift", "{f}", .{KeyModifier.shift});
 }
 
 test "format-control-key-modifier" {
-    try std.testing.expectFmt("control", "{}", .{KeyModifier.control});
+    try std.testing.expectFmt("control", "{f}", .{KeyModifier.control});
 }
 
 test "format-alt-key-modifier" {
-    try std.testing.expectFmt("alt", "{}", .{KeyModifier.alt});
+    try std.testing.expectFmt("alt", "{f}", .{KeyModifier.alt});
 }
 
 test "format-super-key-modifier" {
-    try std.testing.expectFmt("super", "{}", .{KeyModifier.super});
+    try std.testing.expectFmt("super", "{f}", .{KeyModifier.super});
 }
 
 test "format-hyper-key-modifier" {
-    try std.testing.expectFmt("hyper", "{}", .{KeyModifier.hyper});
+    try std.testing.expectFmt("hyper", "{f}", .{KeyModifier.hyper});
 }
 
 test "format-meta-key-modifier" {
-    try std.testing.expectFmt("meta", "{}", .{KeyModifier.meta});
+    try std.testing.expectFmt("meta", "{f}", .{KeyModifier.meta});
 }
 
 test "format-keypad-key-modifier" {
-    try std.testing.expectFmt("keypad", "{}", .{KeyModifier.keypad});
+    try std.testing.expectFmt("keypad", "{f}", .{KeyModifier.keypad});
 }
 
 test "format-caps-key-modifier" {
-    try std.testing.expectFmt("caps", "{}", .{KeyModifier.caps});
+    try std.testing.expectFmt("caps", "{f}", .{KeyModifier.caps});
 }
 
 test "format-numlock-key-modifier" {
-    try std.testing.expectFmt("numlock", "{}", .{KeyModifier.numlock});
+    try std.testing.expectFmt("numlock", "{f}", .{KeyModifier.numlock});
 }
 
 test "format-empty-key-modifier-set" {
-    try std.testing.expectFmt("{  }", "{}", .{KeyModifiers.none});
+    try std.testing.expectFmt("{ }", "{f}", .{KeyModifiers.none});
 }
 
 test "format-all-key-modifiers" {
-    try std.testing.expectFmt("{ shift, control, alt, super, hyper, meta, keypad, caps, numlock }", "{}", .{KeyModifiers.all});
+    try std.testing.expectFmt("{ shift, control, alt, super, hyper, meta, keypad, caps, numlock }", "{f}", .{KeyModifiers.all});
 }
 
 test "from-crossterm-to-fuizon-shift-key-modifier" {
@@ -431,115 +413,115 @@ test "from-crossterm-to-fuizon-num-lock-key-modifier" {
 }
 
 test "format-unicode-key-code" {
-    try std.testing.expectFmt("ö", "{}", .{KeyCode{ .char = 0x00f6 }});
+    try std.testing.expectFmt("ö", "{f}", .{KeyCode{ .char = 0x00f6 }});
 }
 
 test "format-backspace-key-code" {
-    try std.testing.expectFmt("backspace", "{}", .{@as(KeyCode, KeyCode.backspace)});
+    try std.testing.expectFmt("backspace", "{f}", .{@as(KeyCode, KeyCode.backspace)});
 }
 
 test "format-enter-key-code" {
-    try std.testing.expectFmt("enter", "{}", .{@as(KeyCode, KeyCode.enter)});
+    try std.testing.expectFmt("enter", "{f}", .{@as(KeyCode, KeyCode.enter)});
 }
 
 test "format-left-arrow-key-code" {
-    try std.testing.expectFmt("left arrow", "{}", .{@as(KeyCode, KeyCode.left_arrow)});
+    try std.testing.expectFmt("left arrow", "{f}", .{@as(KeyCode, KeyCode.left_arrow)});
 }
 
 test "format-right-arrow-key-code" {
-    try std.testing.expectFmt("right arrow", "{}", .{@as(KeyCode, KeyCode.right_arrow)});
+    try std.testing.expectFmt("right arrow", "{f}", .{@as(KeyCode, KeyCode.right_arrow)});
 }
 
 test "format-up-arrow-key-code" {
-    try std.testing.expectFmt("up arrow", "{}", .{@as(KeyCode, KeyCode.up_arrow)});
+    try std.testing.expectFmt("up arrow", "{f}", .{@as(KeyCode, KeyCode.up_arrow)});
 }
 
 test "format-down-arrow-key-code" {
-    try std.testing.expectFmt("down arrow", "{}", .{@as(KeyCode, KeyCode.down_arrow)});
+    try std.testing.expectFmt("down arrow", "{f}", .{@as(KeyCode, KeyCode.down_arrow)});
 }
 
 test "format-home-key-code" {
-    try std.testing.expectFmt("home", "{}", .{@as(KeyCode, KeyCode.home)});
+    try std.testing.expectFmt("home", "{f}", .{@as(KeyCode, KeyCode.home)});
 }
 
 test "format-end-key-code" {
-    try std.testing.expectFmt("end", "{}", .{@as(KeyCode, KeyCode.end)});
+    try std.testing.expectFmt("end", "{f}", .{@as(KeyCode, KeyCode.end)});
 }
 
 test "format-page-up-key-code" {
-    try std.testing.expectFmt("page up", "{}", .{@as(KeyCode, KeyCode.page_up)});
+    try std.testing.expectFmt("page up", "{f}", .{@as(KeyCode, KeyCode.page_up)});
 }
 
 test "format-page-down-key-code" {
-    try std.testing.expectFmt("page down", "{}", .{@as(KeyCode, KeyCode.page_down)});
+    try std.testing.expectFmt("page down", "{f}", .{@as(KeyCode, KeyCode.page_down)});
 }
 
 test "format-tab-key-code" {
-    try std.testing.expectFmt("tab", "{}", .{@as(KeyCode, KeyCode.tab)});
+    try std.testing.expectFmt("tab", "{f}", .{@as(KeyCode, KeyCode.tab)});
 }
 
 test "format-backtab-key-code" {
-    try std.testing.expectFmt("backtab", "{}", .{@as(KeyCode, KeyCode.backtab)});
+    try std.testing.expectFmt("backtab", "{f}", .{@as(KeyCode, KeyCode.backtab)});
 }
 
 test "format-delete-key-code" {
-    try std.testing.expectFmt("delete", "{}", .{@as(KeyCode, KeyCode.delete)});
+    try std.testing.expectFmt("delete", "{f}", .{@as(KeyCode, KeyCode.delete)});
 }
 
 test "format-insert-key-code" {
-    try std.testing.expectFmt("insert", "{}", .{@as(KeyCode, KeyCode.insert)});
+    try std.testing.expectFmt("insert", "{f}", .{@as(KeyCode, KeyCode.insert)});
 }
 
 test "format-escape-key-code" {
-    try std.testing.expectFmt("escape", "{}", .{@as(KeyCode, KeyCode.escape)});
+    try std.testing.expectFmt("escape", "{f}", .{@as(KeyCode, KeyCode.escape)});
 }
 
 test "format-f1-key-code" {
-    try std.testing.expectFmt("f1", "{}", .{@as(KeyCode, KeyCode.f1)});
+    try std.testing.expectFmt("f1", "{f}", .{@as(KeyCode, KeyCode.f1)});
 }
 
 test "format-f2-key-code" {
-    try std.testing.expectFmt("f2", "{}", .{@as(KeyCode, KeyCode.f2)});
+    try std.testing.expectFmt("f2", "{f}", .{@as(KeyCode, KeyCode.f2)});
 }
 
 test "format-f3-key-code" {
-    try std.testing.expectFmt("f3", "{}", .{@as(KeyCode, KeyCode.f3)});
+    try std.testing.expectFmt("f3", "{f}", .{@as(KeyCode, KeyCode.f3)});
 }
 
 test "format-f4-key-code" {
-    try std.testing.expectFmt("f4", "{}", .{@as(KeyCode, KeyCode.f4)});
+    try std.testing.expectFmt("f4", "{f}", .{@as(KeyCode, KeyCode.f4)});
 }
 
 test "format-f5-key-code" {
-    try std.testing.expectFmt("f5", "{}", .{@as(KeyCode, KeyCode.f5)});
+    try std.testing.expectFmt("f5", "{f}", .{@as(KeyCode, KeyCode.f5)});
 }
 
 test "format-f6-key-code" {
-    try std.testing.expectFmt("f6", "{}", .{@as(KeyCode, KeyCode.f6)});
+    try std.testing.expectFmt("f6", "{f}", .{@as(KeyCode, KeyCode.f6)});
 }
 
 test "format-f7-key-code" {
-    try std.testing.expectFmt("f7", "{}", .{@as(KeyCode, KeyCode.f7)});
+    try std.testing.expectFmt("f7", "{f}", .{@as(KeyCode, KeyCode.f7)});
 }
 
 test "format-f8-key-code" {
-    try std.testing.expectFmt("f8", "{}", .{@as(KeyCode, KeyCode.f8)});
+    try std.testing.expectFmt("f8", "{f}", .{@as(KeyCode, KeyCode.f8)});
 }
 
 test "format-f9-key-code" {
-    try std.testing.expectFmt("f9", "{}", .{@as(KeyCode, KeyCode.f9)});
+    try std.testing.expectFmt("f9", "{f}", .{@as(KeyCode, KeyCode.f9)});
 }
 
 test "format-f10-key-code" {
-    try std.testing.expectFmt("f10", "{}", .{@as(KeyCode, KeyCode.f10)});
+    try std.testing.expectFmt("f10", "{f}", .{@as(KeyCode, KeyCode.f10)});
 }
 
 test "format-f11-key-code" {
-    try std.testing.expectFmt("f11", "{}", .{@as(KeyCode, KeyCode.f11)});
+    try std.testing.expectFmt("f11", "{f}", .{@as(KeyCode, KeyCode.f11)});
 }
 
 test "format-f12-key-code" {
-    try std.testing.expectFmt("f12", "{}", .{@as(KeyCode, KeyCode.f12)});
+    try std.testing.expectFmt("f12", "{f}", .{@as(KeyCode, KeyCode.f12)});
 }
 
 test "from-crossterm-to-fuizon-unicode-key-code" {

@@ -54,11 +54,8 @@ pub fn build(b: *std.Build) void {
 
         const fuizon_tests = b.addTest(.{
             .name = "fuizon",
-            .root_source_file = b.path("src/fuizon.zig"),
-            .target = target,
-            .optimize = optimize,
+            .root_module = fuizon_module,
         });
-        crossterm.linkModule(fuizon_tests.root_module);
         test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
     }
 
@@ -79,13 +76,17 @@ pub fn build(b: *std.Build) void {
         };
 
         inline for (examples) |example| {
-            const exe = b.addExecutable(.{
-                .name = example.name,
+            const mod = b.addModule(example.name, .{
                 .root_source_file = b.path(example.path),
                 .target = target,
                 .optimize = optimize,
             });
-            exe.root_module.addImport("fuizon", fuizon_module);
+            mod.addImport("fuizon", fuizon_module);
+
+            const exe = b.addExecutable(.{
+                .name = example.name,
+                .root_module = mod,
+            });
             const run_exe = b.addRunArtifact(exe);
             const run_step = b.step("run-" ++ example.name, example.desc);
             run_step.dependOn(&run_exe.step);

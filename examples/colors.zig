@@ -2,8 +2,10 @@ const std = @import("std");
 const fuizon = @import("fuizon");
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut();
-    const writer = stdout.writer();
+    var buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&buffer);
+    const writer = &stdout_writer.interface;
+    defer writer.flush() catch unreachable;
 
     try writer.print("Black:        ", .{});
     try fuizon.backend.text.background.set(writer, .black);
