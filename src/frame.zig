@@ -59,16 +59,16 @@ pub const Frame = struct {
 
         var grid = try std.ArrayList(std.ArrayList(u21)).initCapacity(allocator, content.len);
         defer {
-            for (grid.items) |content_list|
-                content_list.deinit();
-            grid.deinit();
+            for (grid.items) |*content_list|
+                content_list.deinit(allocator);
+            grid.deinit(allocator);
         }
         for (0..content.len) |i| {
-            const content_list = try grid.addOne();
-            content_list.* = std.ArrayList(u21).init(allocator);
+            const content_list = try grid.addOne(allocator);
+            content_list.* = std.ArrayList(u21).empty;
             var content_iterator = (std.unicode.Utf8View.init(content[i]) catch unreachable).iterator();
             while (content_iterator.nextCodepoint()) |code_point| {
-                try content_list.append(code_point);
+                try content_list.append(allocator, code_point);
             }
         }
 

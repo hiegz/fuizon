@@ -38,9 +38,9 @@ pub const raw_mode = struct {
 /// ...
 pub const alternate_screen = struct {
     /// Switches to the alternate screen.
-    pub fn enter(writer: anytype) error{BackendError}!void {
+    pub fn enter(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -50,9 +50,9 @@ pub const alternate_screen = struct {
     }
 
     /// Switches back to the main screen.
-    pub fn leave(writer: anytype) error{BackendError}!void {
+    pub fn leave(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -65,9 +65,9 @@ pub const alternate_screen = struct {
 /// ...
 pub const screen = struct {
     /// Clears all cells.
-    pub fn clearAll(writer: anytype) error{BackendError}!void {
+    pub fn clearAll(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -77,9 +77,9 @@ pub const screen = struct {
     }
 
     /// Clears all cells and history.
-    pub fn clearPurge(writer: anytype) error{BackendError}!void {
+    pub fn clearPurge(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -89,9 +89,9 @@ pub const screen = struct {
     }
 
     /// Clears all cells from the cursor position downwards.
-    pub fn clearFromCursorDown(writer: anytype) error{BackendError}!void {
+    pub fn clearFromCursorDown(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -101,9 +101,9 @@ pub const screen = struct {
     }
 
     /// Clears all cells from the cursor position upwards.
-    pub fn clearFromCursorUp(writer: anytype) error{BackendError}!void {
+    pub fn clearFromCursorUp(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -113,9 +113,9 @@ pub const screen = struct {
     }
 
     /// Clears all cells at the current row.
-    pub fn clearCurrentLine(writer: anytype) error{BackendError}!void {
+    pub fn clearCurrentLine(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -125,9 +125,9 @@ pub const screen = struct {
     }
 
     /// Clears all cells from the cursor position until the new line.
-    pub fn clearUntilNewLine(writer: anytype) error{BackendError}!void {
+    pub fn clearUntilNewLine(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -137,9 +137,9 @@ pub const screen = struct {
     }
 
     /// Scrolls the terminal screen a given number of rows up.
-    pub fn scrollUp(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn scrollUp(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -149,9 +149,9 @@ pub const screen = struct {
     }
 
     /// Scrolls the terminal screen a given number of rows down.
-    pub fn scrollDown(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn scrollDown(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -185,7 +185,7 @@ pub const area = union(enum) {
 
     /// Renders the specified `area` on the screen and returns an `Area` with
     /// the computed dimensions and origin.
-    pub fn render(self: area, writer: anytype) !Area {
+    pub fn render(self: area, writer: *std.io.Writer) !Area {
         const scr = try screen.size();
         const cur = try cursor.position();
 
@@ -212,7 +212,7 @@ pub const area = union(enum) {
 
 pub const frame = struct {
     /// ...
-    pub fn render(writer: anytype, curr: Frame, prev: Frame) anyerror!void {
+    pub fn render(writer: *std.io.Writer, curr: Frame, prev: Frame) anyerror!void {
         var foreground_color: Color = .default;
         var background_color: Color = .default;
         var attributes = Attributes.none;
@@ -284,9 +284,9 @@ pub const frame = struct {
 /// ...
 pub const cursor = struct {
     /// Shows cursor.
-    pub fn show(writer: anytype) error{BackendError}!void {
+    pub fn show(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -296,9 +296,9 @@ pub const cursor = struct {
     }
 
     /// Hides cursor.
-    pub fn hide(writer: anytype) error{BackendError}!void {
+    pub fn hide(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -308,9 +308,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor up by `n` rows.
-    pub fn moveUp(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveUp(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -320,9 +320,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor up by `n` rows.
-    pub fn moveToPreviousLine(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveToPreviousLine(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -332,9 +332,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor down by `n` rows.
-    pub fn moveDown(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveDown(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -344,9 +344,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor up by `n` rows.
-    pub fn moveToNextLine(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveToNextLine(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -356,9 +356,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor left by `n` columns.
-    pub fn moveLeft(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveLeft(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -368,9 +368,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor right by `n` columns.
-    pub fn moveRight(writer: anytype, n: u16) error{BackendError}!void {
+    pub fn moveRight(writer: *std.io.Writer, n: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -380,9 +380,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor to the specified row.
-    pub fn moveToRow(writer: anytype, y: u16) error{BackendError}!void {
+    pub fn moveToRow(writer: *std.io.Writer, y: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -392,9 +392,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor to the specified row.
-    pub fn moveToCol(writer: anytype, x: u16) error{BackendError}!void {
+    pub fn moveToCol(writer: *std.io.Writer, x: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -404,9 +404,9 @@ pub const cursor = struct {
     }
 
     /// Moves the cursor to the specified position on the screen.
-    pub fn moveTo(writer: anytype, x: u16, y: u16) error{BackendError}!void {
+    pub fn moveTo(writer: *std.io.Writer, x: u16, y: u16) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -416,9 +416,9 @@ pub const cursor = struct {
     }
 
     /// Saves current cursor position.
-    pub fn save(writer: anytype) error{BackendError}!void {
+    pub fn save(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -428,9 +428,9 @@ pub const cursor = struct {
     }
 
     /// Restores previously saved cursor position.
-    pub fn restore(writer: anytype) error{BackendError}!void {
+    pub fn restore(writer: *std.io.Writer) error{BackendError}!void {
         var stream: c.crossterm_stream = .{
-            .context = @ptrCast(@constCast(&writer)),
+            .context = @ptrCast(@constCast(writer)),
             .write_fn = _write(@TypeOf(writer)),
             .flush_fn = _flush(@TypeOf(writer)),
         };
@@ -453,9 +453,9 @@ pub const text = struct {
     /// ...
     pub const foreground = struct {
         /// Updates the current foreground color.
-        pub fn set(writer: anytype, color: fuizon.style.Color) error{BackendError}!void {
+        pub fn set(writer: *std.io.Writer, color: fuizon.style.Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
-                .context = @ptrCast(@constCast(&writer)),
+                .context = @ptrCast(@constCast(writer)),
                 .write_fn = _write(@TypeOf(writer)),
                 .flush_fn = _flush(@TypeOf(writer)),
             };
@@ -471,9 +471,9 @@ pub const text = struct {
     /// ...
     pub const background = struct {
         /// Updates the current background color.
-        pub fn set(writer: anytype, color: fuizon.style.Color) error{BackendError}!void {
+        pub fn set(writer: *std.io.Writer, color: fuizon.style.Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
-                .context = @ptrCast(@constCast(&writer)),
+                .context = @ptrCast(@constCast(writer)),
                 .write_fn = _write(@TypeOf(writer)),
                 .flush_fn = _flush(@TypeOf(writer)),
             };
@@ -491,9 +491,9 @@ pub const text = struct {
         /// ...
         pub const bold = struct {
             /// Enables the text attribute 'bold.'
-            pub fn set(writer: anytype) error{BackendError}!void {
+            pub fn set(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -503,9 +503,9 @@ pub const text = struct {
             }
 
             /// Disables the text attribute 'bold.'
-            pub fn reset(writer: anytype) error{BackendError}!void {
+            pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -518,9 +518,9 @@ pub const text = struct {
         /// ...
         pub const dim = struct {
             /// Enables the text attribute 'dim.'
-            pub fn set(writer: anytype) error{BackendError}!void {
+            pub fn set(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -530,9 +530,9 @@ pub const text = struct {
             }
 
             /// Disables the text attribute 'dim.'
-            pub fn reset(writer: anytype) error{BackendError}!void {
+            pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -545,9 +545,9 @@ pub const text = struct {
         /// ...
         pub const underline = struct {
             /// Enables the text attribute 'underline.'
-            pub fn set(writer: anytype) error{BackendError}!void {
+            pub fn set(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -557,9 +557,9 @@ pub const text = struct {
             }
 
             /// Disables the text attribute 'underline.'
-            pub fn reset(writer: anytype) error{BackendError}!void {
+            pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -572,9 +572,9 @@ pub const text = struct {
         /// ...
         pub const reverse = struct {
             /// Enables the text attribute 'reverse.'
-            pub fn set(writer: anytype) error{BackendError}!void {
+            pub fn set(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -584,9 +584,9 @@ pub const text = struct {
             }
 
             /// Disables the text attribute 'reverse.'
-            pub fn reset(writer: anytype) error{BackendError}!void {
+            pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -599,9 +599,9 @@ pub const text = struct {
         /// ...
         pub const hidden = struct {
             /// Enables the text attribute 'hidden.'
-            pub fn set(writer: anytype) error{BackendError}!void {
+            pub fn set(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -611,9 +611,9 @@ pub const text = struct {
             }
 
             /// Disables the text attribute 'hidden.'
-            pub fn reset(writer: anytype) error{BackendError}!void {
+            pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
                 var stream: c.crossterm_stream = .{
-                    .context = @ptrCast(@constCast(&writer)),
+                    .context = @ptrCast(@constCast(writer)),
                     .write_fn = _write(@TypeOf(writer)),
                     .flush_fn = _flush(@TypeOf(writer)),
                 };
@@ -627,9 +627,9 @@ pub const text = struct {
     /// ...
     pub const attributes = struct {
         /// Disables all text attributes.
-        pub fn reset(writer: anytype) error{BackendError}!void {
+        pub fn reset(writer: *std.io.Writer) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
-                .context = @ptrCast(@constCast(&writer)),
+                .context = @ptrCast(@constCast(writer)),
                 .write_fn = _write(@TypeOf(writer)),
                 .flush_fn = _flush(@TypeOf(writer)),
             };
@@ -674,22 +674,35 @@ pub const event = struct {
 };
 
 /// ...
-fn _write(comptime WriterType: type) fn (buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
+fn _write(comptime WriterType: type) fn (buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.c) c_long {
+    _ = WriterType;
     return struct {
-        fn w(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.C) c_long {
+        fn w(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.c) c_long {
             const maxlen = @as(usize, std.math.maxInt(c_long));
             const len = if (buflen <= maxlen) buflen else maxlen;
-            const ctx: *const WriterType = @ptrCast(@alignCast(context));
-            return @intCast(ctx.write(buf[0..len]) catch return -1);
+            const ctx: *std.io.Writer = @ptrCast(@alignCast(context));
+
+            // The write operation below may return 0. Although that’s not an error,
+            // we can't let 0 be returned from this function since Rust would
+            // misinterpret that as the object being unable to accept more bytes,
+            // which triggers an error there.
+            //
+            // Therefore, we retry the write until we get a non-zero result.
+            var ret: c_long = 0;
+            while (ret == 0) {
+                ret = @intCast(ctx.write(buf[0..len]) catch return -1);
+            }
+            return ret;
         }
     }.w;
 }
 
 /// ...
-fn _flush(comptime WriterType: type) fn (contxet: ?*anyopaque) callconv(.C) c_int {
+fn _flush(comptime WriterType: type) fn (contxet: ?*anyopaque) callconv(.c) c_int {
+    _ = WriterType;
     return struct {
-        fn f(context: ?*anyopaque) callconv(.C) c_int {
-            const ctx: *const WriterType = @ptrCast(@alignCast(context));
+        fn f(context: ?*anyopaque) callconv(.c) c_int {
+            const ctx: *std.io.Writer = @ptrCast(@alignCast(context));
             _ = ctx;
             return 0;
         }

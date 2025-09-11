@@ -1,20 +1,20 @@
 const std = @import("std");
 const fuizon = @import("fuizon");
 
-fn prompt(comptime p: []const u8, reader: anytype, writer: anytype) !u8 {
-    var buffer: [4]u8 = undefined;
-    var slice: []u8 = undefined;
-
+fn prompt(comptime p: []const u8, reader: *std.io.Reader, writer: *std.io.Writer) !u8 {
     try writer.print(p, .{});
-    slice = try reader.readUntilDelimiter(&buffer, '\n');
+    const slice = try reader.takeDelimiterExclusive('\n');
     return try std.fmt.parseInt(u8, slice, 10);
 }
 
 pub fn main() !void {
-    const stdin = std.io.getStdIn();
-    const stdout = std.io.getStdOut();
-    const reader = stdin.reader();
-    const writer = stdout.writer();
+    var read_buffer: [4]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&read_buffer);
+    const reader = &stdin_reader.interface;
+
+    var write_buffer: [0]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&write_buffer);
+    const writer = &stdout_writer.interface;
 
     const r: u8 = prompt("Red: ", reader, writer) catch {
         try writer.print("Invalid input\n", .{});

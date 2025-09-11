@@ -10,15 +10,7 @@ pub const Attribute = enum(u8) {
     hidden     = 1 << 4,
     // zig fmt: on
 
-    pub fn format(
-        self: Attribute,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: Attribute, writer: *std.io.Writer) !void {
         // zig fmt: off
         switch (self) {
             .bold       => _ = try writer.write("bold"),
@@ -69,15 +61,7 @@ pub const Attributes = struct {
         return true;
     }
 
-    pub fn format(
-        self: Attributes,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(self: Attributes, writer: *std.io.Writer) !void {
         var attributes = [_]Attribute{.bold} ** 5;
         var nattributes: usize = 0;
 
@@ -102,7 +86,13 @@ pub const Attributes = struct {
             nattributes += 1;
         }
 
-        try writer.print("{any}", .{attributes[0..nattributes]});
+        _ = try writer.write("{");
+        for (attributes[0..nattributes], 0..) |attribute, i| {
+            try writer.print(" {f}", .{attribute});
+            if (i + 1 < nattributes)
+                _ = try writer.write(",");
+        }
+        _ = try writer.write(" }");
     }
 };
 
@@ -223,31 +213,31 @@ test "attributes-set-reset" {
 }
 
 test "format-bold-attribute" {
-    try std.testing.expectFmt("bold", "{}", .{Attribute.bold});
+    try std.testing.expectFmt("bold", "{f}", .{Attribute.bold});
 }
 
 test "format-dim-attribute" {
-    try std.testing.expectFmt("dim", "{}", .{Attribute.dim});
+    try std.testing.expectFmt("dim", "{f}", .{Attribute.dim});
 }
 
 test "format-underlined-attribute" {
-    try std.testing.expectFmt("underlined", "{}", .{Attribute.underlined});
+    try std.testing.expectFmt("underlined", "{f}", .{Attribute.underlined});
 }
 
 test "format-reverse-attribute" {
-    try std.testing.expectFmt("reverse", "{}", .{Attribute.reverse});
+    try std.testing.expectFmt("reverse", "{f}", .{Attribute.reverse});
 }
 
 test "format-hidden-attribute" {
-    try std.testing.expectFmt("hidden", "{}", .{Attribute.hidden});
+    try std.testing.expectFmt("hidden", "{f}", .{Attribute.hidden});
 }
 
 test "format-empty-attribute-set" {
-    try std.testing.expectFmt("{  }", "{}", .{Attributes.none});
+    try std.testing.expectFmt("{ }", "{f}", .{Attributes.none});
 }
 
 test "format-all-attributes" {
-    try std.testing.expectFmt("{ bold, dim, underlined, reverse, hidden }", "{}", .{Attributes.all});
+    try std.testing.expectFmt("{ bold, dim, underlined, reverse, hidden }", "{f}", .{Attributes.all});
 }
 
 test "from-fuizon-to-crossterm-default-color" {

@@ -357,8 +357,9 @@ fn Demo(comptime WriterType: type) type {
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut();
-    const writer = stdout.writer();
+    var buffer: [0]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&buffer);
+    const writer = &stdout_writer.interface;
 
     var demo = try Demo(@TypeOf(writer)).init(writer);
     defer demo.deinit() catch {};
