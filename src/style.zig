@@ -3,12 +3,7 @@ const c = @import("headers.zig").c;
 const fuizon = @import("fuizon.zig");
 const Attribute = fuizon.Attribute;
 const Attributes = fuizon.Attributes;
-
-pub const Alignment = enum {
-    start,
-    center,
-    end,
-};
+const Alignment = fuizon.Alignment;
 
 pub const AnsiColor = struct {
     value: u8,

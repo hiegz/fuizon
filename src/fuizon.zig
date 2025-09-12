@@ -45,6 +45,9 @@ pub const enableRawMode = raw_mode.enableRawMode;
 pub const disableRawMode = raw_mode.disableRawMode;
 pub const isRawModeEnabled = raw_mode.isRawModeEnabled;
 
+pub const alignment = @import("alignment.zig");
+pub const Alignment = alignment.Alignment;
+
 pub const attribute = @import("attribute.zig");
 pub const Attribute = attribute.Attribute;
 pub const Attributes = attribute.Attributes;
