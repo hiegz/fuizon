@@ -6,7 +6,7 @@ const Area = fuizon.layout.Area;
 const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 
-const Color = fuizon.style.Color;
+const Color = fuizon.Color;
 const Attributes = fuizon.Attributes;
 
 /// ...
@@ -453,7 +453,7 @@ pub const text = struct {
     /// ...
     pub const foreground = struct {
         /// Updates the current foreground color.
-        pub fn set(writer: *std.io.Writer, color: fuizon.style.Color) error{BackendError}!void {
+        pub fn set(writer: *std.io.Writer, color: Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
                 .context = @ptrCast(@constCast(writer)),
                 .write_fn = _write(@TypeOf(writer)),
@@ -471,7 +471,7 @@ pub const text = struct {
     /// ...
     pub const background = struct {
         /// Updates the current background color.
-        pub fn set(writer: *std.io.Writer, color: fuizon.style.Color) error{BackendError}!void {
+        pub fn set(writer: *std.io.Writer, color: Color) error{BackendError}!void {
             var stream: c.crossterm_stream = .{
                 .context = @ptrCast(@constCast(writer)),
                 .write_fn = _write(@TypeOf(writer)),
