@@ -4,7 +4,7 @@ const fuizon = @import("fuizon.zig");
 const Area = fuizon.layout.Area;
 const Attributes = fuizon.Attributes;
 const Style = fuizon.style.Style;
-const Coordinate = fuizon.layout.Coordinate;
+const Coordinate = fuizon.Coordinate;
 
 /// ...
 pub const Frame = struct {

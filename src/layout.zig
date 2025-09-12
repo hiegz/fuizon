@@ -1,6 +1,6 @@
 const std = @import("std");
-
-pub const Coordinate = struct { x: u16, y: u16 };
+const fuizon = @import("fuizon.zig");
+const Coordinate = fuizon.Coordinate;
 
 /// Represents a rectangular area.
 pub const Area = struct {
