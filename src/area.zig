@@ -6,6 +6,10 @@ pub const Area = struct {
     x: u16,
     y: u16,
 
+    pub fn init(width: u16, height: u16, x: u16, y: u16) Area {
+        return .{ .width = width, .height = height, .x = x, .y = y };
+    }
+
     pub fn top(self: Area) u16 {
         return self.y;
     }
