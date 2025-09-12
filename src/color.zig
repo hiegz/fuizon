@@ -60,6 +60,10 @@ pub const AnsiColor = struct {
     }
 };
 
+pub fn Ansi(value: u8) AnsiColor {
+    return AnsiColor{ .value = value };
+}
+
 pub const RgbColor = struct {
     r: u8,
     g: u8,
@@ -69,6 +73,10 @@ pub const RgbColor = struct {
         return .{ .r = color.r, .g = color.g, .b = color.b };
     }
 };
+
+pub fn Rgb(r: u8, g: u8, b: u8) RgbColor {
+    return RgbColor{ .r = r, .g = g, .b = b };
+}
 
 pub fn setForeground(color: Color) error{TerminalError}!void {
     var s = fuizon.writer.getCrosstermStream();
