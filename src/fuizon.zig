@@ -93,16 +93,18 @@ pub const KeyCode = keyboard.KeyCode;
 pub const KeyModifier = keyboard.KeyModifier;
 pub const KeyModifiers = keyboard.KeyModifiers;
 
+pub const event = @import("event.zig");
+pub const Event = event.Event;
+pub const KeyEvent = event.KeyEvent;
+pub const ResizeEvent = event.ResizeEvent;
+
 pub const coordinate = @import("coordinate.zig");
 pub const Coordinate = coordinate.Coordinate;
 
 pub const area = @import("area.zig");
 pub const Area = area.Area;
 
-// zig fmt: off
-pub const event    = @import("event.zig");
-pub const frame    = @import("frame.zig");
-// zig fmt: on
+pub const frame = @import("frame.zig");
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
