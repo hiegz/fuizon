@@ -22,7 +22,8 @@ pub const Frame = struct {
             .area = .{
                 .width = 0,
                 .height = 0,
-                .origin = .{ .x = 0, .y = 0 },
+                .x = 0,
+                .y = 0,
             },
         };
     }
@@ -34,7 +35,7 @@ pub const Frame = struct {
     ) std.mem.Allocator.Error!Frame {
         var frame = Frame.init(allocator);
         try frame.resize(area.width, area.height);
-        frame.moveTo(area.origin.x, area.origin.y);
+        frame.moveTo(area.x, area.y);
         return frame;
     }
 
@@ -77,7 +78,8 @@ pub const Frame = struct {
         var frame = try Frame.initArea(allocator, .{
             .width = @intCast(grid.items[0].items.len),
             .height = @intCast(grid.items.len),
-            .origin = .{ .x = 0, .y = 0 },
+            .x = 0,
+            .y = 0,
         });
         errdefer frame.deinit();
 
@@ -101,7 +103,7 @@ pub const Frame = struct {
     /// Copies the provided Frame.
     pub fn copy(self: *Frame, frame: Frame) std.mem.Allocator.Error!void {
         try self.resize(frame.area.width, frame.area.height);
-        self.moveTo(frame.area.origin.x, frame.area.origin.y);
+        self.moveTo(frame.area.x, frame.area.y);
         @memcpy(self.buffer, frame.buffer);
     }
 
@@ -118,38 +120,38 @@ pub const Frame = struct {
 
     /// Moves the frame's origin up by `n` rows.
     pub inline fn moveUp(self: *Frame, n: u16) void {
-        self.area.origin.y -|= n;
+        self.area.y -|= n;
     }
 
     /// Moves the frame's origin down by `n` rows.
     pub inline fn moveDown(self: *Frame, y: u16) void {
-        self.area.origin.y +|= y;
+        self.area.y +|= y;
     }
 
     /// Moves the frame's origin left by `n` columns.
     pub inline fn moveLeft(self: *Frame, n: u16) void {
-        self.area.origin.x -|= n;
+        self.area.x -|= n;
     }
 
     /// Moves the frame's origin right by `n` columns.
     pub inline fn moveRight(self: *Frame, n: u16) void {
-        self.area.origin.x +|= n;
+        self.area.x +|= n;
     }
 
     /// Moves the frame's origin to a specified row.
     pub inline fn moveToRow(self: *Frame, y: u16) void {
-        self.area.origin.y = y;
+        self.area.y = y;
     }
 
     /// Moves the frame's origin to a specified column.
     pub inline fn moveToCol(self: *Frame, x: u16) void {
-        self.area.origin.x = x;
+        self.area.x = x;
     }
 
     /// Moves the frame's origin to specified coordinates.
     pub inline fn moveTo(self: *Frame, x: u16, y: u16) void {
-        self.area.origin.x = x;
-        self.area.origin.y = y;
+        self.area.x = x;
+        self.area.y = y;
     }
 
     /// Returns a pointer to a frame cell at the given absolute coordinates.
@@ -175,8 +177,8 @@ pub const Frame = struct {
     /// Computes the position of a cell based on its index in the underlying buffer.
     pub fn posOf(self: Frame, i: usize) Coordinate {
         return .{
-            .x = @intCast(i % @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.origin.x))),
-            .y = @intCast(i / @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.origin.y))),
+            .x = @intCast(i % @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.x))),
+            .y = @intCast(i / @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.y))),
         };
     }
 
@@ -229,7 +231,7 @@ pub const FrameCell = struct {
 //
 
 test "initArea() should init area" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     const frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -237,7 +239,7 @@ test "initArea() should init area" {
 }
 
 test "init() should allocator the underlying buffer" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     const frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -245,12 +247,12 @@ test "init() should allocator the underlying buffer" {
 }
 
 test "copy() with matching frame dimensions should copy the source frame" {
-    const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
-    const dest_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const dest_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
@@ -261,12 +263,12 @@ test "copy() with matching frame dimensions should copy the source frame" {
 }
 
 test "copy() with matching frame dimensions should not reallocate the underlying destination buffer" {
-    const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
-    const dest_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const dest_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
@@ -277,12 +279,12 @@ test "copy() with matching frame dimensions should not reallocate the underlying
 }
 
 test "copy() with different frame dimensions should copy the source frame" {
-    const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
-    const dest_area = Area{ .width = 1, .height = 5, .origin = .{ .x = 5, .y = 9 } };
+    const dest_area = Area{ .width = 1, .height = 5, .x = 5, .y = 9 };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
@@ -293,12 +295,12 @@ test "copy() with different frame dimensions should copy the source frame" {
 }
 
 test "copy() with different frame dimensions should reallocate the underlying destination buffer" {
-    const src_area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var src = try Frame.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
-    const dest_area = Area{ .width = 1, .height = 5, .origin = .{ .x = 5, .y = 9 } };
+    const dest_area = Area{ .width = 1, .height = 5, .x = 5, .y = 9 };
     var dest = try Frame.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
@@ -309,118 +311,118 @@ test "copy() with different frame dimensions should reallocate the underlying de
 }
 
 test "moveUp() should adjust y-origin upward" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveUp(5);
 
-    try std.testing.expectEqual(0, frame.area.origin.y);
+    try std.testing.expectEqual(0, frame.area.y);
 }
 
 test "moveUp() should not overflow" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 0 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 0 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveUp(5);
 
-    try std.testing.expectEqual(0, frame.area.origin.y);
+    try std.testing.expectEqual(0, frame.area.y);
 }
 
 test "moveDown() should adjust y-origin downward" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveDown(5);
 
-    try std.testing.expectEqual(10, frame.area.origin.y);
+    try std.testing.expectEqual(10, frame.area.y);
 }
 
 test "moveDown() should not overflow" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = std.math.maxInt(u16) } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = std.math.maxInt(u16) };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveDown(1);
 
-    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.origin.y);
+    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.y);
 }
 
 test "moveLeft() should adjust x-origin to the left" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveLeft(1);
 
-    try std.testing.expectEqual(0, frame.area.origin.x);
+    try std.testing.expectEqual(0, frame.area.x);
 }
 
 test "moveLeft() should not overflow" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 0, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 0, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveLeft(1);
 
-    try std.testing.expectEqual(0, frame.area.origin.x);
+    try std.testing.expectEqual(0, frame.area.x);
 }
 
 test "moveRight() should adjust x-origin to the right" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveRight(5);
 
-    try std.testing.expectEqual(6, frame.area.origin.x);
+    try std.testing.expectEqual(6, frame.area.x);
 }
 
 test "moveRight() should not overflow" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = std.math.maxInt(u16), .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = std.math.maxInt(u16), .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveRight(1);
 
-    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.origin.x);
+    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.x);
 }
 
 test "moveToRow() should set the y-origin to the specified row" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 0, .y = 0 } };
+    const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveToRow(5);
 
-    try std.testing.expectEqual(5, frame.area.origin.y);
+    try std.testing.expectEqual(5, frame.area.y);
 }
 
 test "moveToCol() should set the x-origin to the specified column" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 0, .y = 0 } };
+    const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveToCol(1);
 
-    try std.testing.expectEqual(1, frame.area.origin.x);
+    try std.testing.expectEqual(1, frame.area.x);
 }
 
 test "moveTo() should set the origin to the specified coordinates" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 0, .y = 0 } };
+    const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
     frame.moveTo(1, 5);
 
-    try std.testing.expectEqual(1, frame.area.origin.x);
-    try std.testing.expectEqual(5, frame.area.origin.y);
+    try std.testing.expectEqual(1, frame.area.x);
+    try std.testing.expectEqual(5, frame.area.y);
 }
 
 test "index() should return a pointer to the expected cell" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -436,7 +438,7 @@ test "index() should return a pointer to the expected cell" {
 }
 
 test "index() should return the expected pointer type" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -457,7 +459,7 @@ test "index() should return the expected pointer type" {
 }
 
 test "posOf() should return the position of the cell" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -468,7 +470,7 @@ test "posOf() should return the position of the cell" {
 }
 
 test "fill() should fill every cell in the frame with the specified cell value" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
@@ -483,7 +485,7 @@ test "fill() should fill every cell in the frame with the specified cell value" 
 }
 
 test "reset() should reset every cell to the default (empty) state" {
-    const area = Area{ .width = 5, .height = 9, .origin = .{ .x = 1, .y = 5 } };
+    const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
     var frame = try Frame.initArea(std.testing.allocator, area);
     defer frame.deinit();
 
