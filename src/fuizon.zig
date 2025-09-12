@@ -88,6 +88,9 @@ pub const saveCursorPosition = cursor.saveCursorPosition;
 pub const restoreCursorPosition = cursor.restoreCursorPosition;
 pub const getCursorPosition = cursor.getCursorPosition;
 
+pub const coordinate = @import("coordinate.zig");
+pub const Coordinate = coordinate.Coordinate;
+
 // zig fmt: off
 pub const event    = @import("event.zig");
 pub const keyboard = @import("keyboard.zig");
