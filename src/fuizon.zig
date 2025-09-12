@@ -91,11 +91,13 @@ pub const getCursorPosition = cursor.getCursorPosition;
 pub const coordinate = @import("coordinate.zig");
 pub const Coordinate = coordinate.Coordinate;
 
+pub const area = @import("area.zig");
+pub const Area = area.Area;
+
 // zig fmt: off
 pub const event    = @import("event.zig");
 pub const keyboard = @import("keyboard.zig");
 pub const frame    = @import("frame.zig");
-pub const layout   = @import("layout.zig");
 // zig fmt: on
 
 test "fuizon" {
