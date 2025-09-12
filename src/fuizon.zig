@@ -61,6 +61,9 @@ pub const RgbColor = color.RgbColor;
 pub const setForeground = color.setForeground;
 pub const setBackground = color.setBackground;
 
+pub const style = @import("style.zig");
+pub const Style = style.Style;
+
 pub const screen = @import("screen.zig");
 pub const clearScreen = screen.clearScreen;
 pub const clearScreenFromCursorDown = screen.clearScreenFromCursorDown;
@@ -88,7 +91,6 @@ pub const getCursorPosition = cursor.getCursorPosition;
 // zig fmt: off
 pub const event    = @import("event.zig");
 pub const keyboard = @import("keyboard.zig");
-pub const style    = @import("style.zig");
 pub const backend  = @import("backend.zig");
 pub const frame    = @import("frame.zig");
 pub const layout   = @import("layout.zig");
