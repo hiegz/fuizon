@@ -2,13 +2,11 @@ const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const Coordinate = fuizon.Coordinate;
 
-/// Represents a rectangular area.
 pub const Area = struct {
     width: u16,
     height: u16,
     origin: Coordinate,
 
-    /// Returns the topmost coordinate of the area.
     pub fn top(self: Area) u16 {
         return self.origin.y;
     }
@@ -21,7 +19,6 @@ pub const Area = struct {
         }).top());
     }
 
-    /// Returns the bottommost coordinate of the area.
     pub fn bottom(self: Area) u16 {
         return self.height + self.origin.y;
     }
@@ -34,7 +31,6 @@ pub const Area = struct {
         }).bottom());
     }
 
-    /// Returns the leftmost coordinate of the area.
     pub fn left(self: Area) u16 {
         return self.origin.x;
     }
@@ -47,7 +43,6 @@ pub const Area = struct {
         }).left());
     }
 
-    /// Returns the rightmost coordinate of the area.
     pub fn right(self: Area) u16 {
         return self.width + self.origin.x;
     }
