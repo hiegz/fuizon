@@ -46,6 +46,8 @@ pub const disableRawMode = raw_mode.disableRawMode;
 pub const isRawModeEnabled = raw_mode.isRawModeEnabled;
 
 pub const attribute = @import("attribute.zig");
+pub const Attribute = attribute.Attribute;
+pub const Attributes = attribute.Attributes;
 pub const setAttribute = attribute.setAttribute;
 pub const resetAttribute = attribute.resetAttribute;
 

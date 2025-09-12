@@ -1,7 +1,101 @@
+const std = @import("std");
 const fuizon = @import("fuizon.zig");
 const c = @import("headers.zig").c;
-const Attribute = fuizon.style.Attribute;
-const Attributes = fuizon.style.Attributes;
+
+pub const Attribute = enum(u8) {
+    // zig fmt: off
+    bold       = 1 << 0,
+    dim        = 1 << 1,
+    underlined = 1 << 2,
+    reverse    = 1 << 3,
+    hidden     = 1 << 4,
+    // zig fmt: on
+
+    pub fn format(self: Attribute, writer: *std.io.Writer) !void {
+        // zig fmt: off
+        switch (self) {
+            .bold       => _ = try writer.write("bold"),
+            .dim        => _ = try writer.write("dim"),
+            .underlined => _ = try writer.write("underlined"),
+            .reverse    => _ = try writer.write("reverse"),
+            .hidden     => _ = try writer.write("hidden"),
+        }
+        // zig fmt: on
+    }
+
+    pub fn bitset(attribute: Attribute) u8 {
+        return @intFromEnum(attribute);
+    }
+};
+
+pub const Attributes = struct {
+    // zig fmt: off
+    pub const none = Attributes.join(&.{});
+    pub const all  = Attributes.join(&.{ .bold, .dim, .underlined, .reverse, .hidden });
+    // zig fmt: on
+
+    bitset: u8,
+
+    pub fn join(attributes: []const Attribute) Attributes {
+        var target = Attributes{ .bitset = 0 };
+        target.set(attributes);
+        return target;
+    }
+
+    pub fn set(self: *Attributes, attributes: []const Attribute) void {
+        for (attributes) |attribute| {
+            self.bitset |= attribute.bitset();
+        }
+    }
+
+    pub fn reset(self: *Attributes, attributes: []const Attribute) void {
+        for (attributes) |attribute| {
+            self.bitset &= ~attribute.bitset();
+        }
+    }
+
+    pub fn contain(self: Attributes, attributes: []const Attribute) bool {
+        for (attributes) |attribute| {
+            if ((self.bitset & attribute.bitset()) == 0)
+                return false;
+        }
+        return true;
+    }
+
+    pub fn format(self: Attributes, writer: *std.io.Writer) !void {
+        var attributes = [_]Attribute{.bold} ** 5;
+        var nattributes: usize = 0;
+
+        if (self.contain(&.{.bold})) {
+            attributes[nattributes] = .bold;
+            nattributes += 1;
+        }
+        if (self.contain(&.{.dim})) {
+            attributes[nattributes] = .dim;
+            nattributes += 1;
+        }
+        if (self.contain(&.{.underlined})) {
+            attributes[nattributes] = .underlined;
+            nattributes += 1;
+        }
+        if (self.contain(&.{.reverse})) {
+            attributes[nattributes] = .reverse;
+            nattributes += 1;
+        }
+        if (self.contain(&.{.hidden})) {
+            attributes[nattributes] = .hidden;
+            nattributes += 1;
+        }
+
+        _ = try writer.write("{");
+        for (attributes[0..nattributes], 0..) |attribute, i| {
+            try writer.print(" {f}", .{attribute});
+            if (i + 1 < nattributes)
+                _ = try writer.write(",");
+        }
+        _ = try writer.write(" }");
+    }
+};
 
 pub fn setAttribute(attribute: Attribute) error{TerminalError}!void {
     var s = fuizon.writer.getCrosstermStream();
@@ -31,4 +125,67 @@ pub fn resetAttribute(attribute: Attribute) error{TerminalError}!void {
         // zig fmt: on
     };
     if (0 != ret) return error.TerminalError;
+}
+
+test "no-attributes" {
+    try std.testing.expectEqual(0, Attributes.none.bitset);
+}
+
+test "all-attributes" {
+    try std.testing.expect(Attributes.all.contain(&.{
+        .bold,
+        .dim,
+        .underlined,
+        .reverse,
+        .hidden,
+    }));
+}
+
+test "attributes-contain" {
+    var attributes = Attributes.all;
+    attributes.reset(&.{ .bold, .reverse });
+
+    try std.testing.expect(!attributes.contain(&.{.bold}));
+    try std.testing.expect(!attributes.contain(&.{.reverse}));
+    try std.testing.expect(!attributes.contain(&.{ .bold, .reverse }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .bold }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .reverse }));
+    try std.testing.expect(!attributes.contain(&.{ .dim, .bold, .reverse }));
+    try std.testing.expect(attributes.contain(&.{.dim}));
+}
+
+test "attributes-set-reset" {
+    var left = Attributes.none;
+    left.set(&.{ .dim, .hidden, .underlined });
+    var right = Attributes.all;
+    right.reset(&.{ .bold, .reverse });
+    try std.testing.expectEqual(left.bitset, right.bitset);
+}
+
+test "format-bold-attribute" {
+    try std.testing.expectFmt("bold", "{f}", .{Attribute.bold});
+}
+
+test "format-dim-attribute" {
+    try std.testing.expectFmt("dim", "{f}", .{Attribute.dim});
+}
+
+test "format-underlined-attribute" {
+    try std.testing.expectFmt("underlined", "{f}", .{Attribute.underlined});
+}
+
+test "format-reverse-attribute" {
+    try std.testing.expectFmt("reverse", "{f}", .{Attribute.reverse});
+}
+
+test "format-hidden-attribute" {
+    try std.testing.expectFmt("hidden", "{f}", .{Attribute.hidden});
+}
+
+test "format-empty-attribute-set" {
+    try std.testing.expectFmt("{ }", "{f}", .{Attributes.none});
+}
+
+test "format-all-attributes" {
+    try std.testing.expectFmt("{ bold, dim, underlined, reverse, hidden }", "{f}", .{Attributes.all});
 }

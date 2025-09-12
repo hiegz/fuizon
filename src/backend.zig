@@ -7,7 +7,7 @@ const Frame = fuizon.frame.Frame;
 const FrameCell = fuizon.frame.FrameCell;
 
 const Color = fuizon.style.Color;
-const Attributes = fuizon.style.Attributes;
+const Attributes = fuizon.Attributes;
 
 /// ...
 pub const raw_mode = struct {
