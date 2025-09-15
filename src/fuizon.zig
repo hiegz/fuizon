@@ -67,11 +67,6 @@ pub const style = @import("style.zig");
 pub const Style = style.Style;
 
 pub const screen = @import("screen.zig");
-pub const clearScreen = screen.clearScreen;
-pub const clearScreenFromCursorDown = screen.clearScreenFromCursorDown;
-pub const clearScreenFromCursorUp = screen.clearScreenFromCursorUp;
-pub const clearCurrentLine = screen.clearCurrentLine;
-pub const clearUntilNewLine = screen.clearUntilNewLine;
 pub const scrollUp = screen.scrollUp;
 pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
@@ -79,15 +74,7 @@ pub const getScreenSize = screen.getScreenSize;
 pub const cursor = @import("cursor.zig");
 pub const showCursor = cursor.showCursor;
 pub const hideCursor = cursor.hideCursor;
-pub const moveCursorUp = cursor.moveCursorUp;
-pub const moveCursorDown = cursor.moveCursorDown;
-pub const moveCursorLeft = cursor.moveCursorLeft;
-pub const moveCursorRight = cursor.moveCursorRight;
-pub const moveCursorToRow = cursor.moveCursorToRow;
-pub const moveCursorToColumn = cursor.moveCursorToColumn;
 pub const moveCursorTo = cursor.moveCursorTo;
-pub const saveCursorPosition = cursor.saveCursorPosition;
-pub const restoreCursorPosition = cursor.restoreCursorPosition;
 pub const getCursorPosition = cursor.getCursorPosition;
 
 pub const keyboard = @import("keyboard.zig");

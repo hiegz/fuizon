@@ -7,6 +7,7 @@ var mode:             enum { normal, debug, move, scroll, insert } = .normal;
 var alternate_screen: enum { disabled, enabled                   } = .disabled;
 var polling:          enum { disabled, enabled                   } = .disabled;
 var cursor:           enum { hidden,   visible                   } = .visible;
+var cursor_position:  fuizon.Coordinate                            = .{ .x = 0, .y = 0 };
 var attributes:       fuizon.Attributes                            = fuizon.Attributes.none;
 // zig fmt: on
 
@@ -59,8 +60,6 @@ fn handleMoveEvent(event: fuizon.Event) !void {
         .key => switch (event.key.code) {
             // zig fmt: off
             .escape     => try enableNormalMode(),
-            .left_arrow => try fuizon.moveCursorToColumn(0),
-            .up_arrow   => try fuizon.moveCursorToRow(0),
             .char       => try handleCharCode(event.key.code.char),
             // zig fmt: on
 
@@ -75,16 +74,11 @@ fn handleCharCode(char: u21) !void {
     switch (char) {
         // zig fmt: off
         'c' => try toggleCursorVisiblity(),
-        'a' => try fuizon.clearScreen(),
-        'J' => try fuizon.clearScreenFromCursorDown(),
-        'K' => try fuizon.clearScreenFromCursorUp(),
-        'd' => try fuizon.clearCurrentLine(),
-        'n' => try fuizon.clearUntilNewLine(),
         's' => try fuizon.moveCursorTo(0, 0),
-        'h' => try fuizon.moveCursorLeft(1),
-        'j' => try fuizon.moveCursorDown(1),
-        'k' => try fuizon.moveCursorUp(1),
-        'l' => try fuizon.moveCursorRight(1),
+        'h' => try moveCursorLeft(),
+        'j' => try moveCursorDown(),
+        'k' => try moveCursorUp(),
+        'l' => try moveCursorRight(),
         'p' => try printCursorPosition(),
         // zig fmt: on
 
@@ -143,7 +137,7 @@ fn handleInsertMode(event: fuizon.Event) !void {
 
 fn enableNormalMode() !void {
     if (mode == .move)
-        try fuizon.restoreCursorPosition();
+        try restoreCursorPosition();
     if (mode == .insert) {
         var iterator = attributes.iterator();
         while (iterator.next()) |attribute| {
@@ -178,19 +172,12 @@ fn enableMoveMode() !void {
     try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
     try fuizon.getWriter().print("      'p' to get current cursor position,\n\r", .{});
     try fuizon.getWriter().print("      'c' to toggle cursor visibility,\n\r", .{});
-    try fuizon.getWriter().print("      'd' to clear the current line,\n\r", .{});
-    try fuizon.getWriter().print("      'n' to clear from the cursor position until the new line,\n\r", .{});
-    try fuizon.getWriter().print("      'J' to clear the terminal screen from the cursor position downwards,\n\r", .{});
-    try fuizon.getWriter().print("      'K' to clear the terminal screen from the cursor position upwards,\n\r", .{});
-    try fuizon.getWriter().print("      'a' to clear the terminal screen,\n\r", .{});
     try fuizon.getWriter().print("      's' to move to the top left corner,\n\r", .{});
-    try fuizon.getWriter().print("      '↑' to move to the top corner,\n\r", .{});
-    try fuizon.getWriter().print("      '←' to move to the left corner,\n\r", .{});
     try fuizon.getWriter().print("      'h' to move left,\n\r", .{});
     try fuizon.getWriter().print("      'j' to move down,\n\r", .{});
     try fuizon.getWriter().print("      'k' to move up,\n\r", .{});
     try fuizon.getWriter().print("      'l' to move right\n\r", .{});
-    try fuizon.saveCursorPosition();
+    try saveCursorPosition();
 }
 
 fn enableScrollMode() !void {
@@ -319,27 +306,71 @@ fn printScreenSize() !void {
 }
 
 fn printCursorPosition() !void {
-    const pos = try fuizon.getCursorPosition();
-    try fuizon.restoreCursorPosition();
+    try fuizon.hideCursor();
+    const pos = try getCursorPosition();
+    try restoreCursorPosition();
     try fuizon.getWriter().print("x={}, y={}\n\r", .{ pos.x, pos.y });
-    try fuizon.saveCursorPosition();
+    try saveCursorPosition();
     try fuizon.moveCursorTo(pos.x, pos.y);
+    try fuizon.showCursor();
+}
+
+fn saveCursorPosition() !void {
+    const _cursor = try getCursorPosition();
+    cursor_position.x = _cursor.x;
+    cursor_position.y = _cursor.y;
+}
+
+fn restoreCursorPosition() !void {
+    try fuizon.moveCursorTo(cursor_position.x, cursor_position.y);
+}
+
+fn getCursorPosition() !fuizon.Coordinate {
+    try fuizon.getWriter().flush();
+    const _cursor = try fuizon.getCursorPosition();
+    return .{ .x = _cursor.x, .y = _cursor.y };
+}
+
+fn moveCursorUp() !void {
+    const _cursor = try getCursorPosition();
+    if (_cursor.y == 0) return;
+    try fuizon.moveCursorTo(_cursor.x, _cursor.y - 1);
+}
+
+fn moveCursorDown() !void {
+    const _cursor = try getCursorPosition();
+    const screen = try fuizon.getScreenSize();
+    if (_cursor.y + 1 == screen.height) return;
+    try fuizon.moveCursorTo(_cursor.x, _cursor.y + 1);
+}
+
+fn moveCursorLeft() !void {
+    const _cursor = try getCursorPosition();
+    if (_cursor.x == 0) return;
+    try fuizon.moveCursorTo(_cursor.x - 1, _cursor.y);
+}
+
+fn moveCursorRight() !void {
+    const _cursor = try getCursorPosition();
+    const screen = try fuizon.getScreenSize();
+    if (_cursor.x + 1 == screen.width) return;
+    try fuizon.moveCursorTo(_cursor.x + 1, _cursor.y);
 }
 
 fn scrollUp() !void {
     try fuizon.scrollUp(1);
-    try fuizon.moveCursorUp(1);
+    try moveCursorUp();
 }
 
 fn scrollDown() !void {
-    const _cursor = try fuizon.getCursorPosition();
+    const _cursor = try getCursorPosition();
     const screen = try fuizon.getScreenSize();
 
     if (_cursor.y + 1 == screen.height)
         return;
 
     try fuizon.scrollDown(1);
-    try fuizon.moveCursorDown(1);
+    try moveCursorDown();
 }
 
 pub fn main() !void {
@@ -347,6 +378,8 @@ pub fn main() !void {
 
     try fuizon.enableRawMode();
     defer fuizon.disableRawMode() catch {};
+
+    try saveCursorPosition();
 
     state = .running;
     try enableNormalMode();
