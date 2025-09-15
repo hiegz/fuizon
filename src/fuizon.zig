@@ -57,7 +57,9 @@ pub const resetAttribute = attribute.resetAttribute;
 pub const color = @import("color.zig");
 pub const Color = color.Color;
 pub const AnsiColor = color.AnsiColor;
+pub const Ansi = color.Ansi;
 pub const RgbColor = color.RgbColor;
+pub const Rgb = color.Rgb;
 pub const setForeground = color.setForeground;
 pub const setBackground = color.setBackground;
 
