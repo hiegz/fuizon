@@ -4,7 +4,7 @@ const c = @import("headers.zig").c;
 // zig fmt: off
 
 var buffer = @as([4096]u8, undefined);
-var writer = @as(std.fs.File.Writer, std.fs.File.stdout().writer(&buffer));
+var writer = @as(std.fs.File.Writer, std.fs.File.stdout().writerStreaming(&buffer));
 
 /// ---
 /// Get the underlying terminal stream writer.
