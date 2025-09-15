@@ -84,7 +84,10 @@ pub fn main() !void {
 
     while (true) {
         const screen = try fuizon.getScreenSize();
-        try fuizon.clearScreen();
+        try fuizon.moveCursorTo(0, 0);
+        for (0..screen.width * screen.height) |_| {
+            try fuizon.getWriter().print(" ", .{});
+        }
 
         if (WIDTH <= screen.width and HEIGHT <= screen.height) {
             const art_area = center(Area.init(screen.width, screen.height, 0, 0), WIDTH, HEIGHT);
