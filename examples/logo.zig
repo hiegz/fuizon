@@ -1,26 +1,25 @@
 const std = @import("std");
 const fuizon = @import("fuizon");
-
-const Area = fuizon.layout.Area;
-const Frame = fuizon.frame.Frame;
-const Color = fuizon.style.Color;
+const Area = fuizon.Area;
+const Color = fuizon.Color;
+const Rgb = fuizon.Rgb;
 
 pub fn center(area: Area, width: u16, height: u16) Area {
     std.debug.assert(width <= area.width and height <= area.height);
     var centered = @as(Area, undefined);
     centered.width = width;
     centered.height = height;
-    centered.origin.x = area.origin.x + (area.width - width) / 2;
-    centered.origin.y = area.origin.y + (area.height - height) / 2;
+    centered.x = area.x + (area.width - width) / 2;
+    centered.y = area.y + (area.height - height) / 2;
     return centered;
 }
 
 // zig fmt: off
-const red:         Color = .{ .rgb = .{ .r = 250, .g = 22,  .b = 50 } };
-const light_red:   Color = .{ .rgb = .{ .r = 250, .g = 81,  .b = 50 } };
-const dark_yellow: Color = .{ .rgb = .{ .r = 250, .g = 207, .b = 14 } };
-const yellow:      Color = .{ .rgb = .{ .r = 250, .g = 227, .b = 13 } };
-const orange:      Color = .{ .rgb = .{ .r = 250, .g = 130, .b = 8  } };
+const red:         Color = Rgb(250,  22, 50);
+const light_red:   Color = Rgb(250,  81, 50);
+const dark_yellow: Color = Rgb(250, 207, 14);
+const yellow:      Color = Rgb(250, 227, 13);
+const orange:      Color = Rgb(250, 130,  8);
 // zig fmt: on
 
 const WIDTH: u16 = 6 * 2;
@@ -74,51 +73,37 @@ const map = [_]Cell{
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    defer fuizon.getWriter().flush() catch {};
 
-    var buffer: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&buffer);
-    const stdout: *std.io.Writer = &stdout_writer.interface;
-    defer stdout.flush() catch unreachable;
-
-    try fuizon.backend.raw_mode.enable();
-    defer fuizon.backend.raw_mode.disable() catch {};
-    try fuizon.backend.alternate_screen.enter(stdout);
-    defer fuizon.backend.alternate_screen.leave(stdout) catch {};
-    try fuizon.backend.cursor.hide(stdout);
-    defer fuizon.backend.cursor.show(stdout) catch {};
-
-    var frame = try Frame.initArea(allocator, try fuizon.backend.area.fullscreen().render(stdout));
-    defer frame.deinit();
+    try fuizon.enableRawMode();
+    defer fuizon.disableRawMode() catch {};
+    try fuizon.enterAlternateScreen();
+    defer fuizon.leaveAlternateScreen() catch {};
+    try fuizon.hideCursor();
+    defer fuizon.showCursor() catch {};
 
     while (true) {
-        try fuizon.backend.screen.clearAll(stdout);
-        frame.reset();
-        if (WIDTH <= frame.area.width and HEIGHT <= frame.area.height) {
-            const art_area = center(frame.area, WIDTH, HEIGHT);
+        const screen = try fuizon.getScreenSize();
+        try fuizon.clearScreen();
+
+        if (WIDTH <= screen.width and HEIGHT <= screen.height) {
+            const art_area = center(Area.init(screen.width, screen.height, 0, 0), WIDTH, HEIGHT);
             for (map) |map_cell| {
-                const x = art_area.origin.x + map_cell.x;
-                const y = art_area.origin.y + map_cell.y;
+                const x = art_area.x + map_cell.x;
+                const y = art_area.y + map_cell.y;
 
-                const l = frame.index(x + 0, y);
-                const r = frame.index(x + 1, y);
-                l.width = 1;
-                l.content = ' ';
-                l.style.background_color = map_cell.color;
-                r.width = 1;
-
-                r.content = ' ';
-                r.style.background_color = map_cell.color;
+                try fuizon.moveCursorTo(x, y);
+                try fuizon.setBackground(map_cell.color);
+                try fuizon.getWriter().print("  ", .{});
+                try fuizon.setBackground(.default);
             }
         }
 
-        try fuizon.backend.frame.render(stdout, frame, Frame.none);
-        try stdout.flush();
-        switch (try fuizon.backend.event.read()) {
+        try fuizon.getWriter().flush();
+
+        switch (try fuizon.event.read()) {
             .key => return,
-            .resize => |d| try frame.resize(d.width, d.height),
+            else => {},
         }
     }
 }
