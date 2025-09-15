@@ -28,6 +28,9 @@ fn style(color: Color) Style {
 }
 
 pub fn main() !void {
+    try fuizon.init(std.heap.page_allocator, 1024, .stdout);
+    defer fuizon.deinit(std.heap.page_allocator);
+
     const writer = fuizon.getWriter();
 
     for (0..16) |c| {

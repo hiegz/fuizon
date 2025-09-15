@@ -73,6 +73,9 @@ const map = [_]Cell{
 };
 
 pub fn main() !void {
+    try fuizon.init(std.heap.page_allocator, 1024, .stdout);
+    defer fuizon.deinit(std.heap.page_allocator);
+
     defer fuizon.getWriter().flush() catch {};
 
     try fuizon.enableRawMode();
