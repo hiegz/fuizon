@@ -1,8 +1,8 @@
 const std = @import("std");
 const fuizon = @import("fuizon.zig");
 
-const KeyCode = fuizon.keyboard.KeyCode;
-const KeyModifiers = fuizon.keyboard.KeyModifiers;
+const KeyCode = fuizon.KeyCode;
+const KeyModifiers = fuizon.KeyModifiers;
 
 pub const KeyEvent = struct {
     code: KeyCode,

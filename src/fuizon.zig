@@ -1,7 +1,43 @@
-pub const writer = @import("writer.zig");
+pub const Alignment = alignment.Alignment;
+pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
+pub const leaveAlternateScreen = alternate_screen.leaveAlternateScreen;
+pub const Area = area.Area;
+pub const Attribute = attribute.Attribute;
+pub const Attributes = attribute.Attributes;
+pub const setAttribute = attribute.setAttribute;
+pub const resetAttribute = attribute.resetAttribute;
+pub const Color = color.Color;
+pub const AnsiColor = color.AnsiColor;
+pub const Ansi = color.Ansi;
+pub const RgbColor = color.RgbColor;
+pub const Rgb = color.Rgb;
+pub const setForeground = color.setForeground;
+pub const setBackground = color.setBackground;
+pub const Coordinate = coordinate.Coordinate;
+pub const showCursor = cursor.showCursor;
+pub const hideCursor = cursor.hideCursor;
+pub const moveCursorTo = cursor.moveCursorTo;
+pub const getCursorPosition = cursor.getCursorPosition;
+pub const Dimensions = dimensions.Dimensions;
+pub const event = @import("event.zig");
+pub const Event = event.Event;
+pub const KeyEvent = event.KeyEvent;
+pub const ResizeEvent = event.ResizeEvent;
+pub const KeyCode = keyboard.KeyCode;
+pub const KeyModifier = keyboard.KeyModifier;
+pub const KeyModifiers = keyboard.KeyModifiers;
+pub const enableRawMode = raw_mode.enableRawMode;
+pub const disableRawMode = raw_mode.disableRawMode;
+pub const isRawModeEnabled = raw_mode.isRawModeEnabled;
+pub const scrollUp = screen.scrollUp;
+pub const scrollDown = screen.scrollDown;
+pub const getScreenSize = screen.getScreenSize;
+pub const Style = style.Style;
 pub const getWriter = writer.getWriter;
 pub const useStdout = writer.useStdout;
 pub const useStderr = writer.useStderr;
+
+const alignment = @import("alignment.zig");
 
 /// ---
 ///
@@ -16,9 +52,15 @@ pub const useStderr = writer.useStderr;
 /// performed all operations on the alternative screen.
 ///
 /// ---
-pub const alternate_screen = @import("alternate_screen.zig");
-pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
-pub const leaveAlternateScreen = alternate_screen.leaveAlternateScreen;
+const alternate_screen = @import("alternate_screen.zig");
+const area = @import("area.zig");
+const attribute = @import("attribute.zig");
+const color = @import("color.zig");
+const coordinate = @import("coordinate.zig");
+const cursor = @import("cursor.zig");
+const dimensions = @import("dimensions.zig");
+const frame = @import("frame.zig");
+const keyboard = @import("keyboard.zig");
 
 /// ---
 ///
@@ -40,63 +82,10 @@ pub const leaveAlternateScreen = alternate_screen.leaveAlternateScreen;
 ///   - New line character will not be processed
 ///
 /// ---
-pub const raw_mode = @import("raw_mode.zig");
-pub const enableRawMode = raw_mode.enableRawMode;
-pub const disableRawMode = raw_mode.disableRawMode;
-pub const isRawModeEnabled = raw_mode.isRawModeEnabled;
-
-pub const alignment = @import("alignment.zig");
-pub const Alignment = alignment.Alignment;
-
-pub const attribute = @import("attribute.zig");
-pub const Attribute = attribute.Attribute;
-pub const Attributes = attribute.Attributes;
-pub const setAttribute = attribute.setAttribute;
-pub const resetAttribute = attribute.resetAttribute;
-
-pub const color = @import("color.zig");
-pub const Color = color.Color;
-pub const AnsiColor = color.AnsiColor;
-pub const Ansi = color.Ansi;
-pub const RgbColor = color.RgbColor;
-pub const Rgb = color.Rgb;
-pub const setForeground = color.setForeground;
-pub const setBackground = color.setBackground;
-
-pub const style = @import("style.zig");
-pub const Style = style.Style;
-
-pub const dimensions = @import("dimensions.zig");
-pub const Dimensions = dimensions.Dimensions;
-
-pub const screen = @import("screen.zig");
-pub const scrollUp = screen.scrollUp;
-pub const scrollDown = screen.scrollDown;
-pub const getScreenSize = screen.getScreenSize;
-
-pub const cursor = @import("cursor.zig");
-pub const showCursor = cursor.showCursor;
-pub const hideCursor = cursor.hideCursor;
-pub const moveCursorTo = cursor.moveCursorTo;
-pub const getCursorPosition = cursor.getCursorPosition;
-
-pub const keyboard = @import("keyboard.zig");
-pub const KeyCode = keyboard.KeyCode;
-pub const KeyModifier = keyboard.KeyModifier;
-pub const KeyModifiers = keyboard.KeyModifiers;
-
-pub const event = @import("event.zig");
-pub const Event = event.Event;
-pub const KeyEvent = event.KeyEvent;
-pub const ResizeEvent = event.ResizeEvent;
-
-pub const coordinate = @import("coordinate.zig");
-pub const Coordinate = coordinate.Coordinate;
-
-pub const area = @import("area.zig");
-pub const Area = area.Area;
-
-pub const frame = @import("frame.zig");
+const raw_mode = @import("raw_mode.zig");
+const screen = @import("screen.zig");
+const style = @import("style.zig");
+const writer = @import("writer.zig");
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
