@@ -1,3 +1,5 @@
+const fuizon = @import("fuizon.zig");
+
 pub fn scrollUp(n: u16) !void {
     _ = n;
     // Not implemented
@@ -8,7 +10,7 @@ pub fn scrollDown(n: u16) !void {
     // Not implemented
 }
 
-pub fn getScreenSize() !struct { width: u16, height: u16 } {
+pub fn getScreenSize() !fuizon.Dimensions {
     // Not implemented
     return undefined;
 }
