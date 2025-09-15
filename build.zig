@@ -1,37 +1,10 @@
 const std = @import("std");
 
-///
-/// ...
-///
-const Crossterm = struct {
-    library_path: std.Build.LazyPath,
-    include_path: std.Build.LazyPath,
-
-    pub fn linkModule(self: Crossterm, module: *std.Build.Module) void {
-        module.link_libc = true;
-        module.link_libcpp = true;
-        module.addLibraryPath(self.library_path);
-        module.addIncludePath(self.include_path);
-        module.linkSystemLibrary("crossterm_ffi", .{});
-    }
-};
-
 pub fn build(b: *std.Build) void {
     // var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
-    var crossterm: Crossterm = undefined;
-    {
-        const crossterm_build = b.addSystemCommand(&.{ "cargo", "build", "--release" });
-        crossterm_build.setCwd(b.path("crossterm-ffi"));
-        crossterm_build.addArgs(&.{"--target-dir"});
-        crossterm.library_path = crossterm_build
-            .addOutputDirectoryArg("build/target")
-            .path(b, "release");
-        crossterm.include_path = b.path("include");
-    }
 
     const fuizon_module = b.addModule("fuizon", .{
         .root_source_file = b.path("src/fuizon.zig"),
@@ -42,20 +15,12 @@ pub fn build(b: *std.Build) void {
         .link_libcpp = true,
         .valgrind = true,
     });
-    crossterm.linkModule(fuizon_module);
 
     // Tests
     {
         const test_step = b.step("test", "Run all tests");
+        const fuizon_tests = b.addTest(.{ .name = "fuizon", .root_module = fuizon_module });
 
-        const crossterm_tests = b.addSystemCommand(&.{ "cargo", "test" });
-        crossterm_tests.setCwd(b.path("crossterm-ffi"));
-        test_step.dependOn(&crossterm_tests.step);
-
-        const fuizon_tests = b.addTest(.{
-            .name = "fuizon",
-            .root_module = fuizon_module,
-        });
         test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
     }
 
