@@ -2,104 +2,103 @@ const std = @import("std");
 const fuizon = @import("fuizon");
 
 pub fn main() !void {
-    var buffer: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&buffer);
-    const writer = &stdout_writer.interface;
-    defer writer.flush() catch unreachable;
+    const writer = fuizon.getWriter();
 
     try writer.print("Black:        ", .{});
-    try fuizon.backend.text.background.set(writer, .black);
+    try fuizon.setBackground(.black);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("White:        ", .{});
-    try fuizon.backend.text.background.set(writer, .white);
+    try fuizon.setBackground(.white);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Red:          ", .{});
-    try fuizon.backend.text.background.set(writer, .red);
+    try fuizon.setBackground(.red);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Red:     ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_red);
+    try fuizon.setBackground(.dark_red);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Green:        ", .{});
-    try fuizon.backend.text.background.set(writer, .green);
+    try fuizon.setBackground(.green);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Green:   ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_green);
+    try fuizon.setBackground(.dark_green);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Blue:         ", .{});
-    try fuizon.backend.text.background.set(writer, .blue);
+    try fuizon.setBackground(.blue);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Blue:    ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_blue);
+    try fuizon.setBackground(.dark_blue);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Yellow:       ", .{});
-    try fuizon.backend.text.background.set(writer, .yellow);
+    try fuizon.setBackground(.yellow);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Yellow:  ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_yellow);
+    try fuizon.setBackground(.dark_yellow);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Magenta:      ", .{});
-    try fuizon.backend.text.background.set(writer, .magenta);
+    try fuizon.setBackground(.magenta);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Magenta: ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_magenta);
+    try fuizon.setBackground(.dark_magenta);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Cyan:         ", .{});
-    try fuizon.backend.text.background.set(writer, .cyan);
+    try fuizon.setBackground(.cyan);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Cyan:    ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_cyan);
+    try fuizon.setBackground(.dark_cyan);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Grey:         ", .{});
-    try fuizon.backend.text.background.set(writer, .grey);
+    try fuizon.setBackground(.grey);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
     try writer.print("Dark Grey:    ", .{});
-    try fuizon.backend.text.background.set(writer, .dark_grey);
+    try fuizon.setBackground(.dark_grey);
     try writer.print("   ", .{});
-    try fuizon.backend.text.background.set(writer, .default);
+    try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
+
+    try writer.flush();
 }
