@@ -60,8 +60,8 @@ pub const AnsiColor = struct {
     }
 };
 
-pub fn Ansi(value: u8) AnsiColor {
-    return AnsiColor{ .value = value };
+pub fn Ansi(value: u8) Color {
+    return .{ .ansi = .{ .value = value } };
 }
 
 pub const RgbColor = struct {
@@ -74,8 +74,8 @@ pub const RgbColor = struct {
     }
 };
 
-pub fn Rgb(r: u8, g: u8, b: u8) RgbColor {
-    return RgbColor{ .r = r, .g = g, .b = b };
+pub fn Rgb(r: u8, g: u8, b: u8) Color {
+    return .{ .rgb = .{ .r = r, .g = g, .b = b } };
 }
 
 pub fn setForeground(color: Color) error{TerminalError}!void {
