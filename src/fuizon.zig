@@ -66,6 +66,9 @@ pub const setBackground = color.setBackground;
 pub const style = @import("style.zig");
 pub const Style = style.Style;
 
+pub const dimensions = @import("dimensions.zig");
+pub const Dimensions = dimensions.Dimensions;
+
 pub const screen = @import("screen.zig");
 pub const scrollUp = screen.scrollUp;
 pub const scrollDown = screen.scrollDown;
