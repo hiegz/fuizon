@@ -2,6 +2,9 @@ const std = @import("std");
 const fuizon = @import("fuizon");
 
 pub fn main() !void {
+    try fuizon.init(std.heap.page_allocator, 1024, .stdout);
+    defer fuizon.deinit(std.heap.page_allocator);
+
     const writer = fuizon.getWriter();
 
     try writer.print("Black:        ", .{});

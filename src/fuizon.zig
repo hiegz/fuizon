@@ -36,19 +36,50 @@ pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
 pub const Style = style.Style;
 
-var write_buffer = @as([4096]u8, undefined);
-var console_writer = @as(std.fs.File.Writer, std.fs.File.stdout().writerStreaming(&write_buffer));
+var write_buffer: []u8 = &.{};
+var console_writer: ?std.fs.File.Writer = null;
+
+/// ---
+/// Initialize internal state and buffers.
+///
+/// Buffering defers terminal actions until the buffer is flushed manually or
+/// fills up. This reduces the number of system calls and significantly
+/// improves performance. A `buflen` of 0 disables buffering.
+///
+/// Make sure to call this function before any terminal actions.
+///
+/// Don't forget to call `deinit()` to release resources.
+/// ---
+pub fn init(allocator: std.mem.Allocator, buflen: usize, stream: enum { stdout, stderr }) error{OutOfMemory}!void {
+    write_buffer = try allocator.alloc(u8, buflen);
+    errdefer allocator.free(write_buffer);
+    console_writer = switch (stream) {
+        .stdout => std.fs.File.stdout().writerStreaming(write_buffer),
+        .stderr => std.fs.File.stderr().writerStreaming(write_buffer),
+    };
+}
+
+/// ---
+/// Release all allocated memory.
+///
+/// The allocator must match the one used in `init()`.
+/// ---
+pub fn deinit(allocator: std.mem.Allocator) void {
+    allocator.free(write_buffer);
+    write_buffer = &.{};
+    console_writer = null;
+}
 
 /// ---
 /// Get the underlying terminal stream writer.
 ///
-/// By default it writes to standard output, but this can be changed with
-/// `useStdout()` or `useStderr()`. The returned pointer may become invalid in
-/// the future (e.g., when you switch to a different stream using `useStdout()`
-/// or `useStderr()`)
+/// The returned pointer may become invalid in the future (e.g., when you
+/// switch to a different stream using `useStdout()` or `useStderr()`)
 /// ---
 pub fn getWriter() *std.Io.Writer {
-    return &console_writer.interface;
+    if (console_writer == null)
+        @panic("use before init or after deinit");
+    return &console_writer.?.interface;
 }
 
 /// ---
@@ -59,11 +90,14 @@ pub fn getWriter() *std.Io.Writer {
 /// and replaces it with the standard output stream.
 /// ---
 pub fn useStdout() error{WriteFailed}!void {
-    if (console_writer.file.handle == std.fs.File.stdout().handle)
+    if (console_writer == null)
+        @panic("use before init or after deinit");
+
+    if (console_writer.?.file.handle == std.fs.File.stdout().handle)
         return;
-    std.debug.assert(console_writer.file.handle == std.fs.File.stderr().handle);
-    try console_writer.interface.flush();
-    console_writer = std.fs.File.stdout().writerStreaming(&write_buffer);
+    std.debug.assert(console_writer.?.file.handle == std.fs.File.stderr().handle);
+    try console_writer.?.interface.flush();
+    console_writer = std.fs.File.stdout().writerStreaming(write_buffer);
 }
 
 /// ---
@@ -74,11 +108,14 @@ pub fn useStdout() error{WriteFailed}!void {
 /// and replaces it with the standard error stream.
 /// ---
 pub fn useStderr() error{WriteFailed}!void {
-    if (console_writer.file.handle == std.fs.File.stderr().handle)
+    if (console_writer == null)
+        @panic("use before init or after deinit");
+
+    if (console_writer.?.file.handle == std.fs.File.stderr().handle)
         return;
-    std.debug.assert(console_writer.file.handle == std.fs.File.stdout().handle);
-    try console_writer.interface.flush();
-    console_writer = std.fs.File.stderr().writerStreaming(&write_buffer);
+    std.debug.assert(console_writer.?.file.handle == std.fs.File.stdout().handle);
+    try console_writer.?.interface.flush();
+    console_writer = std.fs.File.stderr().writerStreaming(write_buffer);
 }
 
 const alignment = @import("alignment.zig");
@@ -99,12 +136,28 @@ test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
 }
 
+test "init(.stdout) should write to stdout" {
+    try init(std.testing.allocator, 1024, .stdout);
+    defer deinit(std.testing.allocator);
+    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.?.file.handle);
+}
+
+test "init(.stderr) should write to stderr" {
+    try init(std.testing.allocator, 1024, .stderr);
+    defer deinit(std.testing.allocator);
+    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.?.file.handle);
+}
+
 test "useStdout() should switch to stdout" {
+    try init(std.testing.allocator, 1024, .stderr);
+    defer deinit(std.testing.allocator);
     try useStdout();
-    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.file.handle);
+    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.?.file.handle);
 }
 
 test "useStderr() should switch to stderr" {
+    try init(std.testing.allocator, 1024, .stdout);
+    defer deinit(std.testing.allocator);
     try useStderr();
-    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.file.handle);
+    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.?.file.handle);
 }
