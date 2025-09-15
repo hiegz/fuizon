@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const Alignment = alignment.Alignment;
 pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
 pub const leaveAlternateScreen = alternate_screen.leaveAlternateScreen;
@@ -33,9 +35,51 @@ pub const scrollUp = screen.scrollUp;
 pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
 pub const Style = style.Style;
-pub const getWriter = writer.getWriter;
-pub const useStdout = writer.useStdout;
-pub const useStderr = writer.useStderr;
+
+var write_buffer = @as([4096]u8, undefined);
+var console_writer = @as(std.fs.File.Writer, std.fs.File.stdout().writerStreaming(&write_buffer));
+
+/// ---
+/// Get the underlying terminal stream writer.
+///
+/// By default it writes to standard output, but this can be changed with
+/// `useStdout()` or `useStderr()`. The returned pointer may become invalid in
+/// the future (e.g., when you switch to a different stream using `useStdout()`
+/// or `useStderr()`)
+/// ---
+pub fn getWriter() *std.Io.Writer {
+    return &console_writer.interface;
+}
+
+/// ---
+/// Use the standard output stream.
+///
+/// If the standard output stream is already in use this function does nothing.
+/// Otherwise it flushes any remaining buffered data from the previous stream
+/// and replaces it with the standard output stream.
+/// ---
+pub fn useStdout() error{WriteFailed}!void {
+    if (console_writer.file.handle == std.fs.File.stdout().handle)
+        return;
+    std.debug.assert(console_writer.file.handle == std.fs.File.stderr().handle);
+    try console_writer.interface.flush();
+    console_writer = std.fs.File.stdout().writerStreaming(&write_buffer);
+}
+
+/// ---
+/// Use the standard error stream.
+///
+/// If the standard error stream is already in use this function does nothing.
+/// Otherwise it flushes any remaining buffered data from the previous stream
+/// and replaces it with the standard error stream.
+/// ---
+pub fn useStderr() error{WriteFailed}!void {
+    if (console_writer.file.handle == std.fs.File.stderr().handle)
+        return;
+    std.debug.assert(console_writer.file.handle == std.fs.File.stdout().handle);
+    try console_writer.interface.flush();
+    console_writer = std.fs.File.stderr().writerStreaming(&write_buffer);
+}
 
 const alignment = @import("alignment.zig");
 const alternate_screen = @import("alternate_screen.zig");
@@ -50,8 +94,17 @@ const keyboard = @import("keyboard.zig");
 const raw_mode = @import("raw_mode.zig");
 const screen = @import("screen.zig");
 const style = @import("style.zig");
-const writer = @import("writer.zig");
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
+}
+
+test "useStdout() should switch to stdout" {
+    try useStdout();
+    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.file.handle);
+}
+
+test "useStderr() should switch to stderr" {
+    try useStderr();
+    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.file.handle);
 }
