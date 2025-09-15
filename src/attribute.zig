@@ -29,6 +29,20 @@ pub const Attribute = enum(u8) {
 };
 
 pub const Attributes = struct {
+    const Iterator = struct {
+        attributes: Attributes,
+
+        pub fn next(self: *Iterator) ?Attribute {
+            const index: usize = @ctz(self.attributes.bitset);
+            if (index == 8) return null;
+            std.debug.assert(index <= 4);
+            const attribute: Attribute =
+                @enumFromInt(@as(u8, 1) << @as(u3, @intCast(index)));
+            self.attributes.reset(&.{attribute});
+            return attribute;
+        }
+    };
+
     // zig fmt: off
     pub const none = Attributes.join(&.{});
     pub const all  = Attributes.join(&.{ .bold, .dim, .underlined, .reverse, .hidden });
@@ -60,6 +74,10 @@ pub const Attributes = struct {
                 return false;
         }
         return true;
+    }
+
+    pub fn iterator(self: Attributes) Attributes.Iterator {
+        return Attributes.Iterator{ .attributes = self };
     }
 
     pub fn format(self: Attributes, writer: *std.io.Writer) !void {
@@ -160,6 +178,186 @@ test "attributes-set-reset" {
     var right = Attributes.all;
     right.reset(&.{ .bold, .reverse });
     try std.testing.expectEqual(left.bitset, right.bitset);
+}
+
+test "no-attributes-iterator" {
+    const attributes = Attributes.none;
+    var iterator: Attributes.Iterator = undefined;
+    var found: bool = undefined;
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .bold) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .dim) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .hidden) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .reverse) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .underlined) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    // make sure the original attribute set instance was not modified by the
+    // iterator.
+    try std.testing.expectEqual(Attributes.none.bitset, attributes.bitset);
+}
+
+test "some-attributes-iterator" {
+    const attributes = Attributes.join(&.{ .bold, .dim, .hidden });
+    var iterator: Attributes.Iterator = undefined;
+    var found: bool = undefined;
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .bold) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .dim) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .hidden) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .reverse) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .underlined) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(!found);
+
+    // make sure the original attribute set instance was not modified by the
+    // iterator.
+    try std.testing.expectEqual(Attributes.join(&.{ .bold, .dim, .hidden }).bitset, attributes.bitset);
+}
+
+test "all-attributes-iterator" {
+    const attributes = Attributes.all;
+    var iterator: Attributes.Iterator = undefined;
+    var found: bool = undefined;
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .bold) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .dim) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .hidden) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .reverse) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    found = false;
+    iterator = attributes.iterator();
+    while (iterator.next()) |attribute| {
+        if (attribute != .underlined) continue;
+        found = true;
+        break;
+    }
+
+    try std.testing.expect(found);
+
+    // make sure the original attribute set instance was not modified by the
+    // iterator.
+    try std.testing.expectEqual(Attributes.all.bitset, attributes.bitset);
 }
 
 test "format-bold-attribute" {
