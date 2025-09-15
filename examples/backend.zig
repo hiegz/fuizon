@@ -1,369 +1,358 @@
 const std = @import("std");
 const fuizon = @import("fuizon");
 
-fn Demo(comptime WriterType: type) type {
-    return struct {
-        const Self = @This();
+// zig fmt: off
+var state:            enum { terminated, running                 } = .terminated;
+var mode:             enum { normal, debug, move, scroll, insert } = .normal;
+var alternate_screen: enum { disabled, enabled                   } = .disabled;
+var polling:          enum { disabled, enabled                   } = .disabled;
+var cursor:           enum { hidden,   visible                   } = .visible;
+var attributes:       fuizon.Attributes                            = fuizon.Attributes.none;
+// zig fmt: on
 
-        writer: WriterType,
-        state: enum { terminated, running },
-        mode: enum { normal, debug, move, scroll, insert },
-        alternate_screen: enum { disabled, enabled },
-        polling: enum { disabled, enabled },
-        cursor: enum { hidden, visible },
+fn run() !void {
+    state = .running;
+    if (polling == .enabled and !try fuizon.event.poll()) return;
+    const event = try fuizon.event.read();
 
-        attributes: fuizon.style.Attributes,
+    switch (mode) {
+        // zig fmt: off
+        .normal => try handleNormalEvent(event),
+        .debug  => try handleDebugEvent(event),
+        .move   => try handleMoveEvent(event),
+        .scroll => try handleScrollEvent(event),
+        .insert => try handleInsertMode(event),
+        // zig fmt: on
+    }
+}
 
-        fn init(writer: WriterType) !Self {
-            var self: Self = undefined;
-            errdefer self.deinit() catch {};
-
-            try fuizon.backend.raw_mode.enable();
-            std.debug.assert(try fuizon.backend.raw_mode.isEnabled() == true);
-
-            self.writer = writer;
-            self.state = .terminated;
-            self.mode = .normal;
-            self.alternate_screen = .disabled;
-            self.polling = .disabled;
-            self.cursor = .visible;
-            self.attributes = fuizon.style.Attributes.none;
-
-            return self;
-        }
-
-        fn deinit(self: *Self) !void {
-            if (self.alternate_screen == .enabled)
-                try fuizon.backend.alternate_screen.leave(self.writer);
-            if (self.cursor == .hidden)
-                try fuizon.backend.cursor.show(self.writer);
-            if (self.mode == .move)
-                try fuizon.backend.cursor.restore(self.writer);
-            try fuizon.backend.raw_mode.disable();
-            std.debug.assert(try fuizon.backend.raw_mode.isEnabled() == false);
-        }
-
-        fn run(self: *Self) !void {
-            self.state = .running;
-            while (self.state != .terminated)
-                try self.runOnce();
-        }
-
-        fn runOnce(self: *Self) !void {
-            self.state = .running;
-            if (self.polling == .enabled and !try fuizon.backend.event.poll()) return;
-            const event = try fuizon.backend.event.read();
-
-            switch (self.mode) {
-                .normal => try self.handleNormalEvent(event),
-                .debug => try self.handleDebugEvent(event),
-                .move => try self.handleMoveEvent(event),
-                .scroll => try self.handleScrollEvent(event),
-                .insert => try self.handleInsertMode(event),
-            }
-        }
-
-        fn handleNormalEvent(self: *Self, event: fuizon.event.Event) !void {
-            switch (event) {
-                .key => switch (event.key.code) {
-                    .char => switch (event.key.code.char) {
-                        'q' => self.state = .terminated,
-                        't' => {
-                            const size = try fuizon.backend.screen.size();
-                            try self.writer.print("{}x{}\n\r", .{ size.width, size.height });
-                        },
-                        'a' => try self.toggleAlternateScreen(),
-                        'p' => try self.togglePolling(),
-                        'd' => try self.enableDebugMode(),
-                        'm' => try self.enableMoveMode(),
-                        's' => try self.enableScrollMode(),
-                        'i' => try self.enableInsertMode(),
-                        else => {},
-                    },
-                    else => {},
-                },
+fn handleNormalEvent(event: fuizon.Event) !void {
+    switch (event) {
+        .key => switch (event.key.code) {
+            .char => switch (event.key.code.char) {
+                'q' => state = .terminated,
+                't' => try printScreenSize(),
+                'a' => try toggleAlternateScreen(),
+                'p' => try togglePolling(),
+                'd' => try enableDebugMode(),
+                'm' => try enableMoveMode(),
+                's' => try enableScrollMode(),
+                'i' => try enableInsertMode(),
                 else => {},
-            }
-        }
+            },
+            else => {},
+        },
+        else => {},
+    }
+}
 
-        fn handleDebugEvent(self: *Self, event: fuizon.event.Event) !void {
-            if (event == .key and event.key.code == .escape) {
-                try self.enableNormalMode();
-                return;
-            }
-            try self.writer.print("{}\n\r", .{event});
-        }
+fn handleDebugEvent(event: fuizon.Event) !void {
+    if (event == .key and event.key.code == .escape) {
+        try enableNormalMode();
+        return;
+    }
+    try fuizon.getWriter().print("{}\n\r", .{event});
+}
 
-        fn handleMoveEvent(self: *Self, event: fuizon.event.Event) !void {
-            switch (event) {
-                .key => switch (event.key.code) {
-                    .escape => try self.enableNormalMode(),
-                    .left_arrow => try fuizon.backend.cursor.moveToCol(self.writer, 0),
-                    .up_arrow => try fuizon.backend.cursor.moveToRow(self.writer, 0),
-                    .char => switch (event.key.code.char) {
-                        'c' => try self.toggleCursorVisiblity(),
-                        'a' => try fuizon.backend.screen.clearAll(self.writer),
-                        'A' => try fuizon.backend.screen.clearPurge(self.writer),
-                        'J' => try fuizon.backend.screen.clearFromCursorDown(self.writer),
-                        'K' => try fuizon.backend.screen.clearFromCursorUp(self.writer),
-                        'd' => try fuizon.backend.screen.clearCurrentLine(self.writer),
-                        'n' => try fuizon.backend.screen.clearUntilNewLine(self.writer),
-                        's' => try fuizon.backend.cursor.moveTo(self.writer, 0, 0),
-                        'h' => try fuizon.backend.cursor.moveLeft(self.writer, 1),
-                        'j' => try fuizon.backend.cursor.moveDown(self.writer, 1),
-                        'k' => try fuizon.backend.cursor.moveUp(self.writer, 1),
-                        'l' => try fuizon.backend.cursor.moveRight(self.writer, 1),
-                        'p' => {
-                            const pos = try fuizon.backend.cursor.position();
-                            try fuizon.backend.cursor.restore(self.writer);
-                            try self.writer.print("x={}, y={}\n\r", .{ pos.x, pos.y });
-                            try fuizon.backend.cursor.save(self.writer);
-                            try fuizon.backend.cursor.moveTo(self.writer, pos.x, pos.y);
-                        },
-                        else => {},
-                    },
-                    .enter => try fuizon.backend.cursor.moveToNextLine(self.writer, 1),
-                    .backspace => try fuizon.backend.cursor.moveToPreviousLine(self.writer, 1),
-                    else => {},
-                },
+fn handleMoveEvent(event: fuizon.Event) !void {
+    switch (event) {
+        .key => switch (event.key.code) {
+            // zig fmt: off
+            .escape     => try enableNormalMode(),
+            .left_arrow => try fuizon.moveCursorToColumn(0),
+            .up_arrow   => try fuizon.moveCursorToRow(0),
+            .char       => try handleCharCode(event.key.code.char),
+            // zig fmt: on
+
+            else => {},
+        },
+
+        else => {},
+    }
+}
+
+fn handleCharCode(char: u21) !void {
+    switch (char) {
+        // zig fmt: off
+        'c' => try toggleCursorVisiblity(),
+        'a' => try fuizon.clearScreen(),
+        'J' => try fuizon.clearScreenFromCursorDown(),
+        'K' => try fuizon.clearScreenFromCursorUp(),
+        'd' => try fuizon.clearCurrentLine(),
+        'n' => try fuizon.clearUntilNewLine(),
+        's' => try fuizon.moveCursorTo(0, 0),
+        'h' => try fuizon.moveCursorLeft(1),
+        'j' => try fuizon.moveCursorDown(1),
+        'k' => try fuizon.moveCursorUp(1),
+        'l' => try fuizon.moveCursorRight(1),
+        'p' => try printCursorPosition(),
+        // zig fmt: on
+
+        else => {},
+    }
+}
+
+fn handleScrollEvent(event: fuizon.Event) !void {
+    switch (event) {
+        .key => switch (event.key.code) {
+            // zig fmt: off
+            .escape => try enableNormalMode(),
+            .char   => switch (event.key.code.char) {
+                'k' => try scrollUp(),
+                'j' => try scrollDown(),
 
                 else => {},
-            }
-        }
+            },
+            // zig fmt: on
 
-        fn handleScrollEvent(self: *Self, event: fuizon.event.Event) !void {
-            switch (event) {
-                .key => switch (event.key.code) {
-                    .escape => try self.enableNormalMode(),
-                    .char => switch (event.key.code.char) {
-                        'j' => {
-                            if ((try fuizon.backend.cursor.position()).y + 1 ==
-                                (try fuizon.backend.screen.size()).height)
-                                return;
-                            try fuizon.backend.screen.scrollDown(self.writer, 1);
-                            try fuizon.backend.cursor.moveDown(self.writer, 1);
-                        },
-                        'k' => {
-                            try fuizon.backend.screen.scrollUp(self.writer, 1);
-                            try fuizon.backend.cursor.moveUp(self.writer, 1);
-                        },
-                        else => {},
-                    },
+            else => {},
+        },
+
+        else => {},
+    }
+}
+
+fn handleInsertMode(event: fuizon.Event) !void {
+    switch (event) {
+        .key => switch (event.key.code) {
+            // zig fmt: off
+            .escape => try enableNormalMode(),
+            .enter  => try fuizon.getWriter().print("\n\r", .{}),
+            .char   => {
+                if (!event.key.modifiers.contain(&.{.control})) {
+                    try fuizon.getWriter().print("{u}", .{event.key.code.char});
+                    return;
+                }
+
+                switch (event.key.code.char) {
+                    'b' => try toggleBoldAttribute(),
+                    'd' => try toggleDimAttribute(),
+                    'u' => try toggleUnderlinedAttribute(),
+                    'r' => try toggleReverseAttribute(),
+                    'h' => try toggleHiddenAttribute(),
                     else => {},
-                },
+                }
+            },
+            // zig fmt: on
 
-                else => {},
-            }
+            else => {},
+        },
+        else => {},
+    }
+}
+
+fn enableNormalMode() !void {
+    if (mode == .move)
+        try fuizon.restoreCursorPosition();
+    if (mode == .insert) {
+        var iterator = attributes.iterator();
+        while (iterator.next()) |attribute| {
+            try fuizon.resetAttribute(attribute);
         }
+        attributes = fuizon.Attributes.none;
+        try fuizon.getWriter().print("\n\r", .{});
+    }
+    mode = .normal;
 
-        fn handleInsertMode(self: *Self, event: fuizon.event.Event) !void {
-            switch (event) {
-                .key => switch (event.key.code) {
-                    .escape => try self.enableNormalMode(),
-                    .char => {
-                        if (!event.key.modifiers.contain(&.{.control})) {
-                            try self.writer.print("{u}", .{event.key.code.char});
-                            return;
-                        }
+    try fuizon.getWriter().print("Normal mode enabled\n\r", .{});
+    try fuizon.getWriter().print("Press 'q' to quit,\n\r", .{});
+    try fuizon.getWriter().print("      't' to get terminal size,\n\r", .{});
+    try fuizon.getWriter().print("      'a' to toggle alternate screen,\n\r", .{});
+    try fuizon.getWriter().print("      'p' to toggle polling,\n\r", .{});
+    try fuizon.getWriter().print("      'd' to enable debug mode,\n\r", .{});
+    try fuizon.getWriter().print("      'm' to enable move/clear mode,\n\r", .{});
+    try fuizon.getWriter().print("      's' to enable scroll mode\n\r", .{});
+    try fuizon.getWriter().print("      'i' to enable insert mode\n\r", .{});
+}
 
-                        switch (event.key.code.char) {
-                            'b' => try self.toggleBoldAttribute(),
-                            'd' => try self.toggleDimAttribute(),
-                            'u' => try self.toggleUnderlinedAttribute(),
-                            'r' => try self.toggleReverseAttribute(),
-                            'h' => try self.toggleHiddenAttribute(),
-                            else => {},
-                        }
-                    },
-                    .enter => try self.writer.print("\n\r", .{}),
-                    else => {},
-                },
-                else => {},
-            }
-        }
+fn enableDebugMode() !void {
+    mode = .debug;
+    try fuizon.getWriter().print("Debug mode enabled\n\r", .{});
+    try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+    try fuizon.getWriter().print("      or any other key to see its debug information\n\r", .{});
+}
 
-        fn enableNormalMode(self: *Self) !void {
-            if (self.mode == .move)
-                try fuizon.backend.cursor.restore(self.writer);
-            if (self.mode == .insert) {
-                self.attributes = fuizon.style.Attributes.none;
-                try fuizon.backend.text.attributes.reset(self.writer);
-                try self.writer.print("\n\r", .{});
-            }
-            self.mode = .normal;
+fn enableMoveMode() !void {
+    mode = .move;
+    try fuizon.getWriter().print("Move mode enabled\n\r", .{});
+    try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+    try fuizon.getWriter().print("      'p' to get current cursor position,\n\r", .{});
+    try fuizon.getWriter().print("      'c' to toggle cursor visibility,\n\r", .{});
+    try fuizon.getWriter().print("      'd' to clear the current line,\n\r", .{});
+    try fuizon.getWriter().print("      'n' to clear from the cursor position until the new line,\n\r", .{});
+    try fuizon.getWriter().print("      'J' to clear the terminal screen from the cursor position downwards,\n\r", .{});
+    try fuizon.getWriter().print("      'K' to clear the terminal screen from the cursor position upwards,\n\r", .{});
+    try fuizon.getWriter().print("      'a' to clear the terminal screen,\n\r", .{});
+    try fuizon.getWriter().print("      's' to move to the top left corner,\n\r", .{});
+    try fuizon.getWriter().print("      '↑' to move to the top corner,\n\r", .{});
+    try fuizon.getWriter().print("      '←' to move to the left corner,\n\r", .{});
+    try fuizon.getWriter().print("      'h' to move left,\n\r", .{});
+    try fuizon.getWriter().print("      'j' to move down,\n\r", .{});
+    try fuizon.getWriter().print("      'k' to move up,\n\r", .{});
+    try fuizon.getWriter().print("      'l' to move right\n\r", .{});
+    try fuizon.saveCursorPosition();
+}
 
-            try self.writer.print("Normal mode enabled\n\r", .{});
-            try self.writer.print("Press 'q' to quit,\n\r", .{});
-            try self.writer.print("      't' to get terminal size,\n\r", .{});
-            try self.writer.print("      'a' to toggle alternate screen,\n\r", .{});
-            try self.writer.print("      'p' to toggle polling,\n\r", .{});
-            try self.writer.print("      'd' to enable debug mode,\n\r", .{});
-            try self.writer.print("      'm' to enable move/clear mode,\n\r", .{});
-            try self.writer.print("      's' to enable scroll mode\n\r", .{});
-            try self.writer.print("      'i' to enable insert mode\n\r", .{});
-        }
+fn enableScrollMode() !void {
+    mode = .scroll;
+    try fuizon.getWriter().print("Scroll mode enabled\n\r", .{});
+    try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+    try fuizon.getWriter().print("      'j' to scroll down,\n\r", .{});
+    try fuizon.getWriter().print("      'k' to scroll up\n\r", .{});
+}
 
-        fn enableDebugMode(self: *Self) !void {
-            self.mode = .debug;
-            try self.writer.print("Debug mode enabled\n\r", .{});
-            try self.writer.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
-            try self.writer.print("      or any other key to see its debug information\n\r", .{});
-        }
+fn enableInsertMode() !void {
+    mode = .insert;
+    try fuizon.getWriter().print("Insert mode enabled\n\r", .{});
+    try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-b' to toggle the attribute 'bold'\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-d' to toggle the attribute 'dim'\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-u' to toggle the attribute 'underlined'\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-r' to toggle the attribute 'reverse'\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-h' to toggle the attribute 'hidden'\n\r", .{});
+    try fuizon.getWriter().print("      or any other key that can be displayed as readable text\n\r", .{});
+}
 
-        fn enableMoveMode(self: *Self) !void {
-            self.mode = .move;
-            try self.writer.print("Move mode enabled\n\r", .{});
-            try self.writer.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
-            try self.writer.print("      'p' to get current cursor position,\n\r", .{});
-            try self.writer.print("      'c' to toggle cursor visibility,\n\r", .{});
-            try self.writer.print("      'd' to clear the current line,\n\r", .{});
-            try self.writer.print("      'n' to clear from the cursor position until the new line,\n\r", .{});
-            try self.writer.print("      'J' to clear the terminal screen from the cursor position downwards,\n\r", .{});
-            try self.writer.print("      'K' to clear the terminal screen from the cursor position upwards,\n\r", .{});
-            try self.writer.print("      'A' to clear the terminal screen and history,\n\r", .{});
-            try self.writer.print("      'a' to clear the terminal screen,\n\r", .{});
-            try self.writer.print("      's' to move to the top left corner,\n\r", .{});
-            try self.writer.print("      '↑' to move to the top corner,\n\r", .{});
-            try self.writer.print("      '←' to move to the left corner,\n\r", .{});
-            try self.writer.print("      'h' to move left,\n\r", .{});
-            try self.writer.print("      'j' to move down,\n\r", .{});
-            try self.writer.print("      'k' to move up,\n\r", .{});
-            try self.writer.print("      'l' to move right\n\r", .{});
-            try self.writer.print("      'enter' to move to the next line,\n\r", .{});
-            try self.writer.print("      'backspace' to move to the previous line,\n\r", .{});
-            try fuizon.backend.cursor.save(self.writer);
-        }
+fn toggleAlternateScreen() !void {
+    switch (alternate_screen) {
+        .enabled => {
+            alternate_screen = .disabled;
+            try fuizon.leaveAlternateScreen();
+        },
+        .disabled => {
+            alternate_screen = .enabled;
+            try fuizon.enterAlternateScreen();
+            try fuizon.moveCursorTo(0, 0);
+            // Duplicate hints.
+            try enableNormalMode();
+        },
+    }
+}
 
-        fn enableScrollMode(self: *Self) !void {
-            self.mode = .scroll;
-            try self.writer.print("Scroll mode enabled\n\r", .{});
-            try self.writer.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
-            try self.writer.print("      'j' to scroll down,\n\r", .{});
-            try self.writer.print("      'k' to scroll up\n\r", .{});
-        }
+fn togglePolling() !void {
+    switch (polling) {
+        .disabled => {
+            polling = .enabled;
+            try fuizon.getWriter().print("Enabled polling\n\r", .{});
+        },
+        .enabled => {
+            polling = .disabled;
+            try fuizon.getWriter().print("Disabled polling\n\r", .{});
+        },
+    }
+}
 
-        fn enableInsertMode(self: *Self) !void {
-            self.mode = .insert;
-            try self.writer.print("Insert mode enabled\n\r", .{});
-            try self.writer.print("Press 'escape' to switch back to the normal mode,\n\r", .{});
-            try self.writer.print("      'Ctrl-b' to toggle the attribute 'bold'\n\r", .{});
-            try self.writer.print("      'Ctrl-d' to toggle the attribute 'dim'\n\r", .{});
-            try self.writer.print("      'Ctrl-u' to toggle the attribute 'underlined'\n\r", .{});
-            try self.writer.print("      'Ctrl-r' to toggle the attribute 'reverse'\n\r", .{});
-            try self.writer.print("      'Ctrl-h' to toggle the attribute 'hidden'\n\r", .{});
-            try self.writer.print("      or any other key that can be displayed as readable text\n\r", .{});
-        }
+fn toggleCursorVisiblity() !void {
+    switch (cursor) {
+        .hidden => {
+            cursor = .visible;
+            try fuizon.showCursor();
+        },
+        .visible => {
+            cursor = .hidden;
+            try fuizon.hideCursor();
+        },
+    }
+}
 
-        fn toggleAlternateScreen(self: *Self) !void {
-            switch (self.alternate_screen) {
-                .enabled => {
-                    self.alternate_screen = .disabled;
-                    try fuizon.backend.alternate_screen.leave(self.writer);
-                },
-                .disabled => {
-                    self.alternate_screen = .enabled;
-                    try fuizon.backend.alternate_screen.enter(self.writer);
-                    try fuizon.backend.cursor.moveTo(self.writer, 0, 0);
-                    // Duplicate hints.
-                    try self.enableNormalMode();
-                },
-            }
-        }
+fn toggleBoldAttribute() !void {
+    if (attributes.contain(&.{.bold})) {
+        attributes.reset(&.{.bold});
+        try fuizon.resetAttribute(.bold);
+    } else {
+        attributes.set(&.{.bold});
+        try fuizon.setAttribute(.bold);
+    }
 
-        fn togglePolling(self: *Self) !void {
-            switch (self.polling) {
-                .disabled => {
-                    self.polling = .enabled;
-                    std.debug.print("Enabled polling\n\r", .{});
-                },
-                .enabled => {
-                    self.polling = .disabled;
-                    std.debug.print("Disabled polling\n\r", .{});
-                },
-            }
-        }
+    if (attributes.contain(&.{.dim})) {
+        try fuizon.setAttribute(.dim);
+    }
+}
 
-        fn toggleCursorVisiblity(self: *Self) !void {
-            switch (self.cursor) {
-                .hidden => {
-                    self.cursor = .visible;
-                    try fuizon.backend.cursor.show(self.writer);
-                },
-                .visible => {
-                    self.cursor = .hidden;
-                    try fuizon.backend.cursor.hide(self.writer);
-                },
-            }
-        }
+fn toggleDimAttribute() !void {
+    if (attributes.contain(&.{.dim})) {
+        attributes.reset(&.{.dim});
+        try fuizon.resetAttribute(.dim);
+    } else {
+        attributes.set(&.{.dim});
+        try fuizon.setAttribute(.dim);
+    }
 
-        fn toggleBoldAttribute(self: *Self) !void {
-            if (self.attributes.contain(&.{.bold})) {
-                self.attributes.reset(&.{.bold});
-                try fuizon.backend.text.attribute.bold.reset(self.writer);
-            } else {
-                self.attributes.set(&.{.bold});
-                try fuizon.backend.text.attribute.bold.set(self.writer);
-            }
+    if (attributes.contain(&.{.bold})) {
+        try fuizon.setAttribute(.bold);
+    }
+}
 
-            if (self.attributes.contain(&.{.dim})) {
-                try fuizon.backend.text.attribute.dim.set(self.writer);
-            }
-        }
+fn toggleUnderlinedAttribute() !void {
+    if (attributes.contain(&.{.underlined})) {
+        attributes.reset(&.{.underlined});
+        try fuizon.resetAttribute(.underlined);
+    } else {
+        attributes.set(&.{.underlined});
+        try fuizon.setAttribute(.underlined);
+    }
+}
 
-        fn toggleDimAttribute(self: *Self) !void {
-            if (self.attributes.contain(&.{.dim})) {
-                self.attributes.reset(&.{.dim});
-                try fuizon.backend.text.attribute.dim.reset(self.writer);
-            } else {
-                self.attributes.set(&.{.dim});
-                try fuizon.backend.text.attribute.dim.set(self.writer);
-            }
+fn toggleReverseAttribute() !void {
+    if (attributes.contain(&.{.reverse})) {
+        attributes.reset(&.{.reverse});
+        try fuizon.resetAttribute(.reverse);
+    } else {
+        attributes.set(&.{.reverse});
+        try fuizon.setAttribute(.reverse);
+    }
+}
 
-            if (self.attributes.contain(&.{.bold})) {
-                try fuizon.backend.text.attribute.bold.set(self.writer);
-            }
-        }
+fn toggleHiddenAttribute() !void {
+    if (attributes.contain(&.{.hidden})) {
+        attributes.reset(&.{.hidden});
+        try fuizon.resetAttribute(.hidden);
+    } else {
+        attributes.set(&.{.hidden});
+        try fuizon.setAttribute(.hidden);
+    }
+}
 
-        fn toggleUnderlinedAttribute(self: *Self) !void {
-            if (self.attributes.contain(&.{.underlined})) {
-                self.attributes.reset(&.{.underlined});
-                try fuizon.backend.text.attribute.underline.reset(self.writer);
-            } else {
-                self.attributes.set(&.{.underlined});
-                try fuizon.backend.text.attribute.underline.set(self.writer);
-            }
-        }
+fn printScreenSize() !void {
+    const screen = try fuizon.getScreenSize();
+    try fuizon.getWriter().print("{}x{}\n\r", .{ screen.width, screen.height });
+}
 
-        fn toggleReverseAttribute(self: *Self) !void {
-            if (self.attributes.contain(&.{.reverse})) {
-                self.attributes.reset(&.{.reverse});
-                try fuizon.backend.text.attribute.reverse.reset(self.writer);
-            } else {
-                self.attributes.set(&.{.reverse});
-                try fuizon.backend.text.attribute.reverse.set(self.writer);
-            }
-        }
+fn printCursorPosition() !void {
+    const pos = try fuizon.getCursorPosition();
+    try fuizon.restoreCursorPosition();
+    try fuizon.getWriter().print("x={}, y={}\n\r", .{ pos.x, pos.y });
+    try fuizon.saveCursorPosition();
+    try fuizon.moveCursorTo(pos.x, pos.y);
+}
 
-        fn toggleHiddenAttribute(self: *Self) !void {
-            if (self.attributes.contain(&.{.hidden})) {
-                self.attributes.reset(&.{.hidden});
-                try fuizon.backend.text.attribute.hidden.reset(self.writer);
-            } else {
-                self.attributes.set(&.{.hidden});
-                try fuizon.backend.text.attribute.hidden.set(self.writer);
-            }
-        }
-    };
+fn scrollUp() !void {
+    try fuizon.scrollUp(1);
+    try fuizon.moveCursorUp(1);
+}
+
+fn scrollDown() !void {
+    const _cursor = try fuizon.getCursorPosition();
+    const screen = try fuizon.getScreenSize();
+
+    if (_cursor.y + 1 == screen.height)
+        return;
+
+    try fuizon.scrollDown(1);
+    try fuizon.moveCursorDown(1);
 }
 
 pub fn main() !void {
-    var buffer: [0]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&buffer);
-    const writer = &stdout_writer.interface;
+    defer fuizon.getWriter().flush() catch {};
 
-    var demo = try Demo(@TypeOf(writer)).init(writer);
-    defer demo.deinit() catch {};
-    try demo.enableNormalMode();
+    try fuizon.enableRawMode();
+    defer fuizon.disableRawMode() catch {};
 
-    try demo.run();
+    state = .running;
+    try enableNormalMode();
+    try fuizon.getWriter().flush();
+    while (state == .running) {
+        try run();
+        try fuizon.getWriter().flush();
+    }
 }
