@@ -1,5 +1,4 @@
 const std = @import("std");
-const c = @import("headers.zig").c;
 
 // zig fmt: off
 
@@ -46,39 +45,6 @@ pub fn useStderr() error{WriteFailed}!void {
     std.debug.assert(writer.file.handle == std.fs.File.stdout().handle);
     try writer.interface.flush();
     writer = std.fs.File.stderr().writerStreaming(&buffer);
-}
-
-pub fn getCrosstermStream() c.crossterm_stream {
-    return .{
-        .context = @ptrCast(@constCast(getWriter())),
-        .write_fn = write,
-        .flush_fn = flush,
-    };
-}
-
-fn write(buf: [*c]const u8, buflen: usize, context: ?*anyopaque) callconv(.c) c_long {
-    const maxlen = @as(usize, std.math.maxInt(c_long));
-    const len = if (buflen <= maxlen) buflen else maxlen;
-    const w: *std.Io.Writer = @ptrCast(@alignCast(context));
-    const ret: c_long = @intCast(w.write(buf[0..len]) catch return -1);
-
-    // Long story short:
-    //
-    // (ret == 0) should never happen on writers in *streaming* mode
-    // unless (buflen == 0) is also true.
-    //
-    // If this somehow happens, we want to catch it here so it doesn't
-    // reach the Rust code where (ret == 0 && buflen != 0) causes an
-    // error that's hard to trace.
-    std.debug.assert(ret != 0 or buflen == 0);
-
-    return ret;
-}
-
-fn flush(context: ?*anyopaque) callconv(.c) c_int {
-    const w: *std.Io.Writer = @ptrCast(@alignCast(context));
-    w.flush() catch return -1;
-    return 0;
 }
 
 test "useStdout() should switch to stdout" {
