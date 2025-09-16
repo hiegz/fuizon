@@ -9,7 +9,7 @@ fn prompt(comptime p: []const u8, reader: *std.io.Reader, writer: *std.io.Writer
 
 pub fn main() !void {
     try fuizon.init(std.heap.page_allocator, 0, .stdout);
-    defer fuizon.deinit(std.heap.page_allocator);
+    defer fuizon.deinit(std.heap.page_allocator) catch unreachable;
 
     var read_buffer: [4]u8 = undefined;
     var stdin_reader = std.fs.File.stdin().reader(&read_buffer);
