@@ -6,6 +6,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const check_step = b.step("check", "Check if projects builds");
+
     const fuizon_module = b.addModule("fuizon", .{
         .root_source_file = b.path("src/fuizon.zig"),
         .target = target,
@@ -22,6 +24,7 @@ pub fn build(b: *std.Build) void {
         const fuizon_tests = b.addTest(.{ .name = "fuizon", .root_module = fuizon_module });
 
         test_step.dependOn(&b.addRunArtifact(fuizon_tests).step);
+        check_step.dependOn(&fuizon_tests.step);
     }
 
     // Examples
@@ -55,6 +58,8 @@ pub fn build(b: *std.Build) void {
             const run_exe = b.addRunArtifact(exe);
             const run_step = b.step("run-" ++ example.name, example.desc);
             run_step.dependOn(&run_exe.step);
+
+            check_step.dependOn(&exe.step);
         }
     }
 
