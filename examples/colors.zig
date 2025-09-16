@@ -3,7 +3,7 @@ const fuizon = @import("fuizon");
 
 pub fn main() !void {
     try fuizon.init(std.heap.page_allocator, 1024, .stdout);
-    defer fuizon.deinit(std.heap.page_allocator);
+    defer fuizon.deinit(std.heap.page_allocator) catch unreachable;
 
     const writer = fuizon.getWriter();
 
