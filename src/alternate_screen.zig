@@ -10,10 +10,13 @@
 // performed all operations on the alternative screen.
 //
 
-pub fn enterAlternateScreen() !void {
-    // Not implemented
+const fuizon = @import("fuizon.zig");
+const vt = @import("vt.zig");
+
+pub fn enterAlternateScreen() error{WriteFailed}!void {
+    return fuizon.getWriter().writeAll(vt.CSI ++ "?1049h");
 }
 
-pub fn leaveAlternateScreen() !void {
-    // Not implemented
+pub fn leaveAlternateScreen() error{WriteFailed}!void {
+    return fuizon.getWriter().writeAll(vt.CSI ++ "?1049l");
 }
