@@ -14,14 +14,6 @@ pub const Color = union(enum) {
     yellow,
     magenta,
     cyan,
-    grey,
-    dark_red,
-    dark_green,
-    dark_blue,
-    dark_yellow,
-    dark_magenta,
-    dark_cyan,
-    dark_grey,
 
     ansi: AnsiColor,
     rgb: RgbColor,
@@ -45,8 +37,6 @@ pub const Color = union(enum) {
             .ansi    => |ansi| ansi.writeForegroundSequence(writer),
             .rgb     => |rgb|   rgb.writeForegroundSequence(writer),
             // zig fmt: on
-
-            else => {},
         };
     }
 
@@ -69,8 +59,6 @@ pub const Color = union(enum) {
             .ansi    => |ansi| ansi.writeBackgroundSequence(writer),
             .rgb     => |rgb|   rgb.writeBackgroundSequence(writer),
             // zig fmt: on
-
-            else => {},
         };
     }
 };
