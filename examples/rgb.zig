@@ -32,8 +32,10 @@ pub fn main() !void {
 
     try writer.print("\n\r", .{});
     try writer.print("Your color: ", .{});
+    try fuizon.setForeground(fuizon.Rgb(r, g, b));
     try fuizon.setBackground(fuizon.Rgb(r, g, b));
-    try writer.print("            ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 }

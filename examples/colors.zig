@@ -7,99 +7,67 @@ pub fn main() !void {
 
     const writer = fuizon.getWriter();
 
-    try writer.print("Black:        ", .{});
+    try writer.print("Black:   ", .{});
+    try fuizon.setForeground(.black);
     try fuizon.setBackground(.black);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("White:        ", .{});
+    try writer.print("White:   ", .{});
+    try fuizon.setForeground(.white);
     try fuizon.setBackground(.white);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Red:          ", .{});
+    try writer.print("Red:     ", .{});
+    try fuizon.setForeground(.red);
     try fuizon.setBackground(.red);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Dark Red:     ", .{});
-    try fuizon.setBackground(.dark_red);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Green:        ", .{});
+    try writer.print("Green:   ", .{});
+    try fuizon.setForeground(.green);
     try fuizon.setBackground(.green);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Dark Green:   ", .{});
-    try fuizon.setBackground(.dark_green);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Blue:         ", .{});
+    try writer.print("Blue:    ", .{});
+    try fuizon.setForeground(.blue);
     try fuizon.setBackground(.blue);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Dark Blue:    ", .{});
-    try fuizon.setBackground(.dark_blue);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Yellow:       ", .{});
+    try writer.print("Yellow:  ", .{});
+    try fuizon.setForeground(.yellow);
     try fuizon.setBackground(.yellow);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Dark Yellow:  ", .{});
-    try fuizon.setBackground(.dark_yellow);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Magenta:      ", .{});
+    try writer.print("Magenta: ", .{});
+    try fuizon.setForeground(.magenta);
     try fuizon.setBackground(.magenta);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
-    try writer.print("Dark Magenta: ", .{});
-    try fuizon.setBackground(.dark_magenta);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Cyan:         ", .{});
+    try writer.print("Cyan:    ", .{});
+    try fuizon.setForeground(.cyan);
     try fuizon.setBackground(.cyan);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Dark Cyan:    ", .{});
-    try fuizon.setBackground(.dark_cyan);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Grey:         ", .{});
-    try fuizon.setBackground(.grey);
-    try writer.print("   ", .{});
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Dark Grey:    ", .{});
-    try fuizon.setBackground(.dark_grey);
-    try writer.print("   ", .{});
+    try writer.print("this text should be invisible", .{});
+    try fuizon.setForeground(.default);
     try fuizon.setBackground(.default);
     try writer.print("\n\r", .{});
 
