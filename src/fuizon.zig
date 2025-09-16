@@ -1,4 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const is_windows = builtin.os.tag == .windows;
+const windows = std.os.windows;
 
 pub const Alignment = alignment.Alignment;
 pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
@@ -39,6 +42,9 @@ pub const Style = style.Style;
 var write_buffer: []u8 = &.{};
 var console_writer: ?std.fs.File.Writer = null;
 
+extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DWORD) windows.BOOL;
+extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: windows.DWORD) windows.BOOL;
+
 /// ---
 /// Initialize internal state and buffers.
 ///
@@ -57,6 +63,18 @@ pub fn init(allocator: std.mem.Allocator, buflen: usize, stream: enum { stdout, 
         .stdout => std.fs.File.stdout().writerStreaming(write_buffer),
         .stderr => std.fs.File.stderr().writerStreaming(write_buffer),
     };
+
+    if (is_windows) {
+        var ret: windows.BOOL = undefined;
+        const hOut: windows.HANDLE = console_writer.?.file.handle;
+        std.debug.assert(hOut != windows.INVALID_HANDLE_VALUE);
+        var dwMode: windows.DWORD = 0;
+        ret = GetConsoleMode(hOut, &dwMode);
+        std.debug.assert(1 == ret);
+        dwMode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        ret = SetConsoleMode(hOut, dwMode);
+        std.debug.assert(1 == ret);
+    }
 }
 
 /// ---
