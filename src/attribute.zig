@@ -1,5 +1,7 @@
 const std = @import("std");
 const fuizon = @import("fuizon.zig");
+const vt = @import("vt.zig");
+const CSI = vt.CSI;
 
 pub const Attribute = enum(u8) {
     // zig fmt: off
@@ -114,14 +116,28 @@ pub const Attributes = struct {
     }
 };
 
-pub fn setAttribute(attribute: Attribute) !void {
-    _ = attribute;
-    // Not implemented
+pub fn setAttribute(attribute: Attribute) error{WriteFailed}!void {
+    return switch (attribute) {
+        // zig fmt: off
+        .bold       => fuizon.getWriter().writeAll(CSI ++ "1m"),
+        .dim        => fuizon.getWriter().writeAll(CSI ++ "2m"),
+        .underlined => fuizon.getWriter().writeAll(CSI ++ "4m"),
+        .reverse    => fuizon.getWriter().writeAll(CSI ++ "7m"),
+        .hidden     => fuizon.getWriter().writeAll(CSI ++ "8m"),
+        // zig fmt: on
+    };
 }
 
 pub fn resetAttribute(attribute: Attribute) !void {
-    _ = attribute;
-    // Not implemented
+    return switch (attribute) {
+        // zig fmt: off
+        .bold       => fuizon.getWriter().writeAll(CSI ++ "21m"),
+        .dim        => fuizon.getWriter().writeAll(CSI ++ "22m"),
+        .underlined => fuizon.getWriter().writeAll(CSI ++ "24m"),
+        .reverse    => fuizon.getWriter().writeAll(CSI ++ "27m"),
+        .hidden     => fuizon.getWriter().writeAll(CSI ++ "28m"),
+        // zig fmt: on
+    };
 }
 
 test "no-attributes" {
