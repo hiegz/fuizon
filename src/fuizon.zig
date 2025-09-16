@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const is_windows = builtin.os.tag == .windows;
-const windows = std.os.windows;
+const windows = @import("windows.zig");
 const posix = std.posix;
 
 pub const Alignment = alignment.Alignment;
@@ -39,22 +38,6 @@ pub const scrollUp = screen.scrollUp;
 pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
 pub const Style = style.Style;
-
-extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DWORD) windows.BOOL;
-extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: windows.DWORD) windows.BOOL;
-
-// zig fmt: off
-const ENABLE_VIRTUAL_TERMINAL_INPUT: windows.DWORD = 0x0200;
-const ENABLE_PROCESSED_INPUT:        windows.DWORD = 0x0001;
-const ENABLE_ECHO_INPUT:             windows.DWORD = 0x0004;
-const ENABLE_LINE_INPUT:             windows.DWORD = 0x0002;
-const ENABLE_WINDOW_INPUT:           windows.DWORD = 0x0008;
-const ENABLE_MOUSE_INPUT:            windows.DWORD = 0x0010;
-
-const ENABLE_PROCESSED_OUTPUT:       windows.DWORD = 0x0001;
-const ENABLE_WRAP_AT_EOL_OUTPUT:     windows.DWORD = 0x0002;
-const DISABLE_NEWLINE_AUTO_RETURN:   windows.DWORD = 0x0008;
-// zig fmt: on
 
 var original_mode: switch (builtin.os.tag) {
     .macos, .linux => posix.termios,
@@ -119,29 +102,29 @@ pub fn init(
             const hIn: windows.HANDLE = std.fs.File.stdin().handle;
             if (hIn == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
             var dwModeIn: windows.DWORD = 0;
-            ret = GetConsoleMode(hIn, &dwModeIn);
+            ret = windows.GetConsoleMode(hIn, &dwModeIn);
             if (1 != ret) return error.Unexpected;
             original_mode.in = dwModeIn;
-            dwModeIn |=  ENABLE_VIRTUAL_TERMINAL_INPUT;
-            dwModeIn |=  ENABLE_WINDOW_INPUT;
-            dwModeIn &= ~ENABLE_PROCESSED_INPUT;
-            dwModeIn &= ~ENABLE_ECHO_INPUT;
-            dwModeIn &= ~ENABLE_LINE_INPUT;
-            dwModeIn &= ~ENABLE_MOUSE_INPUT;
-            ret = SetConsoleMode(hIn, dwModeIn);
+            dwModeIn |=  windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
+            dwModeIn |=  windows.ENABLE_WINDOW_INPUT;
+            dwModeIn &= ~windows.ENABLE_PROCESSED_INPUT;
+            dwModeIn &= ~windows.ENABLE_ECHO_INPUT;
+            dwModeIn &= ~windows.ENABLE_LINE_INPUT;
+            dwModeIn &= ~windows.ENABLE_MOUSE_INPUT;
+            ret = windows.SetConsoleMode(hIn, dwModeIn);
             if (1 != ret) return error.Unexpected;
 
             const hOut: windows.HANDLE = writer.instance.?.file.handle;
             if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
             var dwModeOut: windows.DWORD = 0;
-            ret = GetConsoleMode(hOut, &dwModeOut);
+            ret = windows.GetConsoleMode(hOut, &dwModeOut);
             if (1 != ret) return error.Unexpected;
             original_mode.out = dwModeOut;
             dwModeOut |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            dwModeOut |= ENABLE_PROCESSED_OUTPUT;
-            dwModeOut |= ENABLE_WRAP_AT_EOL_OUTPUT;
-            dwModeOut |= DISABLE_NEWLINE_AUTO_RETURN;
-            ret = SetConsoleMode(hOut, dwModeOut);
+            dwModeOut |= windows.ENABLE_PROCESSED_OUTPUT;
+            dwModeOut |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
+            dwModeOut |= windows.DISABLE_NEWLINE_AUTO_RETURN;
+            ret = windows.SetConsoleMode(hOut, dwModeOut);
             if (1 != ret) return error.Unexpected;
         },
         // zig fmt: on
@@ -173,12 +156,12 @@ pub fn deinit(allocator: std.mem.Allocator) error{Unexpected}!void {
 
             const hIn:  windows.HANDLE = std.fs.File.stdin().handle;
             if (hIn  == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = SetConsoleMode(hIn, original_mode.in);
+            ret = windows.SetConsoleMode(hIn, original_mode.in);
             if (1 != ret) return error.Unexpected;
 
             const hOut: windows.HANDLE = writer.instance.?.file.handle;
             if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = SetConsoleMode(hOut, original_mode.out);
+            ret = windows.SetConsoleMode(hOut, original_mode.out);
             if (1 != ret) return error.Unexpected;
         },
         // zig fmt: on
