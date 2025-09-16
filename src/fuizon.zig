@@ -39,9 +39,6 @@ pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
 pub const Style = style.Style;
 
-var write_buffer: []u8 = &.{};
-var console_writer: ?std.fs.File.Writer = null;
-
 extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DWORD) windows.BOOL;
 extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: windows.DWORD) windows.BOOL;
 
@@ -57,16 +54,16 @@ extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: windows.DWORD) 
 /// Don't forget to call `deinit()` to release resources.
 /// ---
 pub fn init(allocator: std.mem.Allocator, buflen: usize, stream: enum { stdout, stderr }) error{OutOfMemory}!void {
-    write_buffer = try allocator.alloc(u8, buflen);
-    errdefer allocator.free(write_buffer);
-    console_writer = switch (stream) {
-        .stdout => std.fs.File.stdout().writerStreaming(write_buffer),
-        .stderr => std.fs.File.stderr().writerStreaming(write_buffer),
+    writer.buffer = try allocator.alloc(u8, buflen);
+    errdefer allocator.free(writer.buffer);
+    writer.instance = switch (stream) {
+        .stdout => std.fs.File.stdout().writerStreaming(writer.buffer),
+        .stderr => std.fs.File.stderr().writerStreaming(writer.buffer),
     };
 
     if (is_windows) {
         var ret: windows.BOOL = undefined;
-        const hOut: windows.HANDLE = console_writer.?.file.handle;
+        const hOut: windows.HANDLE = writer.instance.?.file.handle;
         std.debug.assert(hOut != windows.INVALID_HANDLE_VALUE);
         var dwMode: windows.DWORD = 0;
         ret = GetConsoleMode(hOut, &dwMode);
@@ -83,9 +80,9 @@ pub fn init(allocator: std.mem.Allocator, buflen: usize, stream: enum { stdout, 
 /// The allocator must match the one used in `init()`.
 /// ---
 pub fn deinit(allocator: std.mem.Allocator) void {
-    allocator.free(write_buffer);
-    write_buffer = &.{};
-    console_writer = null;
+    allocator.free(writer.buffer);
+    writer.buffer = &.{};
+    writer.instance = null;
 }
 
 /// ---
@@ -95,9 +92,9 @@ pub fn deinit(allocator: std.mem.Allocator) void {
 /// switch to a different stream using `useStdout()` or `useStderr()`)
 /// ---
 pub fn getWriter() *std.Io.Writer {
-    if (console_writer == null)
+    if (writer.instance == null)
         @panic("use before init or after deinit");
-    return &console_writer.?.interface;
+    return &writer.instance.?.interface;
 }
 
 /// ---
@@ -108,14 +105,14 @@ pub fn getWriter() *std.Io.Writer {
 /// and replaces it with the standard output stream.
 /// ---
 pub fn useStdout() error{WriteFailed}!void {
-    if (console_writer == null)
+    if (writer.instance == null)
         @panic("use before init or after deinit");
 
-    if (console_writer.?.file.handle == std.fs.File.stdout().handle)
+    if (writer.instance.?.file.handle == std.fs.File.stdout().handle)
         return;
-    std.debug.assert(console_writer.?.file.handle == std.fs.File.stderr().handle);
-    try console_writer.?.interface.flush();
-    console_writer = std.fs.File.stdout().writerStreaming(write_buffer);
+    std.debug.assert(writer.instance.?.file.handle == std.fs.File.stderr().handle);
+    try writer.instance.?.interface.flush();
+    writer.instance = std.fs.File.stdout().writerStreaming(writer.buffer);
 }
 
 /// ---
@@ -126,14 +123,14 @@ pub fn useStdout() error{WriteFailed}!void {
 /// and replaces it with the standard error stream.
 /// ---
 pub fn useStderr() error{WriteFailed}!void {
-    if (console_writer == null)
+    if (writer.instance == null)
         @panic("use before init or after deinit");
 
-    if (console_writer.?.file.handle == std.fs.File.stderr().handle)
+    if (writer.instance.?.file.handle == std.fs.File.stderr().handle)
         return;
-    std.debug.assert(console_writer.?.file.handle == std.fs.File.stdout().handle);
-    try console_writer.?.interface.flush();
-    console_writer = std.fs.File.stderr().writerStreaming(write_buffer);
+    std.debug.assert(writer.instance.?.file.handle == std.fs.File.stdout().handle);
+    try writer.instance.?.interface.flush();
+    writer.instance = std.fs.File.stderr().writerStreaming(writer.buffer);
 }
 
 const alignment = @import("alignment.zig");
@@ -149,6 +146,7 @@ const keyboard = @import("keyboard.zig");
 const raw_mode = @import("raw_mode.zig");
 const screen = @import("screen.zig");
 const style = @import("style.zig");
+const writer = @import("writer.zig");
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
@@ -157,25 +155,25 @@ test "fuizon" {
 test "init(.stdout) should write to stdout" {
     try init(std.testing.allocator, 1024, .stdout);
     defer deinit(std.testing.allocator);
-    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.?.file.handle);
+    try std.testing.expectEqual(std.fs.File.stdout().handle, writer.instance.?.file.handle);
 }
 
 test "init(.stderr) should write to stderr" {
     try init(std.testing.allocator, 1024, .stderr);
     defer deinit(std.testing.allocator);
-    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.?.file.handle);
+    try std.testing.expectEqual(std.fs.File.stderr().handle, writer.instance.?.file.handle);
 }
 
 test "useStdout() should switch to stdout" {
     try init(std.testing.allocator, 1024, .stderr);
     defer deinit(std.testing.allocator);
     try useStdout();
-    try std.testing.expectEqual(std.fs.File.stdout().handle, console_writer.?.file.handle);
+    try std.testing.expectEqual(std.fs.File.stdout().handle, writer.instance.?.file.handle);
 }
 
 test "useStderr() should switch to stderr" {
     try init(std.testing.allocator, 1024, .stdout);
     defer deinit(std.testing.allocator);
     try useStderr();
-    try std.testing.expectEqual(std.fs.File.stderr().handle, console_writer.?.file.handle);
+    try std.testing.expectEqual(std.fs.File.stderr().handle, writer.instance.?.file.handle);
 }
