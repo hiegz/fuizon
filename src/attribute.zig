@@ -5,21 +5,21 @@ const CSI = vt.CSI;
 
 pub const Attribute = enum(u8) {
     // zig fmt: off
-    bold       = 1 << 0,
-    dim        = 1 << 1,
-    underlined = 1 << 2,
-    reverse    = 1 << 3,
-    hidden     = 1 << 4,
+    bold      = 1 << 0,
+    dim       = 1 << 1,
+    underline = 1 << 2,
+    reverse   = 1 << 3,
+    hidden    = 1 << 4,
     // zig fmt: on
 
     pub fn format(self: Attribute, writer: *std.io.Writer) !void {
         // zig fmt: off
         switch (self) {
-            .bold       => _ = try writer.write("bold"),
-            .dim        => _ = try writer.write("dim"),
-            .underlined => _ = try writer.write("underlined"),
-            .reverse    => _ = try writer.write("reverse"),
-            .hidden     => _ = try writer.write("hidden"),
+            .bold      => _ = try writer.write("bold"),
+            .dim       => _ = try writer.write("dim"),
+            .underline => _ = try writer.write("underline"),
+            .reverse   => _ = try writer.write("reverse"),
+            .hidden    => _ = try writer.write("hidden"),
         }
         // zig fmt: on
     }
@@ -46,7 +46,7 @@ pub const Attributes = struct {
 
     // zig fmt: off
     pub const none = Attributes.join(&.{});
-    pub const all  = Attributes.join(&.{ .bold, .dim, .underlined, .reverse, .hidden });
+    pub const all  = Attributes.join(&.{ .bold, .dim, .underline, .reverse, .hidden });
     // zig fmt: on
 
     bitset: u8,
@@ -93,8 +93,8 @@ pub const Attributes = struct {
             attributes[nattributes] = .dim;
             nattributes += 1;
         }
-        if (self.contain(&.{.underlined})) {
-            attributes[nattributes] = .underlined;
+        if (self.contain(&.{.underline})) {
+            attributes[nattributes] = .underline;
             nattributes += 1;
         }
         if (self.contain(&.{.reverse})) {
@@ -119,11 +119,11 @@ pub const Attributes = struct {
 pub fn setAttribute(attribute: Attribute) error{WriteFailed}!void {
     return switch (attribute) {
         // zig fmt: off
-        .bold       => fuizon.getWriter().writeAll(CSI ++ "1m"),
-        .dim        => fuizon.getWriter().writeAll(CSI ++ "2m"),
-        .underlined => fuizon.getWriter().writeAll(CSI ++ "4m"),
-        .reverse    => fuizon.getWriter().writeAll(CSI ++ "7m"),
-        .hidden     => fuizon.getWriter().writeAll(CSI ++ "8m"),
+        .bold      => fuizon.getWriter().writeAll(CSI ++ "1m"),
+        .dim       => fuizon.getWriter().writeAll(CSI ++ "2m"),
+        .underline => fuizon.getWriter().writeAll(CSI ++ "4m"),
+        .reverse   => fuizon.getWriter().writeAll(CSI ++ "7m"),
+        .hidden    => fuizon.getWriter().writeAll(CSI ++ "8m"),
         // zig fmt: on
     };
 }
@@ -131,11 +131,11 @@ pub fn setAttribute(attribute: Attribute) error{WriteFailed}!void {
 pub fn resetAttribute(attribute: Attribute) !void {
     return switch (attribute) {
         // zig fmt: off
-        .bold       => fuizon.getWriter().writeAll(CSI ++ "21m"),
-        .dim        => fuizon.getWriter().writeAll(CSI ++ "22m"),
-        .underlined => fuizon.getWriter().writeAll(CSI ++ "24m"),
-        .reverse    => fuizon.getWriter().writeAll(CSI ++ "27m"),
-        .hidden     => fuizon.getWriter().writeAll(CSI ++ "28m"),
+        .bold      => fuizon.getWriter().writeAll(CSI ++ "21m"),
+        .dim       => fuizon.getWriter().writeAll(CSI ++ "22m"),
+        .underline => fuizon.getWriter().writeAll(CSI ++ "24m"),
+        .reverse   => fuizon.getWriter().writeAll(CSI ++ "27m"),
+        .hidden    => fuizon.getWriter().writeAll(CSI ++ "28m"),
         // zig fmt: on
     };
 }
@@ -148,7 +148,7 @@ test "all-attributes" {
     try std.testing.expect(Attributes.all.contain(&.{
         .bold,
         .dim,
-        .underlined,
+        .underline,
         .reverse,
         .hidden,
     }));
@@ -169,7 +169,7 @@ test "attributes-contain" {
 
 test "attributes-set-reset" {
     var left = Attributes.none;
-    left.set(&.{ .dim, .hidden, .underlined });
+    left.set(&.{ .dim, .hidden, .underline });
     var right = Attributes.all;
     right.reset(&.{ .bold, .reverse });
     try std.testing.expectEqual(left.bitset, right.bitset);
@@ -223,7 +223,7 @@ test "no-attributes-iterator" {
     found = false;
     iterator = attributes.iterator();
     while (iterator.next()) |attribute| {
-        if (attribute != .underlined) continue;
+        if (attribute != .underline) continue;
         found = true;
         break;
     }
@@ -283,7 +283,7 @@ test "some-attributes-iterator" {
     found = false;
     iterator = attributes.iterator();
     while (iterator.next()) |attribute| {
-        if (attribute != .underlined) continue;
+        if (attribute != .underline) continue;
         found = true;
         break;
     }
@@ -343,7 +343,7 @@ test "all-attributes-iterator" {
     found = false;
     iterator = attributes.iterator();
     while (iterator.next()) |attribute| {
-        if (attribute != .underlined) continue;
+        if (attribute != .underline) continue;
         found = true;
         break;
     }
@@ -363,8 +363,8 @@ test "format-dim-attribute" {
     try std.testing.expectFmt("dim", "{f}", .{Attribute.dim});
 }
 
-test "format-underlined-attribute" {
-    try std.testing.expectFmt("underlined", "{f}", .{Attribute.underlined});
+test "format-underline-attribute" {
+    try std.testing.expectFmt("underline", "{f}", .{Attribute.underline});
 }
 
 test "format-reverse-attribute" {
@@ -380,5 +380,5 @@ test "format-empty-attribute-set" {
 }
 
 test "format-all-attributes" {
-    try std.testing.expectFmt("{ bold, dim, underlined, reverse, hidden }", "{f}", .{Attributes.all});
+    try std.testing.expectFmt("{ bold, dim, underline, reverse, hidden }", "{f}", .{Attributes.all});
 }

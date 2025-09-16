@@ -121,7 +121,7 @@ fn handleInsertMode(event: fuizon.Event) !void {
                 switch (event.key.code.char) {
                     'b' => try toggleBoldAttribute(),
                     'd' => try toggleDimAttribute(),
-                    'u' => try toggleUnderlinedAttribute(),
+                    'u' => try toggleUnderlineAttribute(),
                     'r' => try toggleReverseAttribute(),
                     'h' => try toggleHiddenAttribute(),
                     else => {},
@@ -194,7 +194,7 @@ fn enableInsertMode() !void {
     try fuizon.getWriter().print("Press 'escape' to switch back to the normal mode,\n\r", .{});
     try fuizon.getWriter().print("      'Ctrl-b' to toggle the attribute 'bold'\n\r", .{});
     try fuizon.getWriter().print("      'Ctrl-d' to toggle the attribute 'dim'\n\r", .{});
-    try fuizon.getWriter().print("      'Ctrl-u' to toggle the attribute 'underlined'\n\r", .{});
+    try fuizon.getWriter().print("      'Ctrl-u' to toggle the attribute 'underline'\n\r", .{});
     try fuizon.getWriter().print("      'Ctrl-r' to toggle the attribute 'reverse'\n\r", .{});
     try fuizon.getWriter().print("      'Ctrl-h' to toggle the attribute 'hidden'\n\r", .{});
     try fuizon.getWriter().print("      or any other key that can be displayed as readable text\n\r", .{});
@@ -270,13 +270,13 @@ fn toggleDimAttribute() !void {
     }
 }
 
-fn toggleUnderlinedAttribute() !void {
-    if (attributes.contain(&.{.underlined})) {
-        attributes.reset(&.{.underlined});
-        try fuizon.resetAttribute(.underlined);
+fn toggleUnderlineAttribute() !void {
+    if (attributes.contain(&.{.underline})) {
+        attributes.reset(&.{.underline});
+        try fuizon.resetAttribute(.underline);
     } else {
-        attributes.set(&.{.underlined});
-        try fuizon.setAttribute(.underlined);
+        attributes.set(&.{.underline});
+        try fuizon.setAttribute(.underline);
     }
 }
 
