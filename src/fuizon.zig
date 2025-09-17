@@ -39,12 +39,6 @@ pub const scrollDown = screen.scrollDown;
 pub const getScreenSize = screen.getScreenSize;
 pub const Style = style.Style;
 
-var original_mode: switch (builtin.os.tag) {
-    .macos, .linux => posix.termios,
-    .windows => struct { out: windows.DWORD, in: windows.DWORD },
-    else => unreachable,
-} = undefined;
-
 /// ---
 /// Initialize internal state and buffers.
 ///
@@ -61,22 +55,22 @@ pub fn init(
     buflen: usize,
     stream: enum { stdout, stderr },
 ) error{ OutOfMemory, Unexpected }!void {
-    writer.buffer = try allocator.alloc(u8, buflen);
-    errdefer allocator.free(writer.buffer);
-    writer.instance = switch (stream) {
-        .stdout => std.fs.File.stdout().writerStreaming(writer.buffer),
-        .stderr => std.fs.File.stderr().writerStreaming(writer.buffer),
+    state.buffer = try allocator.alloc(u8, buflen);
+    errdefer allocator.free(state.buffer);
+    state.writer = switch (stream) {
+        .stdout => std.fs.File.stdout().writerStreaming(state.buffer),
+        .stderr => std.fs.File.stderr().writerStreaming(state.buffer),
     };
 
     switch (builtin.os.tag) {
         // zig fmt: off
         .linux, .macos => {
             var termios =
-                posix.tcgetattr(writer.instance.?.file.handle) catch {
+                posix.tcgetattr(state.writer.?.file.handle) catch {
                     return error.Unexpected;
                 };
 
-            original_mode        = termios;
+            state.original_mode  = termios;
             termios.lflag.ECHO   = false;
             termios.lflag.ECHOE  = false;
             termios.lflag.ECHOK  = false;
@@ -86,7 +80,7 @@ pub fn init(
             termios.lflag.ISIG   = false;
 
             posix.tcsetattr(
-                writer.instance.?.file.handle,
+                state.writer.?.file.handle,
                 posix.TCSA.NOW,
                 termios,
             ) catch {
@@ -104,7 +98,7 @@ pub fn init(
             var dwModeIn: windows.DWORD = 0;
             ret = windows.GetConsoleMode(hIn, &dwModeIn);
             if (1 != ret) return error.Unexpected;
-            original_mode.in = dwModeIn;
+            state.original_mode.in = dwModeIn;
             dwModeIn |=  windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
             dwModeIn |=  windows.ENABLE_WINDOW_INPUT;
             dwModeIn &= ~windows.ENABLE_PROCESSED_INPUT;
@@ -114,12 +108,12 @@ pub fn init(
             ret = windows.SetConsoleMode(hIn, dwModeIn);
             if (1 != ret) return error.Unexpected;
 
-            const hOut: windows.HANDLE = writer.instance.?.file.handle;
+            const hOut: windows.HANDLE = state.writer.?.file.handle;
             if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
             var dwModeOut: windows.DWORD = 0;
             ret = windows.GetConsoleMode(hOut, &dwModeOut);
             if (1 != ret) return error.Unexpected;
-            original_mode.out = dwModeOut;
+            state.original_mode.out = dwModeOut;
             dwModeOut |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             dwModeOut |= windows.ENABLE_PROCESSED_OUTPUT;
             dwModeOut |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
@@ -142,9 +136,9 @@ pub fn deinit(allocator: std.mem.Allocator) error{Unexpected}!void {
     switch (builtin.os.tag) {
         .linux, .macos => {
             posix.tcsetattr(
-                writer.instance.?.file.handle,
+                state.writer.?.file.handle,
                 posix.TCSA.NOW,
-                original_mode,
+                state.original_mode,
             ) catch {
                 return error.Unexpected;
             };
@@ -156,12 +150,12 @@ pub fn deinit(allocator: std.mem.Allocator) error{Unexpected}!void {
 
             const hIn:  windows.HANDLE = std.fs.File.stdin().handle;
             if (hIn  == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = windows.SetConsoleMode(hIn, original_mode.in);
+            ret = windows.SetConsoleMode(hIn, state.original_mode.in);
             if (1 != ret) return error.Unexpected;
 
-            const hOut: windows.HANDLE = writer.instance.?.file.handle;
+            const hOut: windows.HANDLE = state.writer.?.file.handle;
             if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = windows.SetConsoleMode(hOut, original_mode.out);
+            ret = windows.SetConsoleMode(hOut, state.original_mode.out);
             if (1 != ret) return error.Unexpected;
         },
         // zig fmt: on
@@ -169,21 +163,21 @@ pub fn deinit(allocator: std.mem.Allocator) error{Unexpected}!void {
         else => unreachable,
     }
 
-    allocator.free(writer.buffer);
-    writer.buffer = &.{};
-    writer.instance = null;
+    allocator.free(state.buffer);
+    state.buffer = &.{};
+    state.writer = null;
 }
 
 /// ---
-/// Get the underlying terminal stream writer.
+/// Get the underlying terminal stream state.
 ///
 /// The returned pointer may become invalid in the future (e.g., when you
 /// switch to a different stream using `useStdout()` or `useStderr()`)
 /// ---
 pub fn getWriter() *std.Io.Writer {
-    if (writer.instance == null)
+    if (state.writer == null)
         @panic("use before init or after deinit");
-    return &writer.instance.?.interface;
+    return &state.writer.?.interface;
 }
 
 /// ---
@@ -194,14 +188,14 @@ pub fn getWriter() *std.Io.Writer {
 /// and replaces it with the standard output stream.
 /// ---
 pub fn useStdout() error{WriteFailed}!void {
-    if (writer.instance == null)
+    if (state.writer == null)
         @panic("use before init or after deinit");
 
-    if (writer.instance.?.file.handle == std.fs.File.stdout().handle)
+    if (state.writer.?.file.handle == std.fs.File.stdout().handle)
         return;
-    std.debug.assert(writer.instance.?.file.handle == std.fs.File.stderr().handle);
-    try writer.instance.?.interface.flush();
-    writer.instance = std.fs.File.stdout().writerStreaming(writer.buffer);
+    std.debug.assert(state.writer.?.file.handle == std.fs.File.stderr().handle);
+    try state.writer.?.interface.flush();
+    state.writer = std.fs.File.stdout().writerStreaming(state.buffer);
 }
 
 /// ---
@@ -212,14 +206,14 @@ pub fn useStdout() error{WriteFailed}!void {
 /// and replaces it with the standard error stream.
 /// ---
 pub fn useStderr() error{WriteFailed}!void {
-    if (writer.instance == null)
+    if (state.writer == null)
         @panic("use before init or after deinit");
 
-    if (writer.instance.?.file.handle == std.fs.File.stderr().handle)
+    if (state.writer.?.file.handle == std.fs.File.stderr().handle)
         return;
-    std.debug.assert(writer.instance.?.file.handle == std.fs.File.stdout().handle);
-    try writer.instance.?.interface.flush();
-    writer.instance = std.fs.File.stderr().writerStreaming(writer.buffer);
+    std.debug.assert(state.writer.?.file.handle == std.fs.File.stdout().handle);
+    try state.writer.?.interface.flush();
+    state.writer = std.fs.File.stderr().writerStreaming(state.buffer);
 }
 
 const alignment = @import("alignment.zig");
@@ -236,6 +230,7 @@ const raw_mode = @import("raw_mode.zig");
 const screen = @import("screen.zig");
 const style = @import("style.zig");
 const writer = @import("writer.zig");
+const state = @import("state.zig");
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
@@ -244,25 +239,25 @@ test "fuizon" {
 // test "init(.stdout) should write to stdout" {
 //     try init(std.testing.allocator, 1024, .stdout);
 //     defer deinit(std.testing.allocator) catch unreachable;
-//     try std.testing.expectEqual(std.fs.File.stdout().handle, writer.instance.?.file.handle);
+//     try std.testing.expectEqual(std.fs.File.stdout().handle, state.instance.?.file.handle);
 // }
 //
 // test "init(.stderr) should write to stderr" {
 //     try init(std.testing.allocator, 1024, .stderr);
 //     defer deinit(std.testing.allocator) catch unreachable;
-//     try std.testing.expectEqual(std.fs.File.stderr().handle, writer.instance.?.file.handle);
+//     try std.testing.expectEqual(std.fs.File.stderr().handle, state.instance.?.file.handle);
 // }
 //
 // test "useStdout() should switch to stdout" {
 //     try init(std.testing.allocator, 1024, .stderr);
 //     defer deinit(std.testing.allocator) catch unreachable;
 //     try useStdout();
-//     try std.testing.expectEqual(std.fs.File.stdout().handle, writer.instance.?.file.handle);
+//     try std.testing.expectEqual(std.fs.File.stdout().handle, state.instance.?.file.handle);
 // }
 //
 // test "useStderr() should switch to stderr" {
 //     try init(std.testing.allocator, 1024, .stdout);
 //     defer deinit(std.testing.allocator) catch unreachable;
 //     try useStderr();
-//     try std.testing.expectEqual(std.fs.File.stderr().handle, writer.instance.?.file.handle);
+//     try std.testing.expectEqual(std.fs.File.stderr().handle, state.instance.?.file.handle);
 // }
