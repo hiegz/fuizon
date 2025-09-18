@@ -55,7 +55,7 @@ pub fn init(
     buflen: usize,
     stream: enum { stdout, stderr },
 ) error{ OutOfMemory, Unexpected }!void {
-    state.events = EventQueue.init();
+    state.events = Queue(Event).init();
     errdefer state.events.?.deinit(allocator);
 
     state.buffer = try allocator.alloc(u8, buflen);
@@ -235,7 +235,8 @@ const screen = @import("screen.zig");
 const style = @import("style.zig");
 const writer = @import("writer.zig");
 const state = @import("state.zig");
-const EventQueue = @import("event_queue.zig");
+const queue = @import("queue.zig");
+const Queue = queue.Queue;
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
