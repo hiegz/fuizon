@@ -18,6 +18,10 @@ const writer = @import("writer.zig");
 const state = @import("state.zig");
 const queue = @import("queue.zig");
 const Queue = queue.Queue;
+const terminal_mode = @import("terminal_mode.zig");
+const saveTerminalMode = terminal_mode.saveTerminalMode;
+const restoreTerminalMode = terminal_mode.restoreTerminalMode;
+const enableRawMode = terminal_mode.enableRawMode;
 
 pub const Alignment = alignment.Alignment;
 pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
@@ -68,7 +72,7 @@ pub fn init(
     allocator: std.mem.Allocator,
     buflen: usize,
     stream: enum { stdout, stderr },
-) error{ OutOfMemory, Unexpected }!void {
+) error{ OutOfMemory, NotATerminal, Unexpected }!void {
     state.events = Queue(Event).init();
     errdefer state.events.?.deinit(allocator);
 
@@ -79,69 +83,8 @@ pub fn init(
         .stderr => std.fs.File.stderr().writerStreaming(state.buffer),
     };
 
-    switch (builtin.os.tag) {
-        // zig fmt: off
-        .linux, .macos => {
-            var termios =
-                posix.tcgetattr(state.writer.?.file.handle) catch {
-                    return error.Unexpected;
-                };
-
-            state.original_mode  = termios;
-            termios.lflag.ECHO   = false;
-            termios.lflag.ECHOE  = false;
-            termios.lflag.ECHOK  = false;
-            termios.lflag.ECHONL = false;
-            termios.lflag.ICANON = false;
-            termios.lflag.IEXTEN = false;
-            termios.lflag.ISIG   = false;
-
-            posix.tcsetattr(
-                state.writer.?.file.handle,
-                posix.TCSA.NOW,
-                termios,
-            ) catch {
-                return error.Unexpected;
-            };
-        },
-        // zig fmt: on
-
-        // zig fmt: off
-        .windows => {
-            var ret: windows.BOOL = undefined;
-
-            const hIn: windows.HANDLE = std.fs.File.stdin().handle;
-            if (hIn == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            var dwModeIn: windows.DWORD = 0;
-            ret = windows.GetConsoleMode(hIn, &dwModeIn);
-            if (1 != ret) return error.Unexpected;
-            state.original_mode.in = dwModeIn;
-            dwModeIn |=  windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
-            dwModeIn |=  windows.ENABLE_WINDOW_INPUT;
-            dwModeIn &= ~windows.ENABLE_PROCESSED_INPUT;
-            dwModeIn &= ~windows.ENABLE_ECHO_INPUT;
-            dwModeIn &= ~windows.ENABLE_LINE_INPUT;
-            dwModeIn &= ~windows.ENABLE_MOUSE_INPUT;
-            ret = windows.SetConsoleMode(hIn, dwModeIn);
-            if (1 != ret) return error.Unexpected;
-
-            const hOut: windows.HANDLE = state.writer.?.file.handle;
-            if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            var dwModeOut: windows.DWORD = 0;
-            ret = windows.GetConsoleMode(hOut, &dwModeOut);
-            if (1 != ret) return error.Unexpected;
-            state.original_mode.out = dwModeOut;
-            dwModeOut |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            dwModeOut |= windows.ENABLE_PROCESSED_OUTPUT;
-            dwModeOut |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
-            dwModeOut |= windows.DISABLE_NEWLINE_AUTO_RETURN;
-            ret = windows.SetConsoleMode(hOut, dwModeOut);
-            if (1 != ret) return error.Unexpected;
-        },
-        // zig fmt: on
-
-        else => unreachable,
-    }
+    try saveTerminalMode();
+    try enableRawMode();
 }
 
 /// ---
@@ -149,36 +92,8 @@ pub fn init(
 ///
 /// The allocator must match the one used in `init()`.
 /// ---
-pub fn deinit(allocator: std.mem.Allocator) error{Unexpected}!void {
-    switch (builtin.os.tag) {
-        .linux, .macos => {
-            posix.tcsetattr(
-                state.writer.?.file.handle,
-                posix.TCSA.NOW,
-                state.original_mode,
-            ) catch {
-                return error.Unexpected;
-            };
-        },
-
-        // zig fmt: off
-        .windows => {
-            var ret: windows.BOOL = undefined;
-
-            const hIn:  windows.HANDLE = std.fs.File.stdin().handle;
-            if (hIn  == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = windows.SetConsoleMode(hIn, state.original_mode.in);
-            if (1 != ret) return error.Unexpected;
-
-            const hOut: windows.HANDLE = state.writer.?.file.handle;
-            if (hOut == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            ret = windows.SetConsoleMode(hOut, state.original_mode.out);
-            if (1 != ret) return error.Unexpected;
-        },
-        // zig fmt: on
-
-        else => unreachable,
-    }
+pub fn deinit(allocator: std.mem.Allocator) error{NotATerminal, Unexpected}!void {
+    try restoreTerminalMode();
 
     allocator.free(state.buffer);
     state.buffer = &.{};
