@@ -133,6 +133,7 @@ pub const KeyCode = union(enum) {
     /// A unicode character.
     char: u21,
 
+    space,
     backspace,
     enter,
     left_arrow,
@@ -144,10 +145,10 @@ pub const KeyCode = union(enum) {
     page_up,
     page_down,
     tab,
-    backtab,
     delete,
     insert,
     escape,
+    pause,
 
     f1,
     f2,
@@ -166,6 +167,7 @@ pub const KeyCode = union(enum) {
         // zig fmt: off
         switch (self) {
             .char        => try writer.print("{u}",         .{self.char}),
+            .space       => try writer.print("space",       .{}),
             .backspace   => try writer.print("backspace",   .{}),
             .enter       => try writer.print("enter",       .{}),
             .left_arrow  => try writer.print("left arrow",  .{}),
@@ -177,10 +179,10 @@ pub const KeyCode = union(enum) {
             .page_up     => try writer.print("page up",     .{}),
             .page_down   => try writer.print("page down",   .{}),
             .tab         => try writer.print("tab",         .{}),
-            .backtab     => try writer.print("backtab",     .{}),
             .delete      => try writer.print("delete",      .{}),
             .insert      => try writer.print("insert",      .{}),
             .escape      => try writer.print("escape",      .{}),
+            .pause       => try writer.print("pause",       .{}),
             .f1          => try writer.print("f1",          .{}),
             .f2          => try writer.print("f2",          .{}),
             .f3          => try writer.print("f3",          .{}),
@@ -291,6 +293,10 @@ test "format-unicode-key-code" {
     try std.testing.expectFmt("ö", "{f}", .{KeyCode{ .char = 0x00f6 }});
 }
 
+test "format-space-key-code" {
+    try std.testing.expectFmt("space", "{f}", .{@as(KeyCode, KeyCode.space)});
+}
+
 test "format-backspace-key-code" {
     try std.testing.expectFmt("backspace", "{f}", .{@as(KeyCode, KeyCode.backspace)});
 }
@@ -335,10 +341,6 @@ test "format-tab-key-code" {
     try std.testing.expectFmt("tab", "{f}", .{@as(KeyCode, KeyCode.tab)});
 }
 
-test "format-backtab-key-code" {
-    try std.testing.expectFmt("backtab", "{f}", .{@as(KeyCode, KeyCode.backtab)});
-}
-
 test "format-delete-key-code" {
     try std.testing.expectFmt("delete", "{f}", .{@as(KeyCode, KeyCode.delete)});
 }
@@ -349,6 +351,10 @@ test "format-insert-key-code" {
 
 test "format-escape-key-code" {
     try std.testing.expectFmt("escape", "{f}", .{@as(KeyCode, KeyCode.escape)});
+}
+
+test "format-pause-key-code" {
+    try std.testing.expectFmt("pause", "{f}", .{@as(KeyCode, KeyCode.pause)});
 }
 
 test "format-f1-key-code" {
