@@ -379,9 +379,6 @@ pub fn main() !void {
 
     defer fuizon.getWriter().flush() catch {};
 
-    try fuizon.enableRawMode();
-    defer fuizon.disableRawMode() catch {};
-
     try saveCursorPosition();
 
     state = .running;
