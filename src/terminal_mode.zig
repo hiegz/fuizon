@@ -103,13 +103,28 @@ pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
             const handle = try getOutputHandle();
             var mode = posix.tcgetattr(handle) catch return error.Unexpected;
 
-            mode.lflag.ECHO = false;
-            mode.lflag.ECHOE = false;
-            mode.lflag.ECHOK = false;
+            // cfmakeraw
+            //
+            // man page: https://www.man7.org/linux/man-pages/man3/termios.3.html
+
+            // zig fmt: off
+            mode.iflag.IGNBRK = false;
+            mode.iflag.BRKINT = false;
+            mode.iflag.PARMRK = false;
+            mode.iflag.ISTRIP = false;
+            mode.iflag.INLCR  = false;
+            mode.iflag.IGNCR  = false;
+            mode.iflag.ICRNL  = false;
+            mode.iflag.IXON   = false;
+            mode.oflag.OPOST  = false;
+            mode.lflag.ECHO   = false;
             mode.lflag.ECHONL = false;
             mode.lflag.ICANON = false;
             mode.lflag.IEXTEN = false;
-            mode.lflag.ISIG = false;
+            mode.lflag.ISIG   = false;
+            mode.cflag.CSIZE  = .CS8;
+            mode.cflag.PARENB = false;
+            // zig fmt: on
 
             posix.tcsetattr(handle, posix.TCSA.NOW, mode) catch return error.Unexpected;
         },
