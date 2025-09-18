@@ -2,6 +2,23 @@ const std = @import("std");
 const builtin = @import("builtin");
 const windows = @import("windows.zig");
 const posix = std.posix;
+const alignment = @import("alignment.zig");
+const alternate_screen = @import("alternate_screen.zig");
+const area = @import("area.zig");
+const attribute = @import("attribute.zig");
+const color = @import("color.zig");
+const coordinate = @import("coordinate.zig");
+const cursor = @import("cursor.zig");
+const dimensions = @import("dimensions.zig");
+const frame = @import("frame.zig");
+const key = @import("key.zig");
+const raw_mode = @import("raw_mode.zig");
+const screen = @import("screen.zig");
+const style = @import("style.zig");
+const writer = @import("writer.zig");
+const state = @import("state.zig");
+const queue = @import("queue.zig");
+const Queue = queue.Queue;
 
 pub const Alignment = alignment.Alignment;
 pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
@@ -220,24 +237,6 @@ pub fn useStderr() error{WriteFailed}!void {
     try state.writer.?.interface.flush();
     state.writer = std.fs.File.stderr().writerStreaming(state.buffer);
 }
-
-const alignment = @import("alignment.zig");
-const alternate_screen = @import("alternate_screen.zig");
-const area = @import("area.zig");
-const attribute = @import("attribute.zig");
-const color = @import("color.zig");
-const coordinate = @import("coordinate.zig");
-const cursor = @import("cursor.zig");
-const dimensions = @import("dimensions.zig");
-const frame = @import("frame.zig");
-const key = @import("key.zig");
-const raw_mode = @import("raw_mode.zig");
-const screen = @import("screen.zig");
-const style = @import("style.zig");
-const writer = @import("writer.zig");
-const state = @import("state.zig");
-const queue = @import("queue.zig");
-const Queue = queue.Queue;
 
 test "fuizon" {
     @import("std").testing.refAllDeclsRecursive(@This());
