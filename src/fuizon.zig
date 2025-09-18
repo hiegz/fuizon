@@ -28,6 +28,7 @@ pub const event = @import("event.zig");
 pub const Event = event.Event;
 pub const KeyEvent = event.KeyEvent;
 pub const ResizeEvent = event.ResizeEvent;
+pub const Key = key.Key;
 pub const KeyCode = key.KeyCode;
 pub const KeyModifier = key.KeyModifier;
 pub const KeyModifiers = key.KeyModifiers;
