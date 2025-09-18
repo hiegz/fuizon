@@ -1,0 +1,148 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const windows = @import("windows.zig");
+const posix = std.posix;
+
+fn getInputHandle() error{NotATerminal}!std.c.fd_t {
+    return switch (builtin.os.tag) {
+        .linux, .macos => tag: {
+            var handle: std.c.fd_t = undefined;
+
+            handle = std.fs.File.stdin().handle;
+            if (posix.isatty(handle)) break :tag handle;
+
+            break :tag error.NotATerminal;
+        },
+        .windows => tag: {
+            var handle: std.c.fd_t = undefined;
+
+            handle = std.fs.File.stdin().handle;
+            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
+                break :tag handle;
+
+            break :tag error.NotATerminal;
+        },
+
+        else => unreachable,
+    };
+}
+
+fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
+    return switch (builtin.os.tag) {
+        .linux, .macos => tag: {
+            var handle: std.c.fd_t = undefined;
+
+            handle = std.fs.File.stdout().handle;
+            if (posix.isatty(handle)) break :tag handle;
+
+            handle = std.fs.File.stderr().handle;
+            if (posix.isatty(handle)) break :tag handle;
+
+            break :tag error.NotATerminal;
+        },
+        .windows => tag: {
+            var handle: std.c.fd_t = undefined;
+
+            handle = std.fs.File.stdout().handle;
+            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
+                break :tag handle;
+
+            handle = std.fs.File.stderr().handle;
+            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
+                break :tag handle;
+
+            break :tag error.NotATerminal;
+        },
+
+        else => unreachable,
+    };
+}
+
+/// Saved Terminal Mode
+var saved_mode: switch (builtin.os.tag) {
+    .macos, .linux => posix.termios,
+    .windows => struct { out: windows.DWORD, in: windows.DWORD },
+    else => unreachable,
+} = undefined;
+
+pub fn saveTerminalMode() error{ NotATerminal, Unexpected }!void {
+    switch (builtin.os.tag) {
+        .linux, .macos => {
+            const handle = try getOutputHandle();
+            saved_mode = posix.tcgetattr(handle) catch return error.Unexpected;
+        },
+        .windows => {
+            const handle = try getOutputHandle();
+            const ret = windows.GetConsoleMode(handle, &saved_mode);
+            if (ret == 0) return error.Unexpected;
+        },
+
+        else => unreachable,
+    }
+}
+
+pub fn restoreTerminalMode() error{ NotATerminal, Unexpected }!void {
+    switch (builtin.os.tag) {
+        .linux, .macos => {
+            const handle = try getOutputHandle();
+            posix.tcsetattr(handle, posix.TCSA.NOW, saved_mode) catch return error.Unexpected;
+        },
+        .windows => {
+            const handle = try getOutputHandle();
+            const ret = windows.SetConsoleMode(handle, saved_mode);
+            if (ret == 0) return error.Unexpected;
+        },
+
+        else => unreachable,
+    }
+}
+
+pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
+    switch (builtin.os.tag) {
+        .linux, .macos => {
+            const handle = try getOutputHandle();
+            var mode = posix.tcgetattr(handle) catch return error.Unexpected;
+
+            mode.lflag.ECHO = false;
+            mode.lflag.ECHOE = false;
+            mode.lflag.ECHOK = false;
+            mode.lflag.ECHONL = false;
+            mode.lflag.ICANON = false;
+            mode.lflag.IEXTEN = false;
+            mode.lflag.ISIG = false;
+
+            posix.tcsetattr(handle, posix.TCSA.NOW, mode) catch return error.Unexpected;
+        },
+        .windows => {
+            var ret: windows.BOOL = undefined;
+
+            const inputHandle: windows.HANDLE = try getInputHandle();
+            if (inputHandle == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
+            var inputMode: windows.DWORD = 0;
+            ret = windows.GetConsoleMode(inputHandle, &inputMode);
+            if (1 != ret) return error.Unexpected;
+            inputMode |= windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
+            inputMode |= windows.ENABLE_WINDOW_INPUT;
+            inputMode &= ~windows.ENABLE_PROCESSED_INPUT;
+            inputMode &= ~windows.ENABLE_ECHO_INPUT;
+            inputMode &= ~windows.ENABLE_LINE_INPUT;
+            inputMode &= ~windows.ENABLE_MOUSE_INPUT;
+            ret = windows.SetConsoleMode(inputHandle, inputMode);
+            if (1 != ret) return error.Unexpected;
+
+            const outputHandle: windows.HANDLE = try getOutputHandle();
+            if (outputHandle == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
+            var outputMode: windows.DWORD = 0;
+            ret = windows.GetConsoleMode(outputHandle, &outputMode);
+            if (1 != ret) return error.Unexpected;
+            outputMode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            outputMode |= windows.ENABLE_PROCESSED_OUTPUT;
+            outputMode |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
+            outputMode |= windows.DISABLE_NEWLINE_AUTO_RETURN;
+            ret = windows.SetConsoleMode(outputHandle, outputMode);
+            if (1 != ret) return error.Unexpected;
+        },
+
+        else => unreachable,
+    }
+}

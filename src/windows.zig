@@ -17,9 +17,16 @@ pub const DISABLE_NEWLINE_AUTO_RETURN:        windows.DWORD = 0x0008;
 
 pub const INVALID_HANDLE_VALUE = windows.INVALID_HANDLE_VALUE;
 
+pub const FILE_TYPE_CHAR    = 0x0002;
+pub const FILE_TYPE_DISK    = 0x0001;
+pub const FILE_TYPE_PIPE    = 0x0003;
+pub const FILE_TYPE_REMOTE  = 0x8000;
+pub const FILE_TYPE_UNKNOWN = 0x0000;
+
 pub const HANDLE = windows.HANDLE;
 pub const DWORD  = windows.DWORD;
 pub const BOOL   = windows.BOOL;
 
 pub extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DWORD) windows.BOOL;
 pub extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode:  windows.DWORD) windows.BOOL;
+pub extern fn GetFileType(hConsoleHandle: windows.HANDLE) windows.DWORD;
