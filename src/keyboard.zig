@@ -1,16 +1,10 @@
 const std = @import("std");
 
-pub const KeyModifier = enum(u16) {
+pub const KeyModifier = enum(u3) {
     // zig fmt: off
     shift   = 1 << 0,
     control = 1 << 1,
     alt     = 1 << 2,
-    super   = 1 << 3,
-    hyper   = 1 << 4,
-    meta    = 1 << 5,
-    keypad  = 1 << 6,
-    caps    = 1 << 7,
-    numlock = 1 << 8,
     // zig fmt: on
 
     pub fn format(self: KeyModifier, writer: *std.io.Writer) !void {
@@ -19,12 +13,6 @@ pub const KeyModifier = enum(u16) {
             .shift   => _ = try writer.write("shift"),
             .control => _ = try writer.write("control"),
             .alt     => _ = try writer.write("alt"),
-            .super   => _ = try writer.write("super"),
-            .hyper   => _ = try writer.write("hyper"),
-            .meta    => _ = try writer.write("meta"),
-            .keypad  => _ = try writer.write("keypad"),
-            .caps    => _ = try writer.write("caps"),
-            .numlock => _ = try writer.write("numlock"),
         }
         // zig fmt: on
     }
@@ -37,17 +25,7 @@ pub const KeyModifier = enum(u16) {
 pub const KeyModifiers = struct {
     // zig fmt: off
     pub const none = KeyModifiers.join(&.{});
-    pub const all  = KeyModifiers.join(&.{
-        .shift,
-        .control,
-        .alt,
-        .super,
-        .hyper,
-        .meta,
-        .keypad,
-        .caps,
-        .numlock,
-    });
+    pub const all  = KeyModifiers.join(&.{ .shift, .control, .alt });
     // zig fmt: on
 
     bitset: u16,
@@ -92,30 +70,6 @@ pub const KeyModifiers = struct {
         }
         if (self.contain(&.{.alt})) {
             modifiers[nmodifiers] = .alt;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.super})) {
-            modifiers[nmodifiers] = .super;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.hyper})) {
-            modifiers[nmodifiers] = .hyper;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.meta})) {
-            modifiers[nmodifiers] = .meta;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.keypad})) {
-            modifiers[nmodifiers] = .keypad;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.caps})) {
-            modifiers[nmodifiers] = .caps;
-            nmodifiers += 1;
-        }
-        if (self.contain(&.{.numlock})) {
-            modifiers[nmodifiers] = .numlock;
             nmodifiers += 1;
         }
 
@@ -210,37 +164,27 @@ test "no-key-modifiers" {
 }
 
 test "all-key-modifiers" {
-    try std.testing.expect(KeyModifiers.all.contain(&.{
-        .shift,
-        .control,
-        .alt,
-        .super,
-        .hyper,
-        .meta,
-        .keypad,
-        .caps,
-        .numlock,
-    }));
+    try std.testing.expect(KeyModifiers.all.contain(&.{ .shift, .control, .alt }));
 }
 
 test "key-modifiers-contain" {
     var modifiers = KeyModifiers.all;
-    modifiers.reset(&.{ .hyper, .super });
+    modifiers.reset(&.{.alt});
 
-    try std.testing.expect(!modifiers.contain(&.{.hyper}));
-    try std.testing.expect(!modifiers.contain(&.{.super}));
-    try std.testing.expect(!modifiers.contain(&.{ .hyper, .super }));
-    try std.testing.expect(!modifiers.contain(&.{ .alt, .hyper }));
-    try std.testing.expect(!modifiers.contain(&.{ .alt, .super }));
-    try std.testing.expect(!modifiers.contain(&.{ .alt, .hyper, .super }));
-    try std.testing.expect(modifiers.contain(&.{.alt}));
+    try std.testing.expect(!modifiers.contain(&.{.alt}));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .control }));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .shift }));
+    try std.testing.expect(!modifiers.contain(&.{ .alt, .control, .shift }));
+    try std.testing.expect(modifiers.contain(&.{.control}));
+    try std.testing.expect(modifiers.contain(&.{.shift}));
+    try std.testing.expect(modifiers.contain(&.{ .control, .shift }));
 }
 
 test "key-modifiers-set-reset" {
     var left = KeyModifiers.none;
     left.set(&.{ .shift, .control });
     var right = KeyModifiers.all;
-    right.reset(&.{ .alt, .super, .hyper, .keypad, .meta, .caps, .numlock });
+    right.reset(&.{.alt});
 
     try std.testing.expectEqual(left.bitset, right.bitset);
 }
@@ -257,36 +201,8 @@ test "format-alt-key-modifier" {
     try std.testing.expectFmt("alt", "{f}", .{KeyModifier.alt});
 }
 
-test "format-super-key-modifier" {
-    try std.testing.expectFmt("super", "{f}", .{KeyModifier.super});
-}
-
-test "format-hyper-key-modifier" {
-    try std.testing.expectFmt("hyper", "{f}", .{KeyModifier.hyper});
-}
-
-test "format-meta-key-modifier" {
-    try std.testing.expectFmt("meta", "{f}", .{KeyModifier.meta});
-}
-
-test "format-keypad-key-modifier" {
-    try std.testing.expectFmt("keypad", "{f}", .{KeyModifier.keypad});
-}
-
-test "format-caps-key-modifier" {
-    try std.testing.expectFmt("caps", "{f}", .{KeyModifier.caps});
-}
-
-test "format-numlock-key-modifier" {
-    try std.testing.expectFmt("numlock", "{f}", .{KeyModifier.numlock});
-}
-
-test "format-empty-key-modifier-set" {
-    try std.testing.expectFmt("{ }", "{f}", .{KeyModifiers.none});
-}
-
 test "format-all-key-modifiers" {
-    try std.testing.expectFmt("{ shift, control, alt, super, hyper, meta, keypad, caps, numlock }", "{f}", .{KeyModifiers.all});
+    try std.testing.expectFmt("{ shift, control, alt }", "{f}", .{KeyModifiers.all});
 }
 
 test "format-unicode-key-code" {
