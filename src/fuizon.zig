@@ -22,6 +22,7 @@ const terminal_mode = @import("terminal_mode.zig");
 const saveTerminalMode = terminal_mode.saveTerminalMode;
 const restoreTerminalMode = terminal_mode.restoreTerminalMode;
 const enableRawMode = terminal_mode.enableRawMode;
+const input = @import("input.zig");
 
 pub const Alignment = alignment.Alignment;
 pub const enterAlternateScreen = alternate_screen.enterAlternateScreen;
@@ -44,6 +45,7 @@ pub const hideCursor = cursor.hideCursor;
 pub const moveCursorTo = cursor.moveCursorTo;
 pub const getCursorPosition = cursor.getCursorPosition;
 pub const Dimensions = dimensions.Dimensions;
+pub const Input = input.Input;
 pub const event = @import("event.zig");
 pub const Event = event.Event;
 pub const KeyEvent = event.KeyEvent;
@@ -92,7 +94,7 @@ pub fn init(
 ///
 /// The allocator must match the one used in `init()`.
 /// ---
-pub fn deinit(allocator: std.mem.Allocator) error{NotATerminal, Unexpected}!void {
+pub fn deinit(allocator: std.mem.Allocator) error{ NotATerminal, Unexpected }!void {
     try restoreTerminalMode();
 
     allocator.free(state.buffer);
