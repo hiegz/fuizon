@@ -58,50 +58,20 @@ fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
     };
 }
 
-/// Saved Terminal Mode
-var saved_mode: switch (builtin.os.tag) {
-    .macos, .linux => posix.termios,
-    .windows => struct { out: windows.DWORD, in: windows.DWORD },
+/// Terminal mode that we save before entering the raw mode.
+var cooked: switch (builtin.os.tag) {
+    .macos, .linux => ?posix.termios,
+    .windows => struct { output: ?windows.DWORD, input: ?windows.DWORD },
     else => unreachable,
 } = undefined;
-
-pub fn saveTerminalMode() error{ NotATerminal, Unexpected }!void {
-    switch (builtin.os.tag) {
-        .linux, .macos => {
-            const handle = try getOutputHandle();
-            saved_mode = posix.tcgetattr(handle) catch return error.Unexpected;
-        },
-        .windows => {
-            const handle = try getOutputHandle();
-            const ret = windows.GetConsoleMode(handle, &saved_mode);
-            if (ret == 0) return error.Unexpected;
-        },
-
-        else => unreachable,
-    }
-}
-
-pub fn restoreTerminalMode() error{ NotATerminal, Unexpected }!void {
-    switch (builtin.os.tag) {
-        .linux, .macos => {
-            const handle = try getOutputHandle();
-            posix.tcsetattr(handle, posix.TCSA.NOW, saved_mode) catch return error.Unexpected;
-        },
-        .windows => {
-            const handle = try getOutputHandle();
-            const ret = windows.SetConsoleMode(handle, saved_mode);
-            if (ret == 0) return error.Unexpected;
-        },
-
-        else => unreachable,
-    }
-}
 
 pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
     switch (builtin.os.tag) {
         .linux, .macos => {
             const handle = try getOutputHandle();
             var mode = posix.tcgetattr(handle) catch return error.Unexpected;
+
+            cooked = mode;
 
             // cfmakeraw
             //
@@ -136,6 +106,7 @@ pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
             var inputMode: windows.DWORD = 0;
             ret = windows.GetConsoleMode(inputHandle, &inputMode);
             if (1 != ret) return error.Unexpected;
+            cooked.input = inputMode;
             inputMode |= windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
             inputMode |= windows.ENABLE_WINDOW_INPUT;
             inputMode &= ~windows.ENABLE_PROCESSED_INPUT;
@@ -150,12 +121,30 @@ pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
             var outputMode: windows.DWORD = 0;
             ret = windows.GetConsoleMode(outputHandle, &outputMode);
             if (1 != ret) return error.Unexpected;
+            cooked.output = outputMode;
             outputMode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             outputMode |= windows.ENABLE_PROCESSED_OUTPUT;
             outputMode |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
             outputMode |= windows.DISABLE_NEWLINE_AUTO_RETURN;
             ret = windows.SetConsoleMode(outputHandle, outputMode);
             if (1 != ret) return error.Unexpected;
+        },
+
+        else => unreachable,
+    }
+}
+
+pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
+    switch (builtin.os.tag) {
+        .linux, .macos => {
+            if (cooked == null) return;
+            const handle = try getOutputHandle();
+            posix.tcsetattr(handle, posix.TCSA.NOW, cooked.?) catch return error.Unexpected;
+        },
+        .windows => {
+            const handle = try getOutputHandle();
+            const ret = windows.SetConsoleMode(handle, cooked);
+            if (ret == 0) return error.Unexpected;
         },
 
         else => unreachable,
