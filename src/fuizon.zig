@@ -46,6 +46,7 @@ pub const moveCursorTo = cursor.moveCursorTo;
 pub const getCursorPosition = cursor.getCursorPosition;
 pub const Dimensions = dimensions.Dimensions;
 pub const Input = input.Input;
+pub const InputParser = @import("input_parser.zig");
 pub const event = @import("event.zig");
 pub const Event = event.Event;
 pub const KeyEvent = event.KeyEvent;
