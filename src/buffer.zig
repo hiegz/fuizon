@@ -7,18 +7,18 @@ const Style = fuizon.style.Style;
 const Coordinate = fuizon.Coordinate;
 
 /// ...
-pub const Frame = struct {
-    pub const none = Frame.init(undefined);
+pub const Buffer = struct {
+    pub const none = Buffer.init(undefined);
 
     allocator: std.mem.Allocator,
-    buffer: []FrameCell,
+    buffer: []BufferCell,
     area: Area,
 
-    /// Creates and returns a new Frame instance.
-    pub fn init(allocator: std.mem.Allocator) Frame {
+    /// Creates and returns a new Buffer instance.
+    pub fn init(allocator: std.mem.Allocator) Buffer {
         return .{
             .allocator = allocator,
-            .buffer = &[_]FrameCell{},
+            .buffer = &[_]BufferCell{},
             .area = .{
                 .width = 0,
                 .height = 0,
@@ -28,18 +28,18 @@ pub const Frame = struct {
         };
     }
 
-    /// Initializes a new Frame with the specified area.
+    /// Initializes a new Buffer with the specified area.
     pub fn initArea(
         allocator: std.mem.Allocator,
         area: Area,
-    ) std.mem.Allocator.Error!Frame {
-        var frame = Frame.init(allocator);
-        try frame.resize(area.width, area.height);
-        frame.moveTo(area.x, area.y);
-        return frame;
+    ) std.mem.Allocator.Error!Buffer {
+        var buffer = Buffer.init(allocator);
+        try buffer.resize(area.width, area.height);
+        buffer.moveTo(area.x, area.y);
+        return buffer;
     }
 
-    /// Initializes a new Frame with the provided contents and style.
+    /// Initializes a new Buffer with the provided contents and style.
     ///
     /// This functions expects the content to be provided as a rectangular
     /// (W x H) string matrix. Rows with varying widths may cause undefined
@@ -51,7 +51,7 @@ pub const Frame = struct {
         allocator: std.mem.Allocator,
         content: []const []const u8,
         style: Style,
-    ) std.mem.Allocator.Error!Frame {
+    ) std.mem.Allocator.Error!Buffer {
         if (content.len == 0)
             return init(allocator);
 
@@ -75,96 +75,96 @@ pub const Frame = struct {
 
         //
 
-        var frame = try Frame.initArea(allocator, .{
+        var buffer = try Buffer.initArea(allocator, .{
             .width = @intCast(grid.items[0].items.len),
             .height = @intCast(grid.items.len),
             .x = 0,
             .y = 0,
         });
-        errdefer frame.deinit();
+        errdefer buffer.deinit();
 
         for (0..grid.items.len) |y| {
             for (0..grid.items[y].items.len) |x| {
-                const cell = frame.index(@intCast(x), @intCast(y));
+                const cell = buffer.index(@intCast(x), @intCast(y));
                 cell.content = grid.items[y].items[x];
                 cell.width = 1;
                 cell.style = style;
             }
         }
 
-        return frame;
+        return buffer;
     }
 
-    /// Deinitializes the Frame and frees its dynamically allocated memory.
-    pub fn deinit(self: Frame) void {
+    /// Deinitializes the Buffer and frees its dynamically allocated memory.
+    pub fn deinit(self: Buffer) void {
         self.allocator.free(self.buffer);
     }
 
-    /// Copies the provided Frame.
-    pub fn copy(self: *Frame, frame: Frame) std.mem.Allocator.Error!void {
-        try self.resize(frame.area.width, frame.area.height);
-        self.moveTo(frame.area.x, frame.area.y);
-        @memcpy(self.buffer, frame.buffer);
+    /// Copies the provided Buffer.
+    pub fn copy(self: *Buffer, buffer: Buffer) std.mem.Allocator.Error!void {
+        try self.resize(buffer.area.width, buffer.area.height);
+        self.moveTo(buffer.area.x, buffer.area.y);
+        @memcpy(self.buffer, buffer.buffer);
     }
 
-    /// Resizes the Frame to the specified width and height.
-    pub fn resize(self: *Frame, width: u16, height: u16) std.mem.Allocator.Error!void {
+    /// Resizes the Buffer to the specified width and height.
+    pub fn resize(self: *Buffer, width: u16, height: u16) std.mem.Allocator.Error!void {
         const old_buffer_length = self.buffer.len;
         if (width * height != self.buffer.len)
             self.buffer = try self.allocator.realloc(self.buffer, width * height);
         if (self.buffer.len > old_buffer_length)
-            @memset(self.buffer[old_buffer_length..], FrameCell.empty);
+            @memset(self.buffer[old_buffer_length..], BufferCell.empty);
         self.area.width = width;
         self.area.height = height;
     }
 
-    /// Moves the frame's origin up by `n` rows.
-    pub inline fn moveUp(self: *Frame, n: u16) void {
+    /// Moves the buffer's origin up by `n` rows.
+    pub inline fn moveUp(self: *Buffer, n: u16) void {
         self.area.y -|= n;
     }
 
-    /// Moves the frame's origin down by `n` rows.
-    pub inline fn moveDown(self: *Frame, y: u16) void {
+    /// Moves the buffer's origin down by `n` rows.
+    pub inline fn moveDown(self: *Buffer, y: u16) void {
         self.area.y +|= y;
     }
 
-    /// Moves the frame's origin left by `n` columns.
-    pub inline fn moveLeft(self: *Frame, n: u16) void {
+    /// Moves the buffer's origin left by `n` columns.
+    pub inline fn moveLeft(self: *Buffer, n: u16) void {
         self.area.x -|= n;
     }
 
-    /// Moves the frame's origin right by `n` columns.
-    pub inline fn moveRight(self: *Frame, n: u16) void {
+    /// Moves the buffer's origin right by `n` columns.
+    pub inline fn moveRight(self: *Buffer, n: u16) void {
         self.area.x +|= n;
     }
 
-    /// Moves the frame's origin to a specified row.
-    pub inline fn moveToRow(self: *Frame, y: u16) void {
+    /// Moves the buffer's origin to a specified row.
+    pub inline fn moveToRow(self: *Buffer, y: u16) void {
         self.area.y = y;
     }
 
-    /// Moves the frame's origin to a specified column.
-    pub inline fn moveToCol(self: *Frame, x: u16) void {
+    /// Moves the buffer's origin to a specified column.
+    pub inline fn moveToCol(self: *Buffer, x: u16) void {
         self.area.x = x;
     }
 
-    /// Moves the frame's origin to specified coordinates.
-    pub inline fn moveTo(self: *Frame, x: u16, y: u16) void {
+    /// Moves the buffer's origin to specified coordinates.
+    pub inline fn moveTo(self: *Buffer, x: u16, y: u16) void {
         self.area.x = x;
         self.area.y = y;
     }
 
-    /// Returns a pointer to a frame cell at the given absolute coordinates.
+    /// Returns a pointer to a buffer cell at the given absolute coordinates.
     pub fn index(self: anytype, x: u16, y: u16) switch (@TypeOf(self)) {
-        *const Frame => *const FrameCell,
-        *Frame => *FrameCell,
+        *const Buffer => *const BufferCell,
+        *Buffer => *BufferCell,
         else => unreachable,
     } {
         return &self.buffer[self.indexOf(x, y)];
     }
 
-    /// Computes an index into the underlying frame based on absolute coordinates.
-    pub fn indexOf(self: Frame, x: u16, y: u16) usize {
+    /// Computes an index into the underlying buffer based on absolute coordinates.
+    pub fn indexOf(self: Buffer, x: u16, y: u16) usize {
         if (self.area.top() > y or
             self.area.bottom() <= y or
             self.area.left() > x or
@@ -175,16 +175,16 @@ pub const Frame = struct {
     }
 
     /// Computes the position of a cell based on its index in the underlying buffer.
-    pub fn posOf(self: Frame, i: usize) Coordinate {
+    pub fn posOf(self: Buffer, i: usize) Coordinate {
         return .{
             .x = @intCast(i % @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.x))),
             .y = @intCast(i / @as(usize, @intCast(self.area.width)) + @as(usize, @intCast(self.area.y))),
         };
     }
 
-    /// Fills every cell in the given area of the frame with the specified
+    /// Fills every cell in the given area of the buffer with the specified
     /// cell value.
-    pub fn fill(self: *Frame, area: Area, cell: FrameCell) void {
+    pub fn fill(self: *Buffer, area: Area, cell: BufferCell) void {
         for (area.top()..area.bottom()) |y| {
             for (area.left()..area.right()) |x| {
                 self.index(@intCast(x), @intCast(y)).* = cell;
@@ -192,8 +192,8 @@ pub const Frame = struct {
         }
     }
 
-    /// Resets all cells in the frame to their default (empty) state.
-    pub fn reset(self: *Frame) void {
+    /// Resets all cells in the buffer to their default (empty) state.
+    pub fn reset(self: *Buffer) void {
         for (self.buffer) |*cell| {
             cell.reset();
         }
@@ -201,8 +201,8 @@ pub const Frame = struct {
 };
 
 /// ...
-pub const FrameCell = struct {
-    pub const empty = FrameCell{
+pub const BufferCell = struct {
+    pub const empty = BufferCell{
         .width = 1,
         .content = ' ',
         .style = .{
@@ -221,8 +221,8 @@ pub const FrameCell = struct {
     },
 
     /// Resets the cell to the empty state.
-    pub fn reset(self: *FrameCell) void {
-        self.* = FrameCell.empty;
+    pub fn reset(self: *BufferCell) void {
+        self.* = BufferCell.empty;
     }
 };
 
@@ -232,28 +232,28 @@ pub const FrameCell = struct {
 
 test "initArea() should init area" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    const frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    const buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    try std.testing.expectEqualDeep(area, frame.area);
+    try std.testing.expectEqualDeep(area, buffer.area);
 }
 
 test "init() should allocator the underlying buffer" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    const frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    const buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    try std.testing.expectEqual(5 * 9, frame.buffer.len);
+    try std.testing.expectEqual(5 * 9, buffer.buffer.len);
 }
 
-test "copy() with matching frame dimensions should copy the source frame" {
+test "copy() with matching buffer dimensions should copy the source buffer" {
     const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var src = try Frame.initArea(std.testing.allocator, src_area);
+    var src = try Buffer.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var dest = try Frame.initArea(std.testing.allocator, dest_area);
+    var dest = try Buffer.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
 
@@ -262,14 +262,14 @@ test "copy() with matching frame dimensions should copy the source frame" {
     try std.testing.expectEqualDeep(src, dest);
 }
 
-test "copy() with matching frame dimensions should not reallocate the underlying destination buffer" {
+test "copy() with matching buffer dimensions should not reallocate the underlying destination buffer" {
     const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var src = try Frame.initArea(std.testing.allocator, src_area);
+    var src = try Buffer.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var dest = try Frame.initArea(std.testing.allocator, dest_area);
+    var dest = try Buffer.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
     const dest_content = dest.buffer;
@@ -278,14 +278,14 @@ test "copy() with matching frame dimensions should not reallocate the underlying
     try std.testing.expect(dest_content.ptr == dest.buffer.ptr);
 }
 
-test "copy() with different frame dimensions should copy the source frame" {
+test "copy() with different buffer dimensions should copy the source buffer" {
     const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var src = try Frame.initArea(std.testing.allocator, src_area);
+    var src = try Buffer.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 1, .height = 5, .x = 5, .y = 9 };
-    var dest = try Frame.initArea(std.testing.allocator, dest_area);
+    var dest = try Buffer.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
 
@@ -294,14 +294,14 @@ test "copy() with different frame dimensions should copy the source frame" {
     try std.testing.expectEqualDeep(src, dest);
 }
 
-test "copy() with different frame dimensions should reallocate the underlying destination buffer" {
+test "copy() with different buffer dimensions should reallocate the underlying destination buffer" {
     const src_area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var src = try Frame.initArea(std.testing.allocator, src_area);
+    var src = try Buffer.initArea(std.testing.allocator, src_area);
     defer src.deinit();
     src.fill(src.area, .{ .content = 59, .style = .{} });
 
     const dest_area = Area{ .width = 1, .height = 5, .x = 5, .y = 9 };
-    var dest = try Frame.initArea(std.testing.allocator, dest_area);
+    var dest = try Buffer.initArea(std.testing.allocator, dest_area);
     defer dest.deinit();
     dest.fill(dest.area, .{ .content = 15, .style = .{} });
     const dest_content = dest.buffer;
@@ -312,173 +312,173 @@ test "copy() with different frame dimensions should reallocate the underlying de
 
 test "moveUp() should adjust y-origin upward" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveUp(5);
+    buffer.moveUp(5);
 
-    try std.testing.expectEqual(0, frame.area.y);
+    try std.testing.expectEqual(0, buffer.area.y);
 }
 
 test "moveUp() should not overflow" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 0 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveUp(5);
+    buffer.moveUp(5);
 
-    try std.testing.expectEqual(0, frame.area.y);
+    try std.testing.expectEqual(0, buffer.area.y);
 }
 
 test "moveDown() should adjust y-origin downward" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveDown(5);
+    buffer.moveDown(5);
 
-    try std.testing.expectEqual(10, frame.area.y);
+    try std.testing.expectEqual(10, buffer.area.y);
 }
 
 test "moveDown() should not overflow" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = std.math.maxInt(u16) };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveDown(1);
+    buffer.moveDown(1);
 
-    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.y);
+    try std.testing.expectEqual(std.math.maxInt(u16), buffer.area.y);
 }
 
 test "moveLeft() should adjust x-origin to the left" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveLeft(1);
+    buffer.moveLeft(1);
 
-    try std.testing.expectEqual(0, frame.area.x);
+    try std.testing.expectEqual(0, buffer.area.x);
 }
 
 test "moveLeft() should not overflow" {
     const area = Area{ .width = 5, .height = 9, .x = 0, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveLeft(1);
+    buffer.moveLeft(1);
 
-    try std.testing.expectEqual(0, frame.area.x);
+    try std.testing.expectEqual(0, buffer.area.x);
 }
 
 test "moveRight() should adjust x-origin to the right" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveRight(5);
+    buffer.moveRight(5);
 
-    try std.testing.expectEqual(6, frame.area.x);
+    try std.testing.expectEqual(6, buffer.area.x);
 }
 
 test "moveRight() should not overflow" {
     const area = Area{ .width = 5, .height = 9, .x = std.math.maxInt(u16), .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveRight(1);
+    buffer.moveRight(1);
 
-    try std.testing.expectEqual(std.math.maxInt(u16), frame.area.x);
+    try std.testing.expectEqual(std.math.maxInt(u16), buffer.area.x);
 }
 
 test "moveToRow() should set the y-origin to the specified row" {
     const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveToRow(5);
+    buffer.moveToRow(5);
 
-    try std.testing.expectEqual(5, frame.area.y);
+    try std.testing.expectEqual(5, buffer.area.y);
 }
 
 test "moveToCol() should set the x-origin to the specified column" {
     const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveToCol(1);
+    buffer.moveToCol(1);
 
-    try std.testing.expectEqual(1, frame.area.x);
+    try std.testing.expectEqual(1, buffer.area.x);
 }
 
 test "moveTo() should set the origin to the specified coordinates" {
     const area = Area{ .width = 5, .height = 9, .x = 0, .y = 0 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.moveTo(1, 5);
+    buffer.moveTo(1, 5);
 
-    try std.testing.expectEqual(1, frame.area.x);
-    try std.testing.expectEqual(5, frame.area.y);
+    try std.testing.expectEqual(1, buffer.area.x);
+    try std.testing.expectEqual(5, buffer.area.y);
 }
 
 test "index() should return a pointer to the expected cell" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.index(frame.area.left(), frame.area.top()).content = 59;
+    buffer.index(buffer.area.left(), buffer.area.top()).content = 59;
 
     try std.testing.expectEqual(
         59,
-        frame.index(
-            frame.area.left(),
-            frame.area.top(),
+        buffer.index(
+            buffer.area.left(),
+            buffer.area.top(),
         ).content,
     );
 }
 
 test "index() should return the expected pointer type" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
     try std.testing.expectEqual(
-        *FrameCell,
-        @TypeOf(frame.index(
-            frame.area.left(),
-            frame.area.top(),
+        *BufferCell,
+        @TypeOf(buffer.index(
+            buffer.area.left(),
+            buffer.area.top(),
         )),
     );
     try std.testing.expectEqual(
-        *const FrameCell,
-        @TypeOf(@as(*const Frame, &frame).index(
-            frame.area.left(),
-            frame.area.top(),
+        *const BufferCell,
+        @TypeOf(@as(*const Buffer, &buffer).index(
+            buffer.area.left(),
+            buffer.area.top(),
         )),
     );
 }
 
 test "posOf() should return the position of the cell" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    try std.testing.expectEqualDeep(Coordinate{ .x = 1, .y = 5 }, frame.posOf(0));
-    try std.testing.expectEqualDeep(Coordinate{ .x = 2, .y = 5 }, frame.posOf(1));
-    try std.testing.expectEqualDeep(Coordinate{ .x = 1, .y = 7 }, frame.posOf(10));
-    try std.testing.expectEqualDeep(Coordinate{ .x = 5, .y = 13 }, frame.posOf(44));
+    try std.testing.expectEqualDeep(Coordinate{ .x = 1, .y = 5 }, buffer.posOf(0));
+    try std.testing.expectEqualDeep(Coordinate{ .x = 2, .y = 5 }, buffer.posOf(1));
+    try std.testing.expectEqualDeep(Coordinate{ .x = 1, .y = 7 }, buffer.posOf(10));
+    try std.testing.expectEqualDeep(Coordinate{ .x = 5, .y = 13 }, buffer.posOf(44));
 }
 
-test "fill() should fill every cell in the frame with the specified cell value" {
+test "fill() should fill every cell in the buffer with the specified cell value" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.fill(frame.area, FrameCell.empty);
+    buffer.fill(buffer.area, BufferCell.empty);
 
-    for (frame.buffer) |cell| {
+    for (buffer.buffer) |cell| {
         try std.testing.expectEqual(
-            FrameCell.empty,
+            BufferCell.empty,
             cell,
         );
     }
@@ -486,14 +486,14 @@ test "fill() should fill every cell in the frame with the specified cell value" 
 
 test "reset() should reset every cell to the default (empty) state" {
     const area = Area{ .width = 5, .height = 9, .x = 1, .y = 5 };
-    var frame = try Frame.initArea(std.testing.allocator, area);
-    defer frame.deinit();
+    var buffer = try Buffer.initArea(std.testing.allocator, area);
+    defer buffer.deinit();
 
-    frame.reset();
+    buffer.reset();
 
-    for (frame.buffer) |cell| {
+    for (buffer.buffer) |cell| {
         try std.testing.expectEqual(
-            FrameCell.empty,
+            BufferCell.empty,
             cell,
         );
     }
