@@ -142,9 +142,17 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
             posix.tcsetattr(handle, posix.TCSA.NOW, cooked.?) catch return error.Unexpected;
         },
         .windows => {
-            const handle = try getOutputHandle();
-            const ret = windows.SetConsoleMode(handle, cooked);
-            if (ret == 0) return error.Unexpected;
+            if (cooked.input) |input| {
+                const handle = try getInputHandle();
+                const ret = windows.SetConsoleMode(handle, input);
+                if (ret == 0) return error.Unexpected;
+            }
+
+            if (cooked.output) |output| {
+                const handle = try getOutputHandle();
+                const ret = windows.SetConsoleMode(handle, output);
+                if (ret == 0) return error.Unexpected;
+            }
         },
 
         else => unreachable,
