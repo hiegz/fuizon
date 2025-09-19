@@ -1,4 +1,5 @@
 const std = @import("std");
+const fuizon = @import("fuizon.zig");
 const builtin = @import("builtin");
 const windows = @import("windows.zig");
 const posix = std.posix;
@@ -157,4 +158,9 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
 
         else => unreachable,
     }
+}
+
+pub fn getScreenSize() !fuizon.Dimensions {
+    // Not implemented
+    return undefined;
 }
