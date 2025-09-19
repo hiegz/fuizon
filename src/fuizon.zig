@@ -42,7 +42,22 @@ pub fn deinit() error{ NotATerminal, Unexpected }!void {
 }
 
 test "fuizon" {
-    @import("std").testing.refAllDeclsRecursive(@This());
+    _ = @import("alignment.zig");
+    _ = @import("area.zig");
+    _ = @import("attribute.zig");
+    _ = @import("buffer.zig");
+    _ = @import("color.zig");
+    _ = @import("coordinate.zig");
+    _ = @import("dimensions.zig");
+    _ = @import("fuizon.zig");
+    _ = @import("input.zig");
+    _ = @import("input_parser.zig");
+    _ = @import("key.zig");
+    _ = @import("queue.zig");
+    _ = @import("style.zig");
+    _ = @import("terminal.zig");
+    _ = @import("vt.zig");
+    _ = @import("windows.zig");
 }
 
 // test "init(.stdout) should write to stdout" {
