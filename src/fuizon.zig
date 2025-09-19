@@ -11,7 +11,6 @@ const dimensions = @import("dimensions.zig");
 const frame = @import("frame.zig");
 const key = @import("key.zig");
 const style = @import("style.zig");
-const writer = @import("writer.zig");
 const state = @import("state.zig");
 const queue = @import("queue.zig");
 const Queue = queue.Queue;
