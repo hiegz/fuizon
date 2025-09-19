@@ -29,10 +29,6 @@ pub const Coordinate = coordinate.Coordinate;
 pub const Dimensions = dimensions.Dimensions;
 pub const Input = input.Input;
 pub const InputParser = @import("input_parser.zig");
-pub const event = @import("event.zig");
-pub const Event = event.Event;
-pub const KeyEvent = event.KeyEvent;
-pub const ResizeEvent = event.ResizeEvent;
 pub const Key = key.Key;
 pub const KeyCode = key.KeyCode;
 pub const KeyModifier = key.KeyModifier;
@@ -55,9 +51,6 @@ pub fn init(
     buflen: usize,
     stream: enum { stdout, stderr },
 ) error{ OutOfMemory, NotATerminal, Unexpected }!void {
-    state.events = Queue(Event).init();
-    errdefer state.events.?.deinit(allocator);
-
     state.buffer = try allocator.alloc(u8, buflen);
     errdefer allocator.free(state.buffer);
     state.writer = switch (stream) {
@@ -79,7 +72,6 @@ pub fn deinit(allocator: std.mem.Allocator) error{ NotATerminal, Unexpected }!vo
     allocator.free(state.buffer);
     state.buffer = &.{};
     state.writer = null;
-    state.events.?.deinit(allocator);
 }
 
 /// ---

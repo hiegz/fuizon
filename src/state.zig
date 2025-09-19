@@ -3,9 +3,6 @@ const builtin = @import("builtin");
 const posix = std.posix;
 const windows = @import("windows.zig");
 const Queue = @import("queue.zig").Queue;
-const Event = @import("event.zig").Event;
-
-pub var events: ?Queue(Event) = null;
 
 pub var buffer: []u8 = &.{};
 pub var writer: ?std.fs.File.Writer = null;
