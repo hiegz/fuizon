@@ -18,7 +18,7 @@ const writer = @import("writer.zig");
 const state = @import("state.zig");
 const queue = @import("queue.zig");
 const Queue = queue.Queue;
-const terminal_mode = @import("terminal_mode.zig");
+const terminal = @import("terminal.zig");
 const input = @import("input.zig");
 
 pub const Alignment = alignment.Alignment;
@@ -83,7 +83,7 @@ pub fn init(
         .stderr => std.fs.File.stderr().writerStreaming(state.buffer),
     };
 
-    try terminal_mode.enableRawMode();
+    try terminal.enableRawMode();
 }
 
 /// ---
@@ -92,7 +92,7 @@ pub fn init(
 /// The allocator must match the one used in `init()`.
 /// ---
 pub fn deinit(allocator: std.mem.Allocator) error{ NotATerminal, Unexpected }!void {
-    try terminal_mode.disableRawMode();
+    try terminal.disableRawMode();
 
     allocator.free(state.buffer);
     state.buffer = &.{};
