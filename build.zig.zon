@@ -13,7 +13,6 @@
         "build.zig.zon",
         "src",
         "include",
-        "fuiwi",
         // For example...
         //"LICENSE",
         //"README.md",
