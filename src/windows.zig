@@ -23,10 +23,15 @@ pub const FILE_TYPE_PIPE    = 0x0003;
 pub const FILE_TYPE_REMOTE  = 0x8000;
 pub const FILE_TYPE_UNKNOWN = 0x0000;
 
-pub const HANDLE = windows.HANDLE;
-pub const DWORD  = windows.DWORD;
-pub const BOOL   = windows.BOOL;
+pub const HANDLE     = windows.HANDLE;
+pub const WORD       = windows.WORD;
+pub const DWORD      = windows.DWORD;
+pub const BOOL       = windows.BOOL;
+pub const COORD      = windows.COORD;
+pub const SMALL_RECT = windows.SMALL_RECT;
+pub const CONSOLE_SCREEN_BUFFER_INFO = windows.CONSOLE_SCREEN_BUFFER_INFO;
 
+pub extern fn GetConsoleScreenBufferInfo(hConsoleOutput: windows.HANDLE, info: *windows.CONSOLE_SCREEN_BUFFER_INFO) windows.BOOL;
 pub extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DWORD) windows.BOOL;
 pub extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode:  windows.DWORD) windows.BOOL;
 pub extern fn GetFileType(hConsoleHandle: windows.HANDLE) windows.DWORD;
