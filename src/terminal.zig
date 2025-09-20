@@ -160,7 +160,36 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
     }
 }
 
-pub fn getScreenSize() !fuizon.Dimensions {
-    // Not implemented
-    return undefined;
+pub fn getScreenSize() error{ NotATerminal, Unexpected }!fuizon.Dimensions {
+    return switch (builtin.os.tag) {
+        .linux, .macos => tag: {
+            var ret: c_int = undefined;
+            var winsize: posix.winsize = undefined;
+            const handle = try getOutputHandle();
+
+            ret = std.c.ioctl(handle, posix.T.IOCGWINSZ, &winsize);
+            if (0 != ret) return error.Unexpected;
+
+            break :tag fuizon.Dimensions{
+                .width = winsize.col,
+                .height = winsize.row,
+            };
+        },
+
+        .windows => tag: {
+            var ret: windows.BOOL = undefined;
+            var info: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
+            const handle = try getOutputHandle();
+
+            ret = windows.GetConsoleScreenBufferInfo(handle, &info);
+            if (ret == 0) return error.Unexpected;
+
+            break :tag fuizon.Dimensions{
+                .width = @intCast(info.dwSize.X),
+                .height = @intCast(info.dwSize.Y),
+            };
+        },
+
+        else => unreachable,
+    };
 }

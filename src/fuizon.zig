@@ -19,6 +19,7 @@ pub const KeyCode = key.KeyCode;
 pub const KeyModifier = key.KeyModifier;
 pub const KeyModifiers = key.KeyModifiers;
 pub const Style = @import("style.zig").Style;
+pub const getScreenSize = terminal.getScreenSize;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
     try terminal.enableRawMode();
