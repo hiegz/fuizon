@@ -1,6 +1,5 @@
-const fuizon = @import("fuizon.zig");
-const Color = fuizon.Color;
-const Attributes = fuizon.Attributes;
+const Attributes = @import("attributes.zig").Attributes;
+const Color = @import("color.zig").Color;
 
 // zig fmt: off
 

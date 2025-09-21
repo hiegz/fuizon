@@ -1,6 +1,5 @@
 const std = @import("std");
-const fuizon = @import("fuizon.zig");
-const Key = fuizon.Key;
+const Key = @import("key.zig").Key;
 
 pub const Input = union(enum) {
     key: Key,
