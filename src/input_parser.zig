@@ -1,10 +1,9 @@
 const std = @import("std");
-const fuizon = @import("fuizon.zig");
 const Queue = @import("queue.zig").Queue;
-const Input = fuizon.Input;
-const Key = fuizon.Key;
-const KeyCode = fuizon.KeyCode;
-const KeyModifiers = fuizon.KeyModifiers;
+const Input = @import("input.zig").Input;
+const Key = @import("key.zig").Key;
+const KeyCode = @import("key_code.zig").KeyCode;
+const KeyModifiers = @import("key_modifiers.zig").KeyModifiers;
 
 pub const InputParser = struct {
     state: enum { default, esc, csi } = .default,

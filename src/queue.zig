@@ -1,5 +1,4 @@
 const std = @import("std");
-const fuizon = @import("fuizon.zig");
 
 pub fn Queue(comptime T: type) type {
     return struct {

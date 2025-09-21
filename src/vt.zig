@@ -1,5 +1,6 @@
 const std = @import("std");
-const fuizon = @import("fuizon.zig");
+const Attribute = @import("attribute.zig").Attribute;
+const Color = @import("color.zig").Color;
 
 /// Escape Sequence (ESC)
 pub const ESC = "\x1b";
@@ -21,7 +22,7 @@ pub fn leaveAlternateScreen(
 
 pub fn setForeground(
     writer: *std.Io.Writer,
-    color: fuizon.Color,
+    color: Color,
 ) error{WriteFailed}!void {
     return switch (color) {
         // zig fmt: off
@@ -44,7 +45,7 @@ pub fn setForeground(
 /// ...
 pub fn setBackground(
     writer: *std.Io.Writer,
-    color: fuizon.Color,
+    color: Color,
 ) error{WriteFailed}!void {
     return switch (color) {
         // zig fmt: off
@@ -66,7 +67,7 @@ pub fn setBackground(
 
 pub fn setAttribute(
     writer: *std.Io.Writer,
-    attribute: fuizon.Attribute,
+    attribute: Attribute,
 ) error{WriteFailed}!void {
     return switch (attribute) {
         // zig fmt: off
@@ -81,7 +82,7 @@ pub fn setAttribute(
 
 pub fn resetAttribute(
     writer: *std.Io.Writer,
-    attribute: fuizon.Attribute,
+    attribute: Attribute,
 ) error{WriteFailed}!void {
     return switch (attribute) {
         // zig fmt: off

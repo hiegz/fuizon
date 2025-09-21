@@ -1,8 +1,8 @@
 const std = @import("std");
-const fuizon = @import("fuizon.zig");
 const builtin = @import("builtin");
 const windows = @import("windows.zig");
 const posix = std.posix;
+const Dimensions = @import("dimensions.zig").Dimensions;
 
 fn getInputHandle() error{NotATerminal}!std.c.fd_t {
     return switch (builtin.os.tag) {
@@ -160,7 +160,7 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
     }
 }
 
-pub fn getScreenSize() error{ NotATerminal, Unexpected }!fuizon.Dimensions {
+pub fn getScreenSize() error{ NotATerminal, Unexpected }!Dimensions {
     return switch (builtin.os.tag) {
         .linux, .macos => tag: {
             var ret: c_int = undefined;
@@ -170,7 +170,7 @@ pub fn getScreenSize() error{ NotATerminal, Unexpected }!fuizon.Dimensions {
             ret = std.c.ioctl(handle, posix.T.IOCGWINSZ, &winsize);
             if (0 != ret) return error.Unexpected;
 
-            break :tag fuizon.Dimensions{
+            break :tag Dimensions{
                 .width = winsize.col,
                 .height = winsize.row,
             };
@@ -184,7 +184,7 @@ pub fn getScreenSize() error{ NotATerminal, Unexpected }!fuizon.Dimensions {
             ret = windows.GetConsoleScreenBufferInfo(handle, &info);
             if (ret == 0) return error.Unexpected;
 
-            break :tag fuizon.Dimensions{
+            break :tag Dimensions{
                 .width = @intCast(info.dwSize.X),
                 .height = @intCast(info.dwSize.Y),
             };
