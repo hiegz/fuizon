@@ -11,8 +11,8 @@ pub const Color = union(enum) {
     magenta,
     cyan,
 
-    ansi: AnsiColor,
-    rgb:  RgbColor,
+    ansi: @import("ansi.zig").Ansi,
+    rgb:  @import("rgb.zig").Rgb,
 
     pub fn Ansi(value: u8) Color {
         return .{ .ansi = .{ .value = value } };
@@ -22,6 +22,3 @@ pub const Color = union(enum) {
         return .{ .rgb = .{ .r = r, .g = g, .b = b } };
     }
 };
-
-pub const AnsiColor = struct { value: u8 };
-pub const RgbColor  = struct { r: u8, g: u8, b: u8 };
