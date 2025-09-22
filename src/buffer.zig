@@ -76,6 +76,20 @@ pub const Buffer = struct {
         return @intCast(self.characters.len / @as(usize, @intCast(self.width())));
     }
 
+    pub fn equals(self: Buffer, other: Buffer) bool {
+        if (self.width() != other.width())
+            return false;
+        if (self.height() != other.height())
+            return false;
+
+        for (0..self.characters.len) |i| {
+            if (!std.meta.eql(self.characters[i], other.characters[i]))
+                return false;
+        }
+
+        return true;
+    }
+
     pub fn copy(
         self: *Buffer,
         gpa: std.mem.Allocator,
@@ -111,6 +125,17 @@ pub const Buffer = struct {
             .x = @intCast(i % @as(usize, @intCast(self.width()))),
             .y = @intCast(i / @as(usize, @intCast(self.width()))),
         };
+    }
+
+    pub fn format(self: Buffer, writer: *std.Io.Writer) !void {
+        try writer.print("width:  {d}\n", .{self.width()});
+        try writer.print("height: {d}\n", .{self.height()});
+        try writer.print("content:\n", .{});
+        for (self.characters, 0..) |character, i| {
+            if (i % self.width() == 0 and i != 0)
+                try writer.writeAll("\n");
+            try writer.print("{u}", .{character.value});
+        }
     }
 };
 
