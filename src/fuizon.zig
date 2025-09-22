@@ -33,6 +33,7 @@ test "fuizon" {
     _ = @import("attribute.zig");
     _ = @import("attributes.zig");
     _ = @import("buffer.zig");
+    _ = @import("character.zig");
     _ = @import("color.zig");
     _ = @import("coordinate.zig");
     _ = @import("dimensions.zig");
