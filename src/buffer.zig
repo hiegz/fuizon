@@ -1,23 +1,15 @@
 const std = @import("std");
 const Coordinate = @import("coordinate.zig").Coordinate;
+const Character = @import("character.zig").Character;
 const Style = @import("style.zig").Style;
 
 pub const Buffer = struct {
-    cells: []Cell,
+    characters: []Character,
     _width: u16,
-
-    pub const Cell = struct {
-        content: u21 = ' ',
-        style: Style = .{},
-
-        pub fn init(content: u21, style: Style) Cell {
-            return .{ .content = content, .style = style };
-        }
-    };
 
     pub fn init() Buffer {
         var self: Buffer = undefined;
-        self.cells = &.{};
+        self.characters = &.{};
         self._width = 0;
         std.debug.assert(self.height() == 0);
         return self;
@@ -29,9 +21,9 @@ pub const Buffer = struct {
         h: u16,
     ) error{OutOfMemory}!Buffer {
         var self: Buffer = undefined;
-        self.cells = try gpa.alloc(Cell, w * h);
-        for (self.cells) |*cell|
-            cell.* = .{};
+        self.characters = try gpa.alloc(Character, w * h);
+        for (self.characters) |*character|
+            character.* = .{};
         self._width = w;
         std.debug.assert(self.height() == h);
         return self;
@@ -62,9 +54,9 @@ pub const Buffer = struct {
             const utf8View = std.unicode.Utf8View.init(row) catch return error.Unexpected;
             var iterator = utf8View.iterator();
             while (iterator.nextCodepoint()) |codepoint| {
-                std.debug.assert(i < self.cells.len);
-                self.cells[i].content = codepoint;
-                self.cells[i].style = style;
+                std.debug.assert(i < self.characters.len);
+                self.characters[i].value = codepoint;
+                self.characters[i].style = style;
                 i += 1;
             }
         }
@@ -73,7 +65,7 @@ pub const Buffer = struct {
     }
 
     pub fn deinit(self: Buffer, gpa: std.mem.Allocator) void {
-        gpa.free(self.cells);
+        gpa.free(self.characters);
     }
 
     pub fn width(self: Buffer) u16 {
@@ -81,7 +73,7 @@ pub const Buffer = struct {
     }
 
     pub fn height(self: Buffer) u16 {
-        return @intCast(self.cells.len / @as(usize, @intCast(self.width())));
+        return @intCast(self.characters.len / @as(usize, @intCast(self.width())));
     }
 
     pub fn copy(
@@ -90,7 +82,7 @@ pub const Buffer = struct {
         other: Buffer,
     ) error{OutOfMemory}!void {
         try self.resize(gpa, other.width(), other.height());
-        @memcpy(self.cells, other.cells);
+        @memcpy(self.characters, other.characters);
     }
 
     pub fn resize(
@@ -99,21 +91,21 @@ pub const Buffer = struct {
         w: u16,
         h: u16,
     ) std.mem.Allocator.Error!void {
-        const old_buffer_length = self.cells.len;
-        if (w * h != self.cells.len)
-            self.cells = try gpa.realloc(self.cells, w * h);
-        if (self.cells.len > old_buffer_length)
-            @memset(self.cells[old_buffer_length..], Cell{});
+        const old_buffer_length = self.characters.len;
+        if (w * h != self.characters.len)
+            self.characters = try gpa.realloc(self.characters, w * h);
+        if (self.characters.len > old_buffer_length)
+            @memset(self.characters[old_buffer_length..], Character{});
         self._width = w;
         std.debug.assert(self.height() == h);
     }
 
-    /// Computes the index of a cell based on its coordinates.
+    /// Computes the index of a character based on its coordinates.
     pub fn indexOf(self: Buffer, x: u16, y: u16) usize {
         return y * self.width() + x;
     }
 
-    /// Computes the position of a cell based on its index in the underlying buffer.
+    /// Computes the position of a character based on its index in the underlying buffer.
     pub fn posOf(self: Buffer, i: usize) Coordinate {
         return .{
             .x = @intCast(i % @as(usize, @intCast(self.width()))),
@@ -135,12 +127,12 @@ test "initDimensions() should initialize buffer dimensions" {
     try std.testing.expectEqual(9, buffer.height());
 }
 
-test "initDimensions() should initialize the underlying cell array" {
+test "initDimensions() should initialize the underlying character array" {
     const gpa = std.testing.allocator;
     const buffer = try Buffer.initDimensions(gpa, 5, 9);
     defer buffer.deinit(gpa);
 
-    try std.testing.expectEqual(5 * 9, buffer.cells.len);
+    try std.testing.expectEqual(5 * 9, buffer.characters.len);
 }
 
 test "copy() with matching buffer dimensions should copy the source buffer" {
@@ -148,16 +140,16 @@ test "copy() with matching buffer dimensions should copy the source buffer" {
 
     var src = try Buffer.initDimensions(gpa, 5, 9);
     defer src.deinit(gpa);
-    for (src.cells) |*cell| {
-        cell.content = 59;
-        cell.style = .{};
+    for (src.characters) |*character| {
+        character.value = 59;
+        character.style = .{};
     }
 
     var dest = try Buffer.initDimensions(gpa, 5, 9);
     defer dest.deinit(gpa);
-    for (dest.cells) |*cell| {
-        cell.content = 15;
-        cell.style = .{};
+    for (dest.characters) |*character| {
+        character.value = 15;
+        character.style = .{};
     }
 
     try std.testing.expect(!std.meta.eql(src, dest));
@@ -170,17 +162,17 @@ test "copy() with matching buffer dimensions should not reallocate the underlyin
 
     var src = try Buffer.initDimensions(gpa, 5, 9);
     defer src.deinit(gpa);
-    for (src.cells) |*cell| {
-        cell.content = 59;
-        cell.style = .{};
+    for (src.characters) |*character| {
+        character.value = 59;
+        character.style = .{};
     }
 
     var dest = try Buffer.initDimensions(gpa, 5, 9);
     defer dest.deinit(gpa);
-    const dest_ptr = dest.cells.ptr;
+    const dest_ptr = dest.characters.ptr;
 
     try dest.copy(gpa, src);
-    try std.testing.expect(dest_ptr == dest.cells.ptr);
+    try std.testing.expect(dest_ptr == dest.characters.ptr);
 }
 
 test "copy() with different buffer dimensions should copy the source buffer" {
@@ -188,16 +180,16 @@ test "copy() with different buffer dimensions should copy the source buffer" {
 
     var src = try Buffer.initDimensions(gpa, 5, 9);
     defer src.deinit(gpa);
-    for (src.cells) |*cell| {
-        cell.content = 59;
-        cell.style = .{};
+    for (src.characters) |*character| {
+        character.value = 59;
+        character.style = .{};
     }
 
     var dest = try Buffer.initDimensions(gpa, 1, 5);
     defer dest.deinit(gpa);
-    for (dest.cells) |*cell| {
-        cell.content = 15;
-        cell.style = .{};
+    for (dest.characters) |*character| {
+        character.value = 15;
+        character.style = .{};
     }
 
     try std.testing.expect(!std.meta.eql(src, dest));
@@ -210,20 +202,20 @@ test "copy() with different buffer dimensions should reallocate the underlying d
 
     var src = try Buffer.initDimensions(gpa, 5, 9);
     defer src.deinit(gpa);
-    for (src.cells) |*cell| {
-        cell.content = 59;
-        cell.style = .{};
+    for (src.characters) |*character| {
+        character.value = 59;
+        character.style = .{};
     }
 
     var dest = try Buffer.initDimensions(gpa, 1, 5);
     defer dest.deinit(gpa);
-    const dest_ptr = dest.cells.ptr;
+    const dest_ptr = dest.characters.ptr;
 
     try dest.copy(gpa, src);
-    try std.testing.expect(dest_ptr != dest.cells.ptr);
+    try std.testing.expect(dest_ptr != dest.characters.ptr);
 }
 
-test "posOf() should return the position of the cell" {
+test "posOf() should return the position of the character" {
     const gpa = std.testing.allocator;
     var buffer = try Buffer.initDimensions(gpa, 5, 9);
     defer buffer.deinit(gpa);
