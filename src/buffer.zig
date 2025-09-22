@@ -30,6 +30,8 @@ pub const Buffer = struct {
     ) error{OutOfMemory}!Buffer {
         var self: Buffer = undefined;
         self.cells = try gpa.alloc(Cell, w * h);
+        for (self.cells) |*cell|
+            cell.* = .{};
         self._width = w;
         std.debug.assert(self.height() == h);
         return self;
