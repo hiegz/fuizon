@@ -49,5 +49,6 @@ test "fuizon" {
     _ = @import("style.zig");
     _ = @import("terminal.zig");
     _ = @import("vt.zig");
+    _ = @import("widget.zig");
     _ = @import("windows.zig");
 }
