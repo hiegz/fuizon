@@ -17,6 +17,7 @@ pub const KeyModifier = @import("key_modifier.zig").KeyModifier;
 pub const KeyModifiers = @import("key_modifiers.zig").KeyModifiers;
 pub const Style = @import("style.zig").Style;
 pub const Span = @import("span.zig").Span;
+pub const Text = @import("text.zig").Text;
 pub const getScreenSize = terminal.getScreenSize;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
@@ -50,6 +51,7 @@ test "fuizon" {
     _ = @import("span.zig");
     _ = @import("style.zig");
     _ = @import("terminal.zig");
+    _ = @import("text.zig");
     _ = @import("vt.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");
