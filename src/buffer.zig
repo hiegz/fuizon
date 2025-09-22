@@ -60,7 +60,7 @@ pub const Buffer = struct {
             const utf8View = std.unicode.Utf8View.init(row) catch return error.Unexpected;
             var iterator = utf8View.iterator();
             while (iterator.nextCodepoint()) |codepoint| {
-                std.debug.assert(i + 1 < self.cells.len);
+                std.debug.assert(i < self.cells.len);
                 self.cells[i].content = codepoint;
                 self.cells[i].style = style;
                 i += 1;
