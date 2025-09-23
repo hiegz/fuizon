@@ -371,9 +371,10 @@ test "render()" {
                     const expected = try Buffer.initContent(gpa, self.expected, .{});
                     defer expected.deinit(gpa);
 
-                    var text: Text = try .init(gpa, .{ .alignment = .center, .wrap = true });
+                    var text: Text = try .styled(gpa, self.text, .{});
                     defer text.deinit();
-                    try text.write(self.text, .{});
+                    text.alignment = .center;
+                    text.wrap = true;
 
                     var container: Container = .empty;
                     defer container.deinit(gpa);
