@@ -3,6 +3,7 @@ const Area = @import("area.zig").Area;
 const Buffer = @import("buffer.zig").Buffer;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Character = @import("character.zig").Character;
+const TextAlignment = @import("text_alignment.zig").TextAlignment;
 const Span = @import("span.zig").Span;
 const Attributes = @import("attributes.zig").Attributes;
 const Style = @import("style.zig").Style;
@@ -11,14 +12,8 @@ const Widget = @import("widget.zig").Widget;
 pub const Text = struct {
     gpa: std.mem.Allocator,
     line_list: std.ArrayList(std.ArrayList(Character)),
-    alignment: Alignment,
+    alignment: TextAlignment,
     wrap: Wrap,
-
-    pub const Alignment = enum {
-        left_aligned,
-        centered,
-        right_aligned,
-    };
 
     pub const Wrap = enum {
         nowrap,
@@ -28,7 +23,7 @@ pub const Text = struct {
     pub fn init(
         gpa: std.mem.Allocator,
         wrap: Wrap,
-        alignment: Alignment,
+        alignment: TextAlignment,
     ) error{OutOfMemory}!Text {
         return Text.rich(gpa, &.{}, wrap, alignment);
     }
@@ -37,7 +32,7 @@ pub const Text = struct {
         gpa: std.mem.Allocator,
         text: []const u8,
         wrap: Wrap,
-        alignment: Alignment,
+        alignment: TextAlignment,
         style: Style,
     ) error{OutOfMemory}!Text {
         return Text.rich(gpa, &.{Span.init(text, style)}, wrap, alignment);
@@ -47,7 +42,7 @@ pub const Text = struct {
         gpa: std.mem.Allocator,
         spans: []const Span,
         wrap: Wrap,
-        alignment: Alignment,
+        alignment: TextAlignment,
     ) error{OutOfMemory}!Text {
         var self: Text = undefined;
         self.gpa = gpa;
@@ -158,12 +153,12 @@ pub const Text = struct {
         defer if (self.wrap == .wrap) text.deinit();
 
         const alignX = struct {
-            pub fn function(alignment: Alignment, offset: u16, container_width: u16, content_width: u16) u16 {
+            pub fn function(alignment: TextAlignment, offset: u16, container_width: u16, content_width: u16) u16 {
                 return switch (alignment) {
                     // zig fmt: off
-                    .left_aligned  => offset,
-                    .centered      => offset + (container_width - @min(container_width, content_width)) / 2,
-                    .right_aligned => offset + (container_width - @min(container_width, content_width)),
+                    .left  => offset,
+                    .center      => offset + (container_width - @min(container_width, content_width)) / 2,
+                    .right => offset + (container_width - @min(container_width, content_width)),
                     // zig fmt: on
                 };
             }
@@ -199,7 +194,7 @@ test "render()" {
         const Self = @This();
 
         wrap: Text.Wrap,
-        alignment: Text.Alignment,
+        alignment: TextAlignment,
 
         content: []const []const u8,
         expected: []const []const u8,
@@ -247,7 +242,7 @@ test "render()" {
         // Test Case #0
         .{
             .wrap      = .wrap,
-            .alignment = .left_aligned,
+            .alignment = .left,
 
             .content  = &[_][]const u8{
                 "hello world",
@@ -263,7 +258,7 @@ test "render()" {
         // Test Case #1
         .{
             .wrap      = .wrap,
-            .alignment = .centered,
+            .alignment = .center,
 
             .content  = &[_][]const u8{
                 "hello world",
@@ -279,7 +274,7 @@ test "render()" {
         // Test Case #2
         .{
             .wrap      = .wrap,
-            .alignment = .right_aligned,
+            .alignment = .right,
 
             .content  = &[_][]const u8{
                 "hello world",
@@ -295,7 +290,7 @@ test "render()" {
         // Test Case #3
         .{
             .wrap      = .nowrap,
-            .alignment = .left_aligned,
+            .alignment = .left,
 
             .content  = &[_][]const u8{
                 "hello world",
@@ -310,7 +305,7 @@ test "render()" {
         // Test Case #4
         .{
             .wrap      = .nowrap,
-            .alignment = .centered,
+            .alignment = .center,
 
             .content  = &[_][]const u8{
                 "hello world",
@@ -325,7 +320,7 @@ test "render()" {
         // Test Case #5
         .{
             .wrap      = .nowrap,
-            .alignment = .right_aligned,
+            .alignment = .right,
 
             .content  = &[_][]const u8{
                 "hello world",
