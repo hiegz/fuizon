@@ -20,13 +20,21 @@ pub const Text = struct {
         return Text.rich(gpa, &.{}, opts);
     }
 
+    pub fn raw(
+        gpa: std.mem.Allocator,
+        text: []const u8,
+        opts: TextOpts,
+    ) error{OutOfMemory}!Text {
+        return Text.styled(gpa, text, .{}, opts);
+    }
+
     pub fn styled(
         gpa: std.mem.Allocator,
         text: []const u8,
         style: Style,
         opts: TextOpts,
     ) error{OutOfMemory}!Text {
-        return Text.rich(gpa, &.{Span.init(text, style)}, opts);
+        return Text.rich(gpa, &.{.styled(text, style)}, opts);
     }
 
     pub fn rich(
