@@ -13,6 +13,12 @@ pub const Widget = struct {
     pub const MeasureOptions = struct {
         max_width:  u16 = std.math.maxInt(u16),
         max_height: u16 = std.math.maxInt(u16),
+
+        pub fn init(max_width: u16, max_height: u16) MeasureOptions {
+            return .{ .max_width = max_width, .max_height = max_height };
+        }
+
+        pub const opts = MeasureOptions.init;
     };
 
     pub fn impl(w: anytype) Widget {
