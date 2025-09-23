@@ -1,6 +1,5 @@
 const terminal = @import("terminal.zig");
 
-pub const Alignment = @import("alignment.zig").Alignment;
 pub const Area = @import("area.zig").Area;
 pub const Attribute = @import("attribute.zig").Attribute;
 pub const Attributes = @import("attributes.zig").Attributes;
@@ -18,6 +17,7 @@ pub const KeyModifiers = @import("key_modifiers.zig").KeyModifiers;
 pub const Style = @import("style.zig").Style;
 pub const Span = @import("span.zig").Span;
 pub const Text = @import("text.zig").Text;
+pub const TextAlignment = @import("text_alignment.zig").TextAlignment;
 pub const getScreenSize = terminal.getScreenSize;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
@@ -29,7 +29,6 @@ pub fn deinit() error{ NotATerminal, Unexpected }!void {
 }
 
 test "fuizon" {
-    _ = @import("alignment.zig");
     _ = @import("ansi.zig");
     _ = @import("area.zig");
     _ = @import("attribute.zig");
@@ -52,6 +51,7 @@ test "fuizon" {
     _ = @import("style.zig");
     _ = @import("terminal.zig");
     _ = @import("text.zig");
+    _ = @import("text_alignment.zig");
     _ = @import("vt.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");
