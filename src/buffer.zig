@@ -73,6 +73,7 @@ pub const Buffer = struct {
     }
 
     pub fn height(self: Buffer) u16 {
+        if (self.width() == 0) return 0;
         return @intCast(self.characters.len / @as(usize, @intCast(self.width())));
     }
 
