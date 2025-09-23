@@ -244,13 +244,20 @@ test "render()" {
                     const expected = try Buffer.initContent(gpa, self.expected, .{});
                     defer expected.deinit(gpa);
 
-                    var left   = try Text.styled(gpa, self.text, .{}, .{ .alignment = .left,   .wrap = true });
-                    var center = try Text.styled(gpa, self.text, .{}, .{ .alignment = .center, .wrap = true });
-                    var right  = try Text.styled(gpa, self.text, .{}, .{ .alignment = .right,  .wrap = true });
-
+                    var left = try Text.styled(gpa, self.text, .{});
                     defer left.deinit();
+                    left.alignment = .left;
+                    left.wrap = true;
+
+                    var center = try Text.styled(gpa, self.text, .{});
                     defer center.deinit();
+                    center.alignment = .center;
+                    center.wrap = true;
+
+                    var right = try Text.styled(gpa, self.text, .{});
                     defer right.deinit();
+                    right.alignment = .right;
+                    right.wrap = true;
 
                     var stack = try Stack.init(self.direction, gpa, &.{
                         .item(left.widget(),   self.left),

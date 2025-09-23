@@ -24,7 +24,6 @@ pub const Container = @import("container.zig").Container;
 pub const ContainerTitle = @import("container_title.zig").ContainerTitle;
 pub const Text = @import("text.zig").Text;
 pub const TextAlignment = @import("text_alignment.zig").TextAlignment;
-pub const TextOpts = @import("text_opts.zig").TextOpts;
 pub const Border = @import("border.zig").Border;
 pub const Borders = @import("borders.zig").Borders;
 pub const BorderType = @import("border_type.zig").BorderType;
@@ -76,7 +75,6 @@ test "fuizon" {
     _ = @import("terminal.zig");
     _ = @import("text.zig");
     _ = @import("text_alignment.zig");
-    _ = @import("text_opts.zig");
     _ = @import("vt.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");

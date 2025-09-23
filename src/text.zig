@@ -4,7 +4,6 @@ const Buffer = @import("buffer.zig").Buffer;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Character = @import("character.zig").Character;
 const TextAlignment = @import("text_alignment.zig").TextAlignment;
-const TextOpts = @import("text_opts.zig").TextOpts;
 const Span = @import("span.zig").Span;
 const Attributes = @import("attributes.zig").Attributes;
 const Style = @import("style.zig").Style;
@@ -16,40 +15,37 @@ pub const Text = struct {
     alignment: TextAlignment,
     wrap: bool,
 
-    pub fn init(gpa: std.mem.Allocator, opts: TextOpts) error{OutOfMemory}!Text {
-        return Text.rich(gpa, &.{}, opts);
+    pub fn init(gpa: std.mem.Allocator) error{OutOfMemory}!Text {
+        return .raw(gpa, "");
     }
 
     pub fn raw(
         gpa: std.mem.Allocator,
         text: []const u8,
-        opts: TextOpts,
     ) error{OutOfMemory}!Text {
-        return Text.styled(gpa, text, .{}, opts);
+        return Text.styled(gpa, text, .{});
     }
 
     pub fn styled(
         gpa: std.mem.Allocator,
         text: []const u8,
         style: Style,
-        opts: TextOpts,
     ) error{OutOfMemory}!Text {
-        return Text.rich(gpa, &.{.styled(text, style)}, opts);
+        return Text.rich(gpa, &.{.styled(text, style)});
     }
 
     pub fn rich(
         gpa: std.mem.Allocator,
         spans: []const Span,
-        opts: TextOpts,
     ) error{OutOfMemory}!Text {
         var self: Text = undefined;
         self.gpa = gpa;
         self.line_list = .empty;
-        self.alignment = opts.alignment;
-        self.wrap = opts.wrap;
-        try self.breakLine(); // init the first line
+        self.alignment = .left;
+        self.wrap = true;
+        try self.appendNewLine(); // init the first line
         for (spans) |span|
-            try self.write(span.content, span.style);
+            try self.append(span.content, span.style);
         return self;
     }
 
@@ -58,21 +54,23 @@ pub const Text = struct {
         other: Text,
         wrap_width: u16,
     ) error{OutOfMemory}!Text {
-        var self: Text = try .init(gpa, .{ .alignment = other.alignment, .wrap = false });
+        var self: Text = try .init(gpa);
         errdefer self.deinit();
+        self.alignment = other.alignment;
+        self.wrap = false;
 
         var x: u16 = undefined;
         for (other.line_list.items) |line| {
             x = 0;
             for (line.items) |character| {
                 if (x == wrap_width) {
-                    try self.breakLine();
+                    try self.appendNewLine();
                     x = 0;
                 }
-                try self.writeCharacter(character);
+                try self.appendCharacter(character);
                 x += 1;
             }
-            try self.breakLine();
+            try self.appendNewLine();
         }
 
         // remove the last line created by breakLine()
@@ -87,31 +85,31 @@ pub const Text = struct {
         self.line_list.deinit(self.gpa);
     }
 
-    pub fn write(
+    pub fn append(
         self: *Text,
         text: []const u8,
         style: Style,
     ) error{OutOfMemory}!void {
         var iterator = (std.unicode.Utf8View.init(text) catch @panic("Invalid UTF-8")).iterator();
         while (iterator.nextCodepoint()) |codepoint| {
-            try self.writeCharacter(Character.init(codepoint, style));
+            try self.appendCharacter(Character.init(codepoint, style));
         }
     }
 
-    pub fn writeCharacter(
+    pub fn appendCharacter(
         self: *Text,
         character: Character,
     ) error{OutOfMemory}!void {
         switch (character.value) {
             // zig fmt: off
-            '\n' => try self.breakLine(),
-            '\t' => for (0..4) |_| try self.writeCharacter(Character.init(' ', character.style)),
+            '\n' => try self.appendNewLine(),
+            '\t' => for (0..4) |_| try self.appendCharacter(Character.init(' ', character.style)),
             else => try self.line_list.items[self.line_list.items.len - 1].append(self.gpa, character),
             // zig fmt: on
         }
     }
 
-    pub fn breakLine(self: *Text) error{OutOfMemory}!void {
+    pub fn appendNewLine(self: *Text) error{OutOfMemory}!void {
         try self.line_list.append(self.gpa, .empty);
     }
 
@@ -205,11 +203,13 @@ test "render()" {
                     const expected = try Buffer.initContent(gpa, self.expected, .{});
                     defer expected.deinit(gpa);
 
-                    var text: Text = try .init(gpa, .{ .alignment = self.alignment, .wrap = self.wrap });
+                    var text: Text = try .init(gpa);
                     defer text.deinit();
+                    text.alignment = self.alignment;
+                    text.wrap = self.wrap;
                     for (self.content) |line| {
-                        try text.write(line, .{});
-                        try text.breakLine();
+                        try text.append(line, .{});
+                        try text.appendNewLine();
                     }
                     // remove the last line created by breakLine()
                     _ = text.line_list.pop();
