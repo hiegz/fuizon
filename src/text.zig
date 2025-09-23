@@ -13,16 +13,11 @@ pub const Text = struct {
     gpa: std.mem.Allocator,
     line_list: std.ArrayList(std.ArrayList(Character)),
     alignment: TextAlignment,
-    wrap: Wrap,
-
-    pub const Wrap = enum {
-        nowrap,
-        wrap,
-    };
+    wrap: bool,
 
     pub fn init(
         gpa: std.mem.Allocator,
-        wrap: Wrap,
+        wrap: bool,
         alignment: TextAlignment,
     ) error{OutOfMemory}!Text {
         return Text.rich(gpa, &.{}, wrap, alignment);
@@ -31,7 +26,7 @@ pub const Text = struct {
     pub fn styled(
         gpa: std.mem.Allocator,
         text: []const u8,
-        wrap: Wrap,
+        wrap: bool,
         alignment: TextAlignment,
         style: Style,
     ) error{OutOfMemory}!Text {
@@ -41,7 +36,7 @@ pub const Text = struct {
     pub fn rich(
         gpa: std.mem.Allocator,
         spans: []const Span,
-        wrap: Wrap,
+        wrap: bool,
         alignment: TextAlignment,
     ) error{OutOfMemory}!Text {
         var self: Text = undefined;
@@ -60,7 +55,7 @@ pub const Text = struct {
         other: Text,
         wrap_width: u16,
     ) error{OutOfMemory}!Text {
-        var self: Text = try .init(gpa, .nowrap, other.alignment);
+        var self: Text = try .init(gpa, false, other.alignment);
         errdefer self.deinit();
 
         var x: u16 = undefined;
@@ -133,8 +128,8 @@ pub const Text = struct {
         self: Text,
         opts: Widget.MeasureOptions,
     ) anyerror!Dimensions {
-        var text = if (self.wrap == .wrap) try Text.wrapped(self.gpa, self, opts.max_width) else self;
-        defer if (self.wrap == .wrap) text.deinit();
+        var text = if (self.wrap) try Text.wrapped(self.gpa, self, opts.max_width) else self;
+        defer if (self.wrap) text.deinit();
 
         return Dimensions{
             // zig fmt: off
@@ -149,8 +144,8 @@ pub const Text = struct {
         buffer: *Buffer,
         area: Area,
     ) anyerror!void {
-        var text = if (self.wrap == .wrap) try Text.wrapped(self.gpa, self, area.width) else self;
-        defer if (self.wrap == .wrap) text.deinit();
+        var text = if (self.wrap) try Text.wrapped(self.gpa, self, area.width) else self;
+        defer if (self.wrap) text.deinit();
 
         const alignX = struct {
             pub fn function(alignment: TextAlignment, offset: u16, container_width: u16, content_width: u16) u16 {
@@ -193,7 +188,7 @@ test "render()" {
     const TestCase = struct {
         const Self = @This();
 
-        wrap: Text.Wrap,
+        wrap: bool,
         alignment: TextAlignment,
 
         content: []const []const u8,
@@ -241,7 +236,7 @@ test "render()" {
 
         // Test Case #0
         .{
-            .wrap      = .wrap,
+            .wrap      = true,
             .alignment = .left,
 
             .content  = &[_][]const u8{
@@ -257,7 +252,7 @@ test "render()" {
 
         // Test Case #1
         .{
-            .wrap      = .wrap,
+            .wrap      = true,
             .alignment = .center,
 
             .content  = &[_][]const u8{
@@ -273,7 +268,7 @@ test "render()" {
 
         // Test Case #2
         .{
-            .wrap      = .wrap,
+            .wrap      = true,
             .alignment = .right,
 
             .content  = &[_][]const u8{
@@ -289,7 +284,7 @@ test "render()" {
 
         // Test Case #3
         .{
-            .wrap      = .nowrap,
+            .wrap      = false,
             .alignment = .left,
 
             .content  = &[_][]const u8{
@@ -304,7 +299,7 @@ test "render()" {
 
         // Test Case #4
         .{
-            .wrap      = .nowrap,
+            .wrap      = false,
             .alignment = .center,
 
             .content  = &[_][]const u8{
@@ -319,7 +314,7 @@ test "render()" {
 
         // Test Case #5
         .{
-            .wrap      = .nowrap,
+            .wrap      = false,
             .alignment = .right,
 
             .content  = &[_][]const u8{
