@@ -23,6 +23,9 @@ pub const StackItem = @import("stack_item.zig").StackItem;
 pub const Text = @import("text.zig").Text;
 pub const TextAlignment = @import("text_alignment.zig").TextAlignment;
 pub const TextOpts = @import("text_opts.zig").TextOpts;
+pub const Border = @import("border.zig").Border;
+pub const Borders = @import("borders.zig").Borders;
+pub const BorderType = @import("border_type.zig").BorderType;
 pub const getScreenSize = terminal.getScreenSize;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
@@ -38,6 +41,10 @@ test "fuizon" {
     _ = @import("area.zig");
     _ = @import("attribute.zig");
     _ = @import("attributes.zig");
+    _ = @import("border.zig");
+    _ = @import("border_set.zig");
+    _ = @import("border_type.zig");
+    _ = @import("borders.zig");
     _ = @import("buffer.zig");
     _ = @import("character.zig");
     _ = @import("color.zig");
