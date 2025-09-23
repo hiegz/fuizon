@@ -4,6 +4,7 @@ const Buffer = @import("buffer.zig").Buffer;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Character = @import("character.zig").Character;
 const TextAlignment = @import("text_alignment.zig").TextAlignment;
+const TextOpts = @import("text_opts.zig").TextOpts;
 const Span = @import("span.zig").Span;
 const Attributes = @import("attributes.zig").Attributes;
 const Style = @import("style.zig").Style;
@@ -15,35 +16,29 @@ pub const Text = struct {
     alignment: TextAlignment,
     wrap: bool,
 
-    pub fn init(
-        gpa: std.mem.Allocator,
-        wrap: bool,
-        alignment: TextAlignment,
-    ) error{OutOfMemory}!Text {
-        return Text.rich(gpa, &.{}, wrap, alignment);
+    pub fn init(gpa: std.mem.Allocator, opts: TextOpts) error{OutOfMemory}!Text {
+        return Text.rich(gpa, &.{}, opts);
     }
 
     pub fn styled(
         gpa: std.mem.Allocator,
         text: []const u8,
-        wrap: bool,
-        alignment: TextAlignment,
         style: Style,
+        opts: TextOpts,
     ) error{OutOfMemory}!Text {
-        return Text.rich(gpa, &.{Span.init(text, style)}, wrap, alignment);
+        return Text.rich(gpa, &.{Span.init(text, style)}, opts);
     }
 
     pub fn rich(
         gpa: std.mem.Allocator,
         spans: []const Span,
-        wrap: bool,
-        alignment: TextAlignment,
+        opts: TextOpts,
     ) error{OutOfMemory}!Text {
         var self: Text = undefined;
         self.gpa = gpa;
         self.line_list = .empty;
-        self.alignment = alignment;
-        self.wrap = wrap;
+        self.alignment = opts.alignment;
+        self.wrap = opts.wrap;
         try self.breakLine(); // init the first line
         for (spans) |span|
             try self.write(span.content, span.style);
@@ -55,7 +50,7 @@ pub const Text = struct {
         other: Text,
         wrap_width: u16,
     ) error{OutOfMemory}!Text {
-        var self: Text = try .init(gpa, false, other.alignment);
+        var self: Text = try .init(gpa, .{ .alignment = other.alignment, .wrap = false });
         errdefer self.deinit();
 
         var x: u16 = undefined;
@@ -202,7 +197,7 @@ test "render()" {
                     const expected = try Buffer.initContent(gpa, self.expected, .{});
                     defer expected.deinit(gpa);
 
-                    var text: Text = try .init(gpa, self.wrap, self.alignment);
+                    var text: Text = try .init(gpa, .{ .alignment = self.alignment, .wrap = self.wrap });
                     defer text.deinit();
                     for (self.content) |line| {
                         try text.write(line, .{});
