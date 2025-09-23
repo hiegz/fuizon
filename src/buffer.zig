@@ -6,12 +6,13 @@ const Style = @import("style.zig").Style;
 pub const Buffer = struct {
     characters: []Character,
     _width: u16,
+    _height: u16,
 
     pub fn init() Buffer {
         var self: Buffer = undefined;
         self.characters = &.{};
         self._width = 0;
-        std.debug.assert(self.height() == 0);
+        self._height = 0;
         return self;
     }
 
@@ -25,7 +26,7 @@ pub const Buffer = struct {
         for (self.characters) |*character|
             character.* = .{};
         self._width = w;
-        std.debug.assert(self.height() == h);
+        self._height = h;
         return self;
     }
 
@@ -73,8 +74,7 @@ pub const Buffer = struct {
     }
 
     pub fn height(self: Buffer) u16 {
-        if (self.width() == 0) return 0;
-        return @intCast(self.characters.len / @as(usize, @intCast(self.width())));
+        return self._height;
     }
 
     pub fn equals(self: Buffer, other: Buffer) bool {
@@ -112,7 +112,7 @@ pub const Buffer = struct {
         if (self.characters.len > old_buffer_length)
             @memset(self.characters[old_buffer_length..], Character{});
         self._width = w;
-        std.debug.assert(self.height() == h);
+        self._height = h;
     }
 
     /// Computes the index of a character based on its coordinates.
