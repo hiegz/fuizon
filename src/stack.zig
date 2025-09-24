@@ -270,7 +270,7 @@ test "render()" {
                         .horizontal => try stack.measure(.{ .max_width  = expected.width(),  .max_height = self.max }),
                         .vertical   => try stack.measure(.{ .max_height = expected.height(), .max_width  = self.max }),
                     };
-                    var actual = try Buffer.initDimensions(gpa, dimensions.width, dimensions.height);
+                    var actual = try Buffer.initDimensions(gpa, dimensions);
                     defer actual.deinit(gpa);
 
                     try stack.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));

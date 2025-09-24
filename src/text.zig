@@ -215,7 +215,7 @@ test "render()" {
                     _ = text.line_list.pop();
 
                     const dimensions = try text.measure(.{ .max_width = expected.width() });
-                    var actual = try Buffer.initDimensions(gpa, dimensions.width, dimensions.height);
+                    var actual = try Buffer.initDimensions(gpa, dimensions);
                     defer actual.deinit(gpa);
 
                     try text.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));
