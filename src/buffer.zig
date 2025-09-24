@@ -79,6 +79,14 @@ pub const Buffer = struct {
         return self._height;
     }
 
+    pub fn getDimensions(self: Buffer) Dimensions {
+        return Dimensions.init(self.width(), self.height());
+    }
+
+    pub fn getArea(self: Buffer) Area {
+        return Area.init(self.width(), self.height(), 0, 0);
+    }
+
     pub fn equals(self: Buffer, other: Buffer) bool {
         if (self.width() != other.width())
             return false;
@@ -144,10 +152,10 @@ pub const Buffer = struct {
         self: Buffer,
         opts: Widget.MeasureOptions,
     ) anyerror!Dimensions {
-        return Dimensions.init(
-            @min(opts.max_width, self.width()),
-            @min(opts.max_height, self.height()),
-        );
+        var d = self.getDimensions();
+        d.width = @min(opts.max_width, d.width);
+        d.height = @min(opts.max_height, d.height);
+        return d;
     }
 
     pub fn render(
@@ -324,7 +332,7 @@ test "render() should copy the buffer" {
     var actual = try Buffer.initDimensions(gpa, dimensions);
     defer actual.deinit(gpa);
 
-    try buffer.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));
+    try buffer.render(&actual, actual.getArea());
 
     std.testing.expect(
         expected.equals(actual),
