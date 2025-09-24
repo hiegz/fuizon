@@ -1,4 +1,6 @@
+const std = @import("std");
 const terminal = @import("terminal.zig");
+const Renderer = @import("renderer.zig").Renderer;
 
 pub const Area = @import("area.zig").Area;
 pub const Attribute = @import("attribute.zig").Attribute;
@@ -32,12 +34,60 @@ pub const BorderType = @import("border_type.zig").BorderType;
 pub const Spacing = @import("spacing.zig").Spacing;
 pub const getScreenSize = terminal.getScreenSize;
 
+pub var viewport: Viewport = .fullscreen;
+
+var gpa: std.mem.Allocator = undefined;
+var buffer: Buffer = undefined;
+var renderer: Renderer = undefined;
+var rendering: bool = undefined;
+
 pub fn init() error{ NotATerminal, Unexpected }!void {
+    gpa = std.heap.c_allocator;
+    buffer = .init();
+    renderer = .init();
+    rendering = false;
+
+    // hide the cursor in the first frame
+    // (unless the user provides a render position)
+    renderer.last_buffer.cursor = .{ .x = 0, .y = 0 };
+
     try terminal.enableRawMode();
 }
 
-pub fn deinit() error{ NotATerminal, Unexpected }!void {
+pub fn deinit() error{ OutOfMemory, NotATerminal, RenderFailed, Unexpected }!void {
+    _ = try nextFrame();
+    buffer.cursor = .{ .x = 0, .y = 0 };
+    try render();
+
+    buffer.deinit(gpa);
+    renderer.deinit(gpa);
+
     try terminal.disableRawMode();
+}
+
+pub fn nextFrame() error{ NotATerminal, OutOfMemory, Unexpected }!*Buffer {
+    // zig fmt: off
+    const screen = try terminal.getScreenSize();
+    const width  = screen.width;
+    const height = switch (viewport) {
+        .fixed => |h| @min(h, screen.height),
+        .fullscreen => screen.height,
+    };
+    // zig fmt: on
+
+    if (width != buffer.width() or height != buffer.height())
+        try buffer.resize(gpa, .init(width, height));
+
+    // clear the buffer
+    for (buffer.characters) |*char| {
+        char.* = .{};
+    }
+
+    return &buffer;
+}
+
+pub fn render() Renderer.Error!void {
+    try renderer.render(gpa, &buffer);
 }
 
 test "fuizon" {
@@ -63,6 +113,7 @@ test "fuizon" {
     _ = @import("key_modifier.zig");
     _ = @import("key_modifiers.zig");
     _ = @import("queue.zig");
+    _ = @import("renderer.zig");
     _ = @import("rgb.zig");
     _ = @import("spacing.zig");
     _ = @import("span.zig");
