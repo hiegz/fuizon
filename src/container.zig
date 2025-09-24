@@ -5,7 +5,6 @@ const Borders = @import("borders.zig").Borders;
 const BorderType = @import("border_type.zig").BorderType;
 const BorderSet = @import("border_set.zig").BorderSet;
 const Character = @import("character.zig").Character;
-const ContainerTitle = @import("container_title.zig").ContainerTitle;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Text = @import("text.zig").Text;
 const TextAlignment = @import("text_alignment.zig").TextAlignment;
@@ -15,7 +14,8 @@ const Style = @import("style.zig").Style;
 const Widget = @import("widget.zig").Widget;
 
 pub const Container = struct {
-    title: ContainerTitle = .empty,
+    title: std.ArrayList(Character) = .empty,
+    title_alignment: TextAlignment = .left,
 
     borders: Borders = .none,
     border_type: BorderType = .plain,
@@ -31,6 +31,22 @@ pub const Container = struct {
     /// Only needed if container title was initialized or updated.
     pub fn deinit(self: *Container, gpa: std.mem.Allocator) void {
         self.title.deinit(gpa);
+    }
+
+    pub fn setTitle(
+        self: *Container,
+        gpa: std.mem.Allocator,
+        title: []const u8,
+        style: Style,
+    ) error{OutOfMemory}!void {
+        self.title.clearRetainingCapacity();
+        var iterator = (std.unicode.Utf8View.init(title) catch @panic("Invalid UTF-8")).iterator();
+        while (iterator.nextCodepoint()) |codepoint|
+            try self.title.append(gpa, Character.init(codepoint, style));
+    }
+
+    pub fn getTitleLength(self: Container) u16 {
+        return @intCast(self.title.items.len);
     }
 
     // zig fmt: off
@@ -172,23 +188,23 @@ pub const Container = struct {
             return;
 
         const available = right - left + 1;
-        const missing   = self.title.length() -| available;
+        const missing   = self.getTitleLength() -| available;
 
         // The displayable string fraction is irrelevant and can be omitted at this point.
-        if (missing > 0 and self.title.length() - missing < 7)
+        if (missing > 0 and self.getTitleLength() - missing < 7)
             return;
 
-        var todo = self.title.length();
+        var todo = self.getTitleLength();
         if (missing > 0)
             todo = available - ndots;
 
-        var x = switch (self.title.alignment) {
+        var x = switch (self.title_alignment) {
             .left   => left,
-            .center => left + (available -| self.title.length()) / 2,
-            .right  => left + (available -| self.title.length()),
+            .center => left + (available -| self.getTitleLength()) / 2,
+            .right  => left + (available -| self.getTitleLength()),
         };
 
-        for (self.title.character_list.items[0..todo]) |character| {
+        for (self.title.items[0..todo]) |character| {
             const index = buffer.indexOf(x, area.top());
             buffer.characters[index] = character;
             x += 1;
@@ -378,8 +394,8 @@ test "render()" {
 
                     var container: Container = .empty;
                     defer container.deinit(gpa);
-                    try container.title.append(gpa, self.title, .{});
-                    container.title.alignment = self.title_alignment;
+                    try container.setTitle(gpa, self.title, .{});
+                    container.title_alignment = self.title_alignment;
                     container.borders = self.borders;
                     container.border_type = self.border_type;
                     container.margin = self.margin;
