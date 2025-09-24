@@ -68,6 +68,7 @@ pub const Stack = struct {
 
         for (self.item_list.items) |*item| {
             item._value = switch (item.constraint) {
+                .auto       => item._value,
                 .fixed      => |value|    value,
                 .percentage => |value|    percentageOf(space, value),
                 .fraction   => |fraction|
@@ -83,10 +84,6 @@ pub const Stack = struct {
                     total_factor += factor;
                     continue;
                 },
-
-                // Auto constraints are not supported here. Widgets using them must
-                // be measured first and assigned a fixed constraint.
-                .auto => unreachable,
             };
 
             if (item._value > remaining) {
@@ -123,13 +120,13 @@ pub const Stack = struct {
             if (item.constraint != .auto)
                 continue;
 
-            dimensions = try item.widget.measure(opts);
-            width      = @max(width, dimensions.width);
-            height     = @max(height, dimensions.height);
+            dimensions  = try item.widget.measure(opts);
+            width       = @max(width, dimensions.width);
+            height      = @max(height, dimensions.height);
 
-            item.constraint = switch (self.direction) {
-                .horizontal => .Fixed(dimensions.width),
-                .vertical   => .Fixed(dimensions.height),
+            item._value = switch (self.direction) {
+                .horizontal => dimensions.width,
+                .vertical   => dimensions.height,
             };
         }
 
@@ -175,9 +172,9 @@ pub const Stack = struct {
             const max_height = area.height;
             const dimensions = try item.widget.measure(.opts(max_width, max_height));
 
-            item.constraint = switch (self.direction) {
-                .horizontal => .Fixed(dimensions.width),
-                .vertical   => .Fixed(dimensions.height),
+            item._value = switch (self.direction) {
+                .horizontal => dimensions.width,
+                .vertical   => dimensions.height,
             };
         }
 
