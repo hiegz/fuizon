@@ -106,21 +106,3 @@ pub fn hideCursor(
 ) error{WriteFailed}!void {
     try writer.writeAll(CSI ++ "?25l");
 }
-
-pub fn scrollUp(
-    writer: *std.Io.Writer,
-    n: u16,
-) error{WriteFailed}!void {
-    _ = writer;
-    _ = n;
-    // Not implemented
-}
-
-pub fn scrollDown(
-    writer: *std.Io.Writer,
-    n: u16,
-) error{WriteFailed}!void {
-    _ = writer;
-    _ = n;
-    // Not implemented
-}
