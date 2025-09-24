@@ -2,7 +2,7 @@ const std = @import("std");
 const Attribute = @import("attribute.zig").Attribute;
 
 pub const Attributes = struct {
-    const Iterator = struct {
+    pub const Iterator = struct {
         attributes: Attributes,
 
         pub fn next(self: *Iterator) ?Attribute {
