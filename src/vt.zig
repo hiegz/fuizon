@@ -107,6 +107,13 @@ pub fn hideCursor(
     try writer.writeAll(CSI ++ "?25l");
 }
 
+pub fn moveCursorUp(
+    writer: *std.io.Writer,
+    n: u16,
+) error{WriteFailed}!void {
+    try writer.print(CSI ++ "{d}A", .{n});
+}
+
 pub fn moveCursorForward(
     writer: *std.Io.Writer,
     n: u16,
