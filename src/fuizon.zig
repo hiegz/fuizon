@@ -28,8 +28,7 @@ pub const TextAlignment = @import("text_alignment.zig").TextAlignment;
 pub const Border = @import("border.zig").Border;
 pub const Borders = @import("borders.zig").Borders;
 pub const BorderType = @import("border_type.zig").BorderType;
-pub const Margin = @import("margin.zig").Margin;
-pub const Padding = @import("padding.zig").Padding;
+pub const Spacing = @import("spacing.zig").Spacing;
 pub const getScreenSize = terminal.getScreenSize;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
@@ -62,10 +61,9 @@ test "fuizon" {
     _ = @import("key_code.zig");
     _ = @import("key_modifier.zig");
     _ = @import("key_modifiers.zig");
-    _ = @import("margin.zig");
-    _ = @import("padding.zig");
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
+    _ = @import("spacing.zig");
     _ = @import("span.zig");
     _ = @import("stack.zig");
     _ = @import("stack_constraint.zig");
