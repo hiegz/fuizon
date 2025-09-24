@@ -8,8 +8,7 @@ const Character = @import("character.zig").Character;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Text = @import("text.zig").Text;
 const TextAlignment = @import("text_alignment.zig").TextAlignment;
-const Margin = @import("margin.zig").Margin;
-const Padding = @import("padding.zig").Padding;
+const Spacing = @import("spacing.zig").Spacing;
 const Style = @import("style.zig").Style;
 const Widget = @import("widget.zig").Widget;
 
@@ -21,8 +20,19 @@ pub const Container = struct {
     border_type: BorderType = .plain,
     border_style: Style = .{},
 
-    margin: Margin = .none,
-    padding: Padding = .none,
+    // zig fmt: off
+
+    margin_top:     Spacing = .Fixed(0),
+    margin_bottom:  Spacing = .Fixed(0),
+    margin_left:    Spacing = .Fixed(0),
+    margin_right:   Spacing = .Fixed(0),
+
+    padding_top:    Spacing = .auto,
+    padding_bottom: Spacing = .auto,
+    padding_left:   Spacing = .auto,
+    padding_right:  Spacing = .auto,
+
+    // zig fmt: on
 
     child: ?Widget = null,
 
@@ -51,20 +61,26 @@ pub const Container = struct {
 
     // zig fmt: off
 
-    fn calculateContainerX(self: Container, outer_x: u16) u16  {
-        return outer_x + self.margin.left;
+    fn calculateContainerX(self: Container, outer_x: u16) u16 {
+        return outer_x
+            +| (self.margin_left.min());
     }
 
     fn calculateContainerY(self: Container, outer_y: u16) u16 {
-        return outer_y + self.margin.top;
+        return outer_y
+            +| (self.margin_top.min());
     }
 
     fn calculateContainerWidth(self: Container, outer_width: u16) u16 {
-        return outer_width - self.margin.left - self.margin.right;
+        return outer_width
+            -| (self.margin_left.min())
+            -| (self.margin_right.min());
     }
 
     fn calculateContainerHeight(self: Container, outer_height: u16) u16 {
-        return outer_height - self.margin.top - self.margin.bottom;
+        return outer_height
+            -| (self.margin_top.min())
+            -| (self.margin_bottom.min());
     }
 
     fn calculateContainerArea(self: Container, outer_area: Area) Area {
@@ -76,100 +92,212 @@ pub const Container = struct {
         );
     }
 
-    fn calculateInnerX(self: Container, outer_x: u16) u16 {
+    fn calculateMaxInnerX(self: Container, outer_x: u16) u16 {
         return outer_x
-            + self.margin.left + self.padding.left
-            + (if (self.borders.contain(&.{.left})) @as(u16, 1) else @as(u16, 0));
+            +| self.margin_left.min()
+            +| self.padding_left.min()
+            +| (if (self.borders.contain(&.{.left}))  @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateInnerY(self: Container, outer_y: u16) u16 {
+    fn calculateMaxInnerY(self: Container, outer_y: u16) u16 {
         return outer_y
-            + self.margin.top + self.padding.top
-            + (if (self.borders.contain(&.{.top})) @as(u16, 1) else @as(u16, 0));
+            +| self.margin_top.min()
+            +| self.padding_top.min()
+            +| (if (self.borders.contain(&.{.top}))  @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateInnerWidth(self: Container, outer_width: u16) u16 {
+    fn calculateMaxInnerWidth(self: Container, outer_width: u16) u16 {
         return outer_width
-            -| (self.margin.left  + self.margin.right)
-            -| (self.padding.left + self.padding.right)
+            -| (self.margin_left.min())
+            -| (self.padding_left.min())
+            -| (self.margin_right.min())
+            -| (self.padding_right.min())
             -| (if (self.borders.contain(&.{.left}))  @as(u16, 1) else @as(u16, 0))
             -| (if (self.borders.contain(&.{.right})) @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateInnerHeight(self: Container, outer_height: u16) u16 {
+    fn calculateMaxInnerHeight(self: Container, outer_height: u16) u16 {
         return outer_height
-            -| (self.margin.top  + self.margin.bottom)
-            -| (self.padding.top + self.padding.bottom)
+            -| (self.margin_top.min())
+            -| (self.padding_top.min())
+            -| (self.margin_bottom.min())
+            -| (self.padding_bottom.min())
             -| (if (self.borders.contain(&.{.top}))    @as(u16, 1) else @as(u16, 0))
             -| (if (self.borders.contain(&.{.bottom})) @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateInnerArea(self: Container, outer_area: Area) Area {
-        return Area.init(
-            self.calculateInnerWidth(outer_area.width),
-            self.calculateInnerHeight(outer_area.height),
-            self.calculateInnerX(outer_area.x),
-            self.calculateInnerY(outer_area.y),
+    fn calculateMaxInnerDimensions(self: Container, outer_dimensions: Dimensions) Dimensions {
+        return Dimensions.init(
+            self.calculateMaxInnerWidth(outer_dimensions.width),
+            self.calculateMaxInnerHeight(outer_dimensions.height),
         );
-
     }
 
-    fn calculateOuterWidth(self: Container, inner_width: u16) u16 {
+    fn calculateMaxInnerArea(self: Container, outer_area: Area) Area {
+        return Area.init(
+            self.calculateMaxInnerWidth(outer_area.width),
+            self.calculateMaxInnerHeight(outer_area.height),
+            self.calculateMaxInnerX(outer_area.x),
+            self.calculateMaxInnerY(outer_area.y),
+        );
+    }
+
+    fn calculateMinOuterWidth(self: Container, inner_width: u16) u16 {
         return inner_width
-            +| (self.margin.left  + self.margin.right)
-            +| (self.padding.left + self.padding.right)
+            +| (self.margin_left.min())
+            +| (self.padding_left.min())
+            +| (self.margin_right.min())
+            +| (self.padding_right.min())
             +| (if (self.borders.contain(&.{.left}))  @as(u16, 1) else @as(u16, 0))
             +| (if (self.borders.contain(&.{.right})) @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateOuterHeight(self: Container, inner_height: u16) u16 {
+    fn calculateMinOuterHeight(self: Container, inner_height: u16) u16 {
         return inner_height
-            +| (self.margin.top  + self.margin.bottom)
-            +| (self.padding.top + self.padding.bottom)
+            +| (self.margin_top.min())
+            +| (self.padding_top.min())
+            +| (self.margin_bottom.min())
+            +| (self.padding_bottom.min())
             +| (if (self.borders.contain(&.{.top}))    @as(u16, 1) else @as(u16, 0))
             +| (if (self.borders.contain(&.{.bottom})) @as(u16, 1) else @as(u16, 0));
     }
 
-    fn calculateOuterDimensions(self: Container, inner_dimensions: Dimensions) Dimensions {
+    fn calculateMinOuterDimensions(self: Container, inner_dimensions: Dimensions) Dimensions {
         return Dimensions.init(
-            self.calculateOuterWidth(inner_dimensions.width),
-            self.calculateOuterHeight(inner_dimensions.height),
+            self.calculateMinOuterWidth(inner_dimensions.width),
+            self.calculateMinOuterHeight(inner_dimensions.height),
         );
     }
 
-    pub fn measure(
-        self: Container,
-        opts: Widget.MeasureOptions,
-    ) anyerror!Dimensions {
-        const max_width  = self.calculateInnerWidth(opts.max_width);
-        const max_height = self.calculateInnerHeight(opts.max_height);
-        const inner      = if (self.child) |child| try child.measure(.opts(max_width, max_height)) else Dimensions.init(0, 0);
-        var   outer      = self.calculateOuterDimensions(inner);
+    pub fn measure(self: Container, opts: Widget.MeasureOptions) anyerror!Dimensions {
+        const child_dimensions = try self.measureChildDimensions (Dimensions.init(opts.max_width, opts.max_height));
+        const optimal_width    =     self.calculateMinOuterWidth (child_dimensions.width);
+        const optimal_height   =     self.calculateMinOuterHeight(child_dimensions.height);
 
-        outer.width  = @min(opts.max_width,  outer.width);
-        outer.height = @min(opts.max_height, outer.height);
-
-        return outer;
+        return Dimensions.init(
+            @min(opts.max_width,  optimal_width),
+            @min(opts.max_height, optimal_height),
+        );
     }
 
-    // zig fmt: off
+    fn measureChildDimensions(self: Container, max_outer_dimensions: Dimensions) anyerror!Dimensions {
+        const max_inner_dimensions =
+            self.calculateMaxInnerDimensions(max_outer_dimensions);
+
+        return if (self.child) |child|
+            try child.measure(.{
+                .max_width  = max_inner_dimensions.width,
+                .max_height = max_inner_dimensions.height,
+            })
+        else
+            Dimensions.init(0, 0);
+    }
+
+    fn applyAreaSpacing(
+        max:    Area,
+        min:    Dimensions,
+        top:    Spacing,
+        bottom: Spacing,
+        left:   Spacing,
+        right:  Spacing,
+    ) Area {
+        var area: Area = undefined;
+
+        // No auto-spacing
+
+        if (left != .auto and right  != .auto) {
+            area.width  = max.width;
+            area.x      = max.x;
+        }
+
+        if (top  != .auto and bottom != .auto) {
+            area.height = max.height;
+            area.y      = max.y;
+        }
+
+        // Top-aligned
+
+        if (top  != .auto and bottom == .auto) {
+            area.height = min.height;
+            area.y      = max.y;
+        }
+
+        // Bottom-aligned
+
+        if (top  == .auto and bottom != .auto) {
+            area.height = min.height;
+            area.y      = max.y + (max.height -| min.height);
+        }
+
+        // Centered
+
+        if (left == .auto and right  == .auto) {
+            area.width  = min.width;
+            area.x      = max.x + (max.width -| min.width) / 2;
+        }
+
+        if (top == .auto and bottom  == .auto) {
+            area.height = min.height;
+            area.y      = max.y + (max.height -| min.height) / 2;
+        }
+
+        // Left-aligned
+
+        if (left != .auto and right  == .auto) {
+            area.width  = min.width;
+            area.x      = max.x;
+        }
+
+        // Right-aligned
+
+        if (left == .auto and right  != .auto) {
+            area.width  = min.width;
+            area.x      = max.x + (max.width -| min.width);
+        }
+
+        return area;
+    }
 
     pub fn render(
         self: Container,
         buffer: *Buffer,
-        area: Area,
+        max_area: Area,
     ) anyerror!void {
-        if (area.width == 0 or area.height == 0)
+        if (max_area.width == 0 or max_area.height == 0)
             return;
 
-        const container_area = self.calculateContainerArea(area);
+        const max_dimensions       = Dimensions.init(max_area.width, max_area.height);
+        const min_child_dimensions = try self.measureChildDimensions(max_dimensions);
+        const min_outer_dimensions =     self.calculateMinOuterDimensions(min_child_dimensions);
+
+        const outer_area =
+            Container.applyAreaSpacing(
+                max_area,
+                min_outer_dimensions,
+                self.margin_top,
+                self.margin_bottom,
+                self.margin_left,
+                self.margin_right,
+            );
+
+        const container_area = self.calculateContainerArea(outer_area);
+        const max_inner_area = self.calculateMaxInnerArea(outer_area);
+
+        const child_area =
+            Container.applyAreaSpacing(
+                max_inner_area,
+                min_child_dimensions,
+                self.padding_top,
+                self.padding_bottom,
+                self.padding_left,
+                self.padding_right,
+            );
 
         self.renderBorders(buffer, container_area);
         self.renderTitle(buffer, container_area);
 
-        if (self.child) |child| {
-            try child.render(buffer, self.calculateInnerArea(area));
-        }
+        if (self.child) |child|
+            try child.render(buffer, child_area);
     }
 
     fn renderTitle(
@@ -375,9 +503,18 @@ test "render()" {
         title_alignment: TextAlignment = .left,
         borders:         Borders = .none,
         border_type:     BorderType = .plain,
-        margin:          Margin = .none,
-        padding:         Padding = .none,
         expected:        []const []const u8,
+
+        margin_top:      Spacing = .Fixed(0),
+        margin_bottom:   Spacing = .Fixed(0),
+        margin_left:     Spacing = .Fixed(0),
+        margin_right:    Spacing = .Fixed(0),
+
+        padding_top:     Spacing = .auto,
+        padding_bottom:  Spacing = .auto,
+        padding_left:    Spacing = .auto,
+        padding_right:   Spacing = .auto,
+
 
         pub fn test_fn(self: Self, id: usize) type {
             return struct {
@@ -398,8 +535,14 @@ test "render()" {
                     container.title_alignment = self.title_alignment;
                     container.borders = self.borders;
                     container.border_type = self.border_type;
-                    container.margin = self.margin;
-                    container.padding = self.padding;
+                    container.margin_top = self.margin_top;
+                    container.margin_bottom = self.margin_bottom;
+                    container.margin_left = self.margin_left;
+                    container.margin_right = self.margin_right;
+                    container.padding_top = self.padding_top;
+                    container.padding_bottom = self.padding_bottom;
+                    container.padding_left = self.padding_left;
+                    container.padding_right = self.padding_right;
                     container.child = text.widget();
 
                     const dimensions = try container.measure(.opts(expected.width(), expected.height()));
@@ -430,8 +573,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = Borders.all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{},
         },
 
@@ -443,8 +584,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.top}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "─",
                 " ",
@@ -458,8 +597,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.bottom}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 " ",
                 "─",
@@ -473,8 +610,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.top, .bottom}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "─",
                 " ",
@@ -489,8 +624,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.left}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "│ ",
             },
@@ -503,8 +636,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.right}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 " │",
             },
@@ -517,8 +648,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .none,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 " ",
             },
@@ -531,8 +660,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.left, .top}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌"
             },
@@ -545,8 +672,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.left, .top}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌──",
                 "│  ",
@@ -560,8 +685,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.top, .right}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┐",
             },
@@ -574,8 +697,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.top, .right}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "──┐",
                 "  │",
@@ -589,8 +710,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.bottom, .left}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "└",
             },
@@ -603,8 +722,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.bottom, .left}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "│  ",
                 "└──",
@@ -618,8 +735,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.bottom, .right}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┘",
             },
@@ -632,8 +747,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = comptime Borders.join(&.{.bottom, .right}),
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "  │",
                 "──┘",
@@ -647,8 +760,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌┐",
                 "└┘",
@@ -662,8 +773,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌─┐",
                 "└─┘",
@@ -677,8 +786,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌─┐",
                 "│ │",
@@ -693,8 +800,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌──┐",
                 "│  │",
@@ -709,8 +814,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .rounded,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "╭──╮",
                 "│  │",
@@ -725,8 +828,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .double,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "╔══╗",
                 "║  ║",
@@ -741,8 +842,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .thick,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┏━━┓",
                 "┃  ┃",
@@ -757,8 +856,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌─────────────────────┐",
                 "│Hello world. Here is │",
@@ -775,8 +872,8 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(0, 0, 1, 1),
+            .padding_left    = comptime .Fixed(1),
+            .padding_right   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌───────────────────────┐",
                 "│ Hello world. Here is  │",
@@ -793,8 +890,8 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(0, 0, 1, 1),
-            .padding         = .none,
+            .margin_left     = comptime .Fixed(1),
+            .margin_right    = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 " ┌─────────────────────┐ ",
                 " │Hello world. Here is │ ",
@@ -811,8 +908,8 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(1, 1, 0, 0),
-            .padding         = .none,
+            .margin_top      = comptime .Fixed(1),
+            .margin_bottom   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "                       ",
                 "┌─────────────────────┐",
@@ -831,8 +928,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(1, 0, 0, 0),
-            .padding         = .none,
+            .margin_top      = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "                       ",
                 "┌─────────────────────┐",
@@ -850,8 +946,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(0, 1, 0, 0),
-            .padding         = .none,
+            .margin_bottom   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌─────────────────────┐",
                 "│Hello world. Here is │",
@@ -869,8 +964,10 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(1, 1, 1, 1),
-            .padding         = .none,
+            .margin_top      = comptime .Fixed(1),
+            .margin_bottom   = comptime .Fixed(1),
+            .margin_left     = comptime .Fixed(1),
+            .margin_right    = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "                         ",
                 " ┌─────────────────────┐ ",
@@ -889,8 +986,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(1, 0, 0, 0),
+            .padding_top     = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌─────────────────────┐",
                 "│                     │",
@@ -908,8 +1004,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(0, 1, 0, 0),
+            .padding_bottom  = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌─────────────────────┐",
                 "│Hello world. Here is │",
@@ -927,8 +1022,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(0, 0, 1, 0),
+            .padding_left    = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌──────────────────────┐",
                 "│ Hello world. Here is │",
@@ -945,8 +1039,7 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(0, 0, 0, 1),
+            .padding_right   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌──────────────────────┐",
                 "│Hello world. Here is  │",
@@ -963,8 +1056,10 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = comptime .init(1, 1, 1, 1),
+            .padding_top     = comptime .Fixed(1),
+            .padding_bottom  = comptime .Fixed(1),
+            .padding_left    = comptime .Fixed(1),
+            .padding_right   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "┌───────────────────────┐",
                 "│                       │",
@@ -983,8 +1078,14 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = comptime .init(1, 1, 1, 1),
-            .padding         = comptime .init(1, 1, 1, 1),
+            .margin_top      = comptime .Fixed(1),
+            .margin_bottom   = comptime .Fixed(1),
+            .margin_left     = comptime .Fixed(1),
+            .margin_right    = comptime .Fixed(1),
+            .padding_top     = comptime .Fixed(1),
+            .padding_bottom  = comptime .Fixed(1),
+            .padding_left    = comptime .Fixed(1),
+            .padding_right   = comptime .Fixed(1),
             .expected        = &[_][]const u8{
                 "                           ",
                 " ┌───────────────────────┐ ",
@@ -1005,8 +1106,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container Title──────┐",
                 "│Hello world. Here is │",
@@ -1023,8 +1122,6 @@ test "render()" {
             .title_alignment = .center,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌───Container Title───┐",
                 "│Hello world. Here is │",
@@ -1041,8 +1138,6 @@ test "render()" {
             .title_alignment = .right,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌──────Container Title┐",
                 "│Hello world. Here is │",
@@ -1059,8 +1154,6 @@ test "render()" {
             .title_alignment = .right,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container Title┐",
                 "│Hello world. He│",
@@ -1079,8 +1172,6 @@ test "render()" {
             .title_alignment = .center,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container Title┐",
                 "│Hello world. He│",
@@ -1099,8 +1190,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container T...┐",
                 "│Hello world. H│",
@@ -1119,8 +1208,6 @@ test "render()" {
             .title_alignment = .center,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container T...┐",
                 "│Hello world. H│",
@@ -1139,8 +1226,6 @@ test "render()" {
             .title_alignment = .right,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Container T...┐",
                 "│Hello world. H│",
@@ -1159,8 +1244,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Containe...┐",
                 "│Hello world│",
@@ -1175,8 +1258,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Contai...┐",
                 "│Hello wor│",
@@ -1191,8 +1272,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌Cont...┐",
                 "│Hello w│",
@@ -1207,8 +1286,6 @@ test "render()" {
             .title_alignment = .left,
             .borders         = .all,
             .border_type     = .plain,
-            .margin          = .none,
-            .padding         = .none,
             .expected        = &[_][]const u8{
                 "┌──────┐",
                 "│Hello │",
