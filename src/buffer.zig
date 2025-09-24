@@ -388,7 +388,7 @@ test "render() should not overflow the destination buffer" {
     }, .{});
     defer expected.deinit(gpa);
 
-    var buffer = try Buffer.initDimensions(gpa, .init(3, 2));
+    var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
     buffer.characters[0] = Character.init('a', .{});
