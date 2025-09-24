@@ -1,7 +1,10 @@
 const std = @import("std");
+const Area = @import("area.zig").Area;
 const Coordinate = @import("coordinate.zig").Coordinate;
+const Dimensions = @import("dimensions.zig").Dimensions;
 const Character = @import("character.zig").Character;
 const Style = @import("style.zig").Style;
+const Widget = @import("widget.zig").Widget;
 
 pub const Buffer = struct {
     characters: []Character,
@@ -138,6 +141,36 @@ pub const Buffer = struct {
             try writer.print("{u}", .{character.value});
         }
     }
+
+    pub fn measure(
+        self: Buffer,
+        opts: Widget.MeasureOptions,
+    ) anyerror!Dimensions {
+        return Dimensions.init(
+            @min(opts.max_width, self.width()),
+            @min(opts.max_height, self.height()),
+        );
+    }
+
+    pub fn render(
+        self: Buffer,
+        buffer: *Buffer,
+        area: Area,
+    ) anyerror!void {
+        var i: usize = 0;
+        for (area.top()..area.bottom()) |y| {
+            for (area.left()..area.right()) |x| {
+                if (i >= self.characters.len) return;
+                const index = buffer.indexOf(@intCast(x), @intCast(y));
+                buffer.characters[index] = self.characters[i];
+                i += 1;
+            }
+        }
+    }
+
+    pub fn widget(self: *const Buffer) Widget {
+        return Widget.impl(self);
+    }
 };
 
 //
@@ -250,4 +283,124 @@ test "posOf() should return the position of the character" {
     try std.testing.expectEqualDeep(Coordinate{ .x = 1, .y = 0 }, buffer.posOf(1));
     try std.testing.expectEqualDeep(Coordinate{ .x = 0, .y = 2 }, buffer.posOf(10));
     try std.testing.expectEqualDeep(Coordinate{ .x = 4, .y = 8 }, buffer.posOf(44));
+}
+
+test "measure() should just return buffer dimensions" {
+    const gpa = std.testing.allocator;
+    const buffer: Buffer = try .initDimensions(gpa, 5, 9);
+    defer buffer.deinit(gpa);
+
+    const dimensions = try buffer.measure(.{});
+
+    return std.testing.expectEqualDeep(dimensions, Dimensions.init(buffer.width(), buffer.height()));
+}
+
+test "measure() should not overflow the max dimensions" {
+    const gpa = std.testing.allocator;
+    const buffer: Buffer = try .initDimensions(gpa, 5, 9);
+    defer buffer.deinit(gpa);
+
+    const dimensions = try buffer.measure(.opts(1, 5));
+
+    return std.testing.expectEqualDeep(dimensions, Dimensions.init(1, 5));
+}
+
+test "render() should copy the buffer" {
+    const gpa = std.testing.allocator;
+
+    const expected = try Buffer.initContent(gpa, &[_][]const u8{
+        "ab",
+        "cd",
+    }, .{});
+    defer expected.deinit(gpa);
+
+    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    defer buffer.deinit(gpa);
+
+    buffer.characters[0] = Character.init('a', .{});
+    buffer.characters[1] = Character.init('b', .{});
+    buffer.characters[2] = Character.init('c', .{});
+    buffer.characters[3] = Character.init('d', .{});
+
+    const dimensions = try buffer.measure(.opts(expected.width(), expected.height()));
+    var actual = try Buffer.initDimensions(gpa, dimensions.width, dimensions.height);
+    defer actual.deinit(gpa);
+
+    try buffer.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));
+
+    std.testing.expect(
+        expected.equals(actual),
+    ) catch |err| {
+        std.debug.print("\t\n", .{});
+        std.debug.print("expected:\n{f}\n\n", .{expected});
+        std.debug.print("found:\n{f}\n", .{actual});
+        return err;
+    };
+}
+
+test "render() should copy the buffer at a specified offset" {
+    const gpa = std.testing.allocator;
+
+    const expected = try Buffer.initContent(gpa, &[_][]const u8{
+        "    ",
+        " ab ",
+        " cd ",
+        "    ",
+    }, .{});
+    defer expected.deinit(gpa);
+
+    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    defer buffer.deinit(gpa);
+
+    buffer.characters[0] = Character.init('a', .{});
+    buffer.characters[1] = Character.init('b', .{});
+    buffer.characters[2] = Character.init('c', .{});
+    buffer.characters[3] = Character.init('d', .{});
+
+    var actual = try Buffer.initDimensions(gpa, 4, 4);
+    defer actual.deinit(gpa);
+
+    try buffer.render(&actual, Area.init(2, 2, 1, 1));
+
+    std.testing.expect(
+        expected.equals(actual),
+    ) catch |err| {
+        std.debug.print("\t\n", .{});
+        std.debug.print("expected:\n{f}\n\n", .{expected});
+        std.debug.print("found:\n{f}\n", .{actual});
+        return err;
+    };
+}
+
+test "render() should not overflow the destination buffer" {
+    const gpa = std.testing.allocator;
+
+    const expected = try Buffer.initContent(gpa, &[_][]const u8{
+        "    ",
+        " ab ",
+        "    ",
+    }, .{});
+    defer expected.deinit(gpa);
+
+    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    defer buffer.deinit(gpa);
+
+    buffer.characters[0] = Character.init('a', .{});
+    buffer.characters[1] = Character.init('b', .{});
+    buffer.characters[2] = Character.init('c', .{});
+    buffer.characters[3] = Character.init('d', .{});
+
+    var actual = try Buffer.initDimensions(gpa, 4, 3);
+    defer actual.deinit(gpa);
+
+    try buffer.render(&actual, Area.init(2, 1, 1, 1));
+
+    std.testing.expect(
+        expected.equals(actual),
+    ) catch |err| {
+        std.debug.print("\t\n", .{});
+        std.debug.print("expected:\n{f}\n\n", .{expected});
+        std.debug.print("found:\n{f}\n", .{actual});
+        return err;
+    };
 }
