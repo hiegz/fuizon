@@ -62,6 +62,34 @@ pub const Stack = struct {
 
     // zig fmt: off
 
+    fn selectPrimarySize(self: Stack, width: u16, height: u16) u16 {
+        return switch (self.direction) {
+            .horizontal => width,
+            .vertical   => height,
+        };
+    }
+
+    fn selectSecondarySize(self: Stack, width: u16, height: u16) u16 {
+        return switch (self.direction) {
+            .horizontal => height,
+            .vertical   => width,
+        };
+    }
+
+    fn selectWidth(self: Stack, primary: u16, secondary: u16) u16 {
+        return switch (self.direction) {
+            .horizontal => primary,
+            .vertical   => secondary,
+        };
+    }
+
+    fn selectHeight(self: Stack, primary: u16, secondary: u16) u16 {
+        return switch (self.direction) {
+            .horizontal => secondary,
+            .vertical   => primary,
+        };
+    }
+
     fn distribute(self: Stack, space: u16) void {
         var remaining:    u16 = space;
         var total_factor: u16 = 0;
@@ -111,52 +139,111 @@ pub const Stack = struct {
     }
 
     pub fn measure(self: Stack, opts: Widget.MeasureOptions) anyerror!Dimensions {
-        var width: u16  = 0;
-        var height: u16 = 0;
-        var dimensions: Dimensions
-            = undefined;
+        // primary size of the layout
+        //
+        // - width for horizontal
+        // - height for vertical
+        var primary: u16 = 0;
 
+        // secondary size of the layut
+        //
+        // - width for vertical
+        // - height for horizontal
+        var secondary: u16 = 0;
+
+        // sum of all fixed item sizes + the minimal space required to
+        // represent the fill constraints.
+        var fixed_space: u16 = 0;
+
+        // sum of all fractions and percentages.
+        var fraction_sum: f32 = 0;
+
+        // sum of all fill factors.
+        var factor_sum: u16 = 0;
+
+        // measure items, gather some of the above info, and select optimal
+        // secondary size.
         for (self.item_list.items) |*item| {
-            if (item.constraint != .auto)
-                continue;
+            item._dimensions = try item.widget.measure(opts);
 
-            dimensions  = try item.widget.measure(opts);
-            width       = @max(width, dimensions.width);
-            height      = @max(height, dimensions.height);
+            const w = item._dimensions.width;
+            const h = item._dimensions.height;
 
-            item._value = switch (self.direction) {
-                .horizontal => dimensions.width,
-                .vertical   => dimensions.height,
+            switch (item.constraint) {
+                .auto       =>     fixed_space  += self.selectPrimarySize(w, h),
+                .fixed      => |v| fixed_space  += v,
+                .fill       => |v| factor_sum   += v,
+                .percentage => |v| fraction_sum += @as(f32, @floatFromInt(v)) / 100.0,
+                .fraction   => |v| {
+                    const numerator:   f32 = @floatFromInt(v.numerator);
+                    const denominator: f32 = @floatFromInt(v.denominator);
+
+                    fraction_sum += numerator / denominator;
+                },
+            }
+
+            secondary = @max(secondary, self.selectSecondarySize(w, h));
+        }
+
+        if (fraction_sum > 1.0)
+            @panic("Unsatisfiable constraints");
+
+        // find an optimal space for fill constraints
+        // and add it to |fixed_space|
+        fixed_space +=
+            fill_space: {
+                const ffactor_sum: f32 = @floatFromInt(factor_sum);
+                var   fspace:      f32 = 0;
+
+                for (self.item_list.items) |item| {
+                    if (item.constraint != .fill) continue;
+
+                    const  w = item._dimensions.width;
+                    const  h = item._dimensions.height;
+                    const  p = self.selectPrimarySize(w, h);
+
+                    const fp = @as(f32, @floatFromInt(p));
+                    const ff = @as(f32, @floatFromInt(item.constraint.fill));
+                    const fs = (ffactor_sum / ff) * fp;
+
+                    fspace = @max(fspace, fs);
+                }
+
+                break :fill_space @intFromFloat(fspace);
             };
-        }
 
-        switch (self.direction) {
-            .horizontal => self.distribute(opts.max_width),
-            .vertical   => self.distribute(opts.max_height),
-        }
+        // fixed space is already a good candidate for the primary size
+        primary = @intFromFloat(1 / (1.0 - fraction_sum) * @as(f32, @floatFromInt(fixed_space)));
 
+        // find another candiate for the primary size (if any)
         for (self.item_list.items) |item| {
-            if (item.constraint == .auto)
-                continue;
+            const  w = item._dimensions.width;
+            const  h = item._dimensions.height;
+            const  p = self.selectPrimarySize(w, h);
+            const fp = @as(f32, @floatFromInt(p));
 
-            const max_width = switch (self.direction) {
-                .horizontal => item._value,
-                .vertical   => opts.max_width,
-            };
-            const max_height = switch (self.direction) {
-                .horizontal => opts.max_height,
-                .vertical   => item._value,
-            };
+            const candidate: f32 =
+                switch (item.constraint) {
+                    .percentage => |v|
+                        (100.0 / @as(f32, @floatFromInt(v))) * fp,
 
-            dimensions = try item.widget.measure(.opts(max_width, max_height));
-            width      = @max(width, dimensions.width);
-            height     = @max(height, dimensions.height);
+                    .fraction => |v| tag: {
+                        const numerator:   f32  = @floatFromInt(v.numerator);
+                        const denominator: f32  = @floatFromInt(v.denominator);
+
+                        break :tag (denominator / numerator) * fp;
+                    },
+
+                    else => 0,
+                };
+
+            primary = @max(primary, @as(u16, @intFromFloat(candidate)));
         }
 
-        return switch (self.direction) {
-            .horizontal => .{ .width = opts.max_width, .height = height          },
-            .vertical   => .{ .width = width,          .height = opts.max_height },
-        };
+        return .init(
+            @min(opts.max_width,  self.selectWidth(primary,  secondary)),
+            @min(opts.max_height, self.selectHeight(primary, secondary)),
+        );
     }
 
     pub fn render(
@@ -225,6 +312,7 @@ test "render()" {
     const TestCase = struct {
         const Self = @This();
 
+        measure:   bool = false,   // rely on the measure function to choose buffer dimensions
         direction: StackDirection,
         text:      []const u8,
         left:      StackConstraint,
@@ -263,10 +351,15 @@ test "render()" {
                     });
                     defer stack.deinit(gpa);
 
-                    const dimensions = switch (self.direction) {
-                        .horizontal => try stack.measure(.{ .max_width  = expected.width(),  .max_height = self.max }),
-                        .vertical   => try stack.measure(.{ .max_height = expected.height(), .max_width  = self.max }),
-                    };
+                    const dimensions: Dimensions =
+                        if (self.measure)
+                            try stack.measure(switch(self.direction) {
+                                .horizontal => .{ .max_width  = expected.width(),  .max_height = self.max },
+                                .vertical   => .{ .max_height = expected.height(), .max_width  = self.max },
+                            })
+                        else
+                            Dimensions.init(expected.width(), expected.height());
+
                     var actual = try Buffer.initDimensions(gpa, dimensions);
                     defer actual.deinit(gpa);
 
@@ -457,6 +550,249 @@ test "render()" {
                 "Hello world. ",
                 "Here is some ",
                 "text for test",
+            },
+        },
+
+        // Test Case #10
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fill(1),
+            .center    = comptime .Fill(2),
+            .right     = comptime .Fill(1),
+            .expected  = &[_][]const u8{
+                "Hello world." ++ "      Hello world.      " ++ "Hello world.",
+            },
+        },
+
+        // Test Case #11
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Percentage(50),
+            .center    = comptime .Auto(),
+            .right     = comptime .Auto(),
+            .expected  = &[_][]const u8{
+                "Hello world.            " ++ "Hello world." ++ "Hello world.",
+            },
+        },
+
+        // Test Case #12
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Auto(),
+            .expected  = &[_][]const u8{
+                "Hello world.            " ++ "Hello world." ++ "Hello world.",
+            },
+        },
+
+        // Test Case #13
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Fixed(12),
+            .expected  = &[_][]const u8{
+                "Hello world.            " ++ "Hello world." ++ "Hello world.",
+            },
+        },
+
+        // Test Case #14
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Fill(1),
+            .right     = comptime .Fixed(12),
+            .expected  = &[_][]const u8{
+                "Hello world.            " ++ "Hello world." ++ "Hello world.",
+            },
+        },
+
+        // Test Case #15
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Fill(1),
+            .right     = comptime .Fill(2),
+            .expected  = &[_][]const u8{
+                "Hello world.                        " ++ "Hello world." ++ "            Hello world.",
+            },
+        },
+
+        // Test Case #16
+        .{
+            .measure   = true,
+            .direction = .horizontal,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Fill(2),
+            .expected  = &[_][]const u8{
+                "Hello world.            " ++ "Hello world." ++ "Hello world.",
+            },
+        },
+
+        // Test Case #17
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fill(1),
+            .center    = comptime .Fill(2),
+            .right     = comptime .Fill(1),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "Hello wo",
+                "  rld.  ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "    rld.",
+            },
+        },
+
+        // Test Case #18
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Percentage(50),
+            .center    = comptime .Auto(),
+            .right     = comptime .Auto(),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
+            },
+        },
+
+        // Test Case #19
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Auto(),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
+            },
+        },
+
+        // Test Case #20
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Fixed(2),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
+            },
+        },
+
+        // Test Case #21
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Fill(1),
+            .right     = comptime .Fixed(2),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
+            },
+        },
+
+        // Test Case #22
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Fill(1),
+            .right     = comptime .Fill(2),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
+                "        ",
+                "        ",
+
+            },
+        },
+
+        // Test Case #23
+        .{
+            .measure   = true,
+            .max       = 8,
+            .direction = .vertical,
+            .text      = "Hello world.",
+            .left      = comptime .Fraction(1, 2),
+            .center    = comptime .Auto(),
+            .right     = comptime .Fill(2),
+            .expected  = &[_][]const u8{
+                "Hello wo",
+                "rld.    ",
+                "        ",
+                "        ",
+                "Hello wo",
+                "  rld.  ",
+                "Hello wo",
+                "    rld.",
             },
         },
     }, 0..) |test_case, id| {
