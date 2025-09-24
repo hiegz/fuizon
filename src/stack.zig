@@ -259,16 +259,10 @@ pub const Stack = struct {
             const max_height = area.height;
             const dimensions = try item.widget.measure(.opts(max_width, max_height));
 
-            item._value = switch (self.direction) {
-                .horizontal => dimensions.width,
-                .vertical   => dimensions.height,
-            };
+            item._value = self.selectPrimarySize(dimensions.width, dimensions.height);
         }
 
-        switch (self.direction) {
-            .horizontal => self.distribute(area.width),
-            .vertical   => self.distribute(area.height),
-        }
+        self.distribute(self.selectPrimarySize(area.width, area.height));
 
         var coord = switch (self.direction) {
             .horizontal => area.left(),
