@@ -98,17 +98,13 @@ pub fn resetAttribute(
 pub fn showCursor(
     writer: *std.Io.Writer,
 ) error{WriteFailed}!void {
-    _ = writer;
-
-    // Not implemented
+    try writer.writeAll(CSI ++ "?25h");
 }
 
 pub fn hideCursor(
     writer: *std.Io.Writer,
 ) error{WriteFailed}!void {
-    _ = writer;
-
-    // Not implemented
+    try writer.writeAll(CSI ++ "?25l");
 }
 
 pub fn moveCursorTo(
