@@ -126,6 +126,8 @@ pub const Buffer = struct {
 
     /// Computes the index of a character based on its coordinates.
     pub fn indexOf(self: Buffer, x: u16, y: u16) usize {
+        if (x >= self.width() or y >= self.height())
+            @panic("Out of Bounds");
         return y * self.width() + x;
     }
 
