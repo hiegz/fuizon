@@ -23,7 +23,6 @@ pub const StackConstraint = @import("stack_constraint.zig").StackConstraint;
 pub const StackDirection = @import("stack_direction.zig").StackDirection;
 pub const StackItem = @import("stack_item.zig").StackItem;
 pub const Container = @import("container.zig").Container;
-pub const ContainerTitle = @import("container_title.zig").ContainerTitle;
 pub const Text = @import("text.zig").Text;
 pub const TextAlignment = @import("text_alignment.zig").TextAlignment;
 pub const Border = @import("border.zig").Border;
@@ -54,7 +53,6 @@ test "fuizon" {
     _ = @import("character.zig");
     _ = @import("color.zig");
     _ = @import("container.zig");
-    _ = @import("container_title.zig");
     _ = @import("coordinate.zig");
     _ = @import("dimensions.zig");
     _ = @import("fuizon.zig");
