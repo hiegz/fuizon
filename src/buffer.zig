@@ -137,6 +137,10 @@ pub const Buffer = struct {
         };
     }
 
+    pub fn set(self: *Buffer, x: anytype, y: anytype, character: Character) void {
+        self.characters[self.indexOf(@intCast(x), @intCast(y))] = character;
+    }
+
     pub fn format(self: Buffer, writer: *std.Io.Writer) !void {
         try writer.print("width:  {d}\n", .{self.width()});
         try writer.print("height: {d}\n", .{self.height()});
@@ -323,10 +327,10 @@ test "render() should copy the buffer" {
     var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
-    buffer.characters[0] = Character.init('a', .{});
-    buffer.characters[1] = Character.init('b', .{});
-    buffer.characters[2] = Character.init('c', .{});
-    buffer.characters[3] = Character.init('d', .{});
+    buffer.set(0, 0, Character.init('a', .{}));
+    buffer.set(1, 0, Character.init('b', .{}));
+    buffer.set(0, 1, Character.init('c', .{}));
+    buffer.set(1, 1, Character.init('d', .{}));
 
     const dimensions = try buffer.measure(.opts(expected.width(), expected.height()));
     var actual = try Buffer.initDimensions(gpa, dimensions);
@@ -358,10 +362,10 @@ test "render() should copy the buffer at a specified offset" {
     var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
-    buffer.characters[0] = Character.init('a', .{});
-    buffer.characters[1] = Character.init('b', .{});
-    buffer.characters[2] = Character.init('c', .{});
-    buffer.characters[3] = Character.init('d', .{});
+    buffer.set(0, 0, Character.init('a', .{}));
+    buffer.set(1, 0, Character.init('b', .{}));
+    buffer.set(0, 1, Character.init('c', .{}));
+    buffer.set(1, 1, Character.init('d', .{}));
 
     var actual = try Buffer.initDimensions(gpa, .init(4, 4));
     defer actual.deinit(gpa);
@@ -391,10 +395,10 @@ test "render() should not overflow the destination buffer" {
     var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
-    buffer.characters[0] = Character.init('a', .{});
-    buffer.characters[1] = Character.init('b', .{});
-    buffer.characters[2] = Character.init('c', .{});
-    buffer.characters[3] = Character.init('d', .{});
+    buffer.set(0, 0, Character.init('a', .{}));
+    buffer.set(1, 0, Character.init('b', .{}));
+    buffer.set(0, 1, Character.init('c', .{}));
+    buffer.set(1, 1, Character.init('d', .{}));
 
     var actual = try Buffer.initDimensions(gpa, .init(4, 3));
     defer actual.deinit(gpa);
