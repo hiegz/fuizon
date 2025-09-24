@@ -387,7 +387,7 @@ test "render()" {
                     container.child = text.widget();
 
                     const dimensions = try container.measure(.opts(expected.width(), expected.height()));
-                    var actual = try Buffer.initDimensions(gpa, dimensions.width, dimensions.height);
+                    var actual = try Buffer.initDimensions(gpa, dimensions);
                     defer actual.deinit(gpa);
 
                     try container.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));

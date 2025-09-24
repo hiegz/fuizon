@@ -21,15 +21,14 @@ pub const Buffer = struct {
 
     pub fn initDimensions(
         gpa: std.mem.Allocator,
-        w: u16,
-        h: u16,
+        dimensions: Dimensions,
     ) error{OutOfMemory}!Buffer {
         var self: Buffer = undefined;
-        self.characters = try gpa.alloc(Character, w * h);
+        self.characters = try gpa.alloc(Character, dimensions.width * dimensions.height);
         for (self.characters) |*character|
             character.* = .{};
-        self._width = w;
-        self._height = h;
+        self._width = dimensions.width;
+        self._height = dimensions.height;
         return self;
     }
 
@@ -50,7 +49,7 @@ pub const Buffer = struct {
             break :tag count;
         };
 
-        var self = try Buffer.initDimensions(gpa, w, h);
+        var self = try Buffer.initDimensions(gpa, .init(w, h));
         errdefer self.deinit(gpa);
         var i: usize = 0;
 
@@ -99,23 +98,22 @@ pub const Buffer = struct {
         gpa: std.mem.Allocator,
         other: Buffer,
     ) error{OutOfMemory}!void {
-        try self.resize(gpa, other.width(), other.height());
+        try self.resize(gpa, .init(other.width(), other.height()));
         @memcpy(self.characters, other.characters);
     }
 
     pub fn resize(
         self: *Buffer,
         gpa: std.mem.Allocator,
-        w: u16,
-        h: u16,
+        dimensions: Dimensions,
     ) std.mem.Allocator.Error!void {
         const old_buffer_length = self.characters.len;
-        if (w * h != self.characters.len)
-            self.characters = try gpa.realloc(self.characters, w * h);
+        if (dimensions.width * dimensions.height != self.characters.len)
+            self.characters = try gpa.realloc(self.characters, dimensions.width * dimensions.height);
         if (self.characters.len > old_buffer_length)
             @memset(self.characters[old_buffer_length..], Character{});
-        self._width = w;
-        self._height = h;
+        self._width = dimensions.width;
+        self._height = dimensions.height;
     }
 
     /// Computes the index of a character based on its coordinates.
@@ -179,7 +177,7 @@ pub const Buffer = struct {
 
 test "initDimensions() should initialize buffer dimensions" {
     const gpa = std.testing.allocator;
-    const buffer = try Buffer.initDimensions(gpa, 5, 9);
+    const buffer = try Buffer.initDimensions(gpa, .init(5, 9));
     defer buffer.deinit(gpa);
 
     try std.testing.expectEqual(5, buffer.width());
@@ -188,7 +186,7 @@ test "initDimensions() should initialize buffer dimensions" {
 
 test "initDimensions() should initialize the underlying character array" {
     const gpa = std.testing.allocator;
-    const buffer = try Buffer.initDimensions(gpa, 5, 9);
+    const buffer = try Buffer.initDimensions(gpa, .init(5, 9));
     defer buffer.deinit(gpa);
 
     try std.testing.expectEqual(5 * 9, buffer.characters.len);
@@ -197,14 +195,14 @@ test "initDimensions() should initialize the underlying character array" {
 test "copy() with matching buffer dimensions should copy the source buffer" {
     const gpa = std.testing.allocator;
 
-    var src = try Buffer.initDimensions(gpa, 5, 9);
+    var src = try Buffer.initDimensions(gpa, .init(5, 9));
     defer src.deinit(gpa);
     for (src.characters) |*character| {
         character.value = 59;
         character.style = .{};
     }
 
-    var dest = try Buffer.initDimensions(gpa, 5, 9);
+    var dest = try Buffer.initDimensions(gpa, .init(5, 9));
     defer dest.deinit(gpa);
     for (dest.characters) |*character| {
         character.value = 15;
@@ -219,14 +217,14 @@ test "copy() with matching buffer dimensions should copy the source buffer" {
 test "copy() with matching buffer dimensions should not reallocate the underlying destination buffer" {
     const gpa = std.testing.allocator;
 
-    var src = try Buffer.initDimensions(gpa, 5, 9);
+    var src = try Buffer.initDimensions(gpa, .init(5, 9));
     defer src.deinit(gpa);
     for (src.characters) |*character| {
         character.value = 59;
         character.style = .{};
     }
 
-    var dest = try Buffer.initDimensions(gpa, 5, 9);
+    var dest = try Buffer.initDimensions(gpa, .init(5, 9));
     defer dest.deinit(gpa);
     const dest_ptr = dest.characters.ptr;
 
@@ -237,14 +235,14 @@ test "copy() with matching buffer dimensions should not reallocate the underlyin
 test "copy() with different buffer dimensions should copy the source buffer" {
     const gpa = std.testing.allocator;
 
-    var src = try Buffer.initDimensions(gpa, 5, 9);
+    var src = try Buffer.initDimensions(gpa, .init(5, 9));
     defer src.deinit(gpa);
     for (src.characters) |*character| {
         character.value = 59;
         character.style = .{};
     }
 
-    var dest = try Buffer.initDimensions(gpa, 1, 5);
+    var dest = try Buffer.initDimensions(gpa, .init(1, 5));
     defer dest.deinit(gpa);
     for (dest.characters) |*character| {
         character.value = 15;
@@ -259,14 +257,14 @@ test "copy() with different buffer dimensions should copy the source buffer" {
 test "copy() with different buffer dimensions should reallocate the underlying destination buffer" {
     const gpa = std.testing.allocator;
 
-    var src = try Buffer.initDimensions(gpa, 5, 9);
+    var src = try Buffer.initDimensions(gpa, .init(5, 9));
     defer src.deinit(gpa);
     for (src.characters) |*character| {
         character.value = 59;
         character.style = .{};
     }
 
-    var dest = try Buffer.initDimensions(gpa, 1, 5);
+    var dest = try Buffer.initDimensions(gpa, .init(1, 5));
     defer dest.deinit(gpa);
     const dest_ptr = dest.characters.ptr;
 
@@ -276,7 +274,7 @@ test "copy() with different buffer dimensions should reallocate the underlying d
 
 test "posOf() should return the position of the character" {
     const gpa = std.testing.allocator;
-    var buffer = try Buffer.initDimensions(gpa, 5, 9);
+    var buffer = try Buffer.initDimensions(gpa, .init(5, 9));
     defer buffer.deinit(gpa);
 
     try std.testing.expectEqualDeep(Coordinate{ .x = 0, .y = 0 }, buffer.posOf(0));
@@ -287,7 +285,7 @@ test "posOf() should return the position of the character" {
 
 test "measure() should just return buffer dimensions" {
     const gpa = std.testing.allocator;
-    const buffer: Buffer = try .initDimensions(gpa, 5, 9);
+    const buffer: Buffer = try .initDimensions(gpa, .init(5, 9));
     defer buffer.deinit(gpa);
 
     const dimensions = try buffer.measure(.{});
@@ -297,7 +295,7 @@ test "measure() should just return buffer dimensions" {
 
 test "measure() should not overflow the max dimensions" {
     const gpa = std.testing.allocator;
-    const buffer: Buffer = try .initDimensions(gpa, 5, 9);
+    const buffer: Buffer = try .initDimensions(gpa, .init(5, 9));
     defer buffer.deinit(gpa);
 
     const dimensions = try buffer.measure(.opts(1, 5));
@@ -314,7 +312,7 @@ test "render() should copy the buffer" {
     }, .{});
     defer expected.deinit(gpa);
 
-    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
     buffer.characters[0] = Character.init('a', .{});
@@ -323,7 +321,7 @@ test "render() should copy the buffer" {
     buffer.characters[3] = Character.init('d', .{});
 
     const dimensions = try buffer.measure(.opts(expected.width(), expected.height()));
-    var actual = try Buffer.initDimensions(gpa, dimensions.width, dimensions.height);
+    var actual = try Buffer.initDimensions(gpa, dimensions);
     defer actual.deinit(gpa);
 
     try buffer.render(&actual, Area.init(actual.width(), actual.height(), 0, 0));
@@ -349,7 +347,7 @@ test "render() should copy the buffer at a specified offset" {
     }, .{});
     defer expected.deinit(gpa);
 
-    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    var buffer = try Buffer.initDimensions(gpa, .init(2, 2));
     defer buffer.deinit(gpa);
 
     buffer.characters[0] = Character.init('a', .{});
@@ -357,7 +355,7 @@ test "render() should copy the buffer at a specified offset" {
     buffer.characters[2] = Character.init('c', .{});
     buffer.characters[3] = Character.init('d', .{});
 
-    var actual = try Buffer.initDimensions(gpa, 4, 4);
+    var actual = try Buffer.initDimensions(gpa, .init(4, 4));
     defer actual.deinit(gpa);
 
     try buffer.render(&actual, Area.init(2, 2, 1, 1));
@@ -382,7 +380,7 @@ test "render() should not overflow the destination buffer" {
     }, .{});
     defer expected.deinit(gpa);
 
-    var buffer = try Buffer.initDimensions(gpa, 2, 2);
+    var buffer = try Buffer.initDimensions(gpa, .init(3, 2));
     defer buffer.deinit(gpa);
 
     buffer.characters[0] = Character.init('a', .{});
@@ -390,7 +388,7 @@ test "render() should not overflow the destination buffer" {
     buffer.characters[2] = Character.init('c', .{});
     buffer.characters[3] = Character.init('d', .{});
 
-    var actual = try Buffer.initDimensions(gpa, 4, 3);
+    var actual = try Buffer.initDimensions(gpa, .init(4, 3));
     defer actual.deinit(gpa);
 
     try buffer.render(&actual, Area.init(2, 1, 1, 1));
