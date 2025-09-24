@@ -4,7 +4,7 @@ const windows = @import("windows.zig");
 const posix = std.posix;
 const Dimensions = @import("dimensions.zig").Dimensions;
 
-fn getInputHandle() error{NotATerminal}!std.c.fd_t {
+pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
     return switch (builtin.os.tag) {
         .linux, .macos => tag: {
             var handle: std.c.fd_t = undefined;
@@ -28,7 +28,7 @@ fn getInputHandle() error{NotATerminal}!std.c.fd_t {
     };
 }
 
-fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
+pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
     return switch (builtin.os.tag) {
         .linux, .macos => tag: {
             var handle: std.c.fd_t = undefined;
