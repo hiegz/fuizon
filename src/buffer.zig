@@ -11,11 +11,15 @@ pub const Buffer = struct {
     _width: u16,
     _height: u16,
 
+    // used to render the cursor;
+    cursor: ?Coordinate,
+
     pub fn init() Buffer {
         var self: Buffer = undefined;
         self.characters = &.{};
         self._width = 0;
         self._height = 0;
+        self.cursor = null;
         return self;
     }
 
@@ -29,6 +33,7 @@ pub const Buffer = struct {
             character.* = .{};
         self._width = dimensions.width;
         self._height = dimensions.height;
+        self.cursor = null;
         return self;
     }
 
