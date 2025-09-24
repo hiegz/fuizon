@@ -111,6 +111,7 @@ pub fn moveCursorUp(
     writer: *std.io.Writer,
     n: u16,
 ) error{WriteFailed}!void {
+    if (n == 0) return;
     try writer.print(CSI ++ "{d}A", .{n});
 }
 
@@ -118,6 +119,7 @@ pub fn moveCursorDown(
     writer: *std.io.Writer,
     n: u16,
 ) error{WriteFailed}!void {
+    if (n == 0) return;
     try writer.print(CSI ++ "{d}B", .{n});
 }
 
@@ -125,6 +127,7 @@ pub fn moveCursorForward(
     writer: *std.Io.Writer,
     n: u16,
 ) error{WriteFailed}!void {
+    if (n == 0) return;
     try writer.print(CSI ++ "{d}C", .{n});
 }
 
@@ -132,5 +135,6 @@ pub fn moveCursorBackward(
     writer: *std.Io.Writer,
     n: u16,
 ) error{WriteFailed}!void {
+    if (n == 0) return;
     try writer.print(CSI ++ "{d}D", .{n});
 }
