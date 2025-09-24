@@ -15,6 +15,7 @@ pub const KeyCode = @import("key_code.zig").KeyCode;
 pub const KeyModifier = @import("key_modifier.zig").KeyModifier;
 pub const KeyModifiers = @import("key_modifiers.zig").KeyModifiers;
 pub const Style = @import("style.zig").Style;
+pub const Buffer = @import("buffer.zig").Buffer;
 pub const Span = @import("span.zig").Span;
 pub const Stack = @import("stack.zig").Stack;
 pub const StackConstraint = @import("stack_constraint.zig").StackConstraint;
