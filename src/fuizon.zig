@@ -16,6 +16,7 @@ pub const KeyModifier = @import("key_modifier.zig").KeyModifier;
 pub const KeyModifiers = @import("key_modifiers.zig").KeyModifiers;
 pub const Style = @import("style.zig").Style;
 pub const Buffer = @import("buffer.zig").Buffer;
+pub const Viewport = @import("viewport.zig").Viewport;
 pub const Span = @import("span.zig").Span;
 pub const Stack = @import("stack.zig").Stack;
 pub const StackConstraint = @import("stack_constraint.zig").StackConstraint;
@@ -76,6 +77,7 @@ test "fuizon" {
     _ = @import("terminal.zig");
     _ = @import("text.zig");
     _ = @import("text_alignment.zig");
+    _ = @import("viewport.zig");
     _ = @import("vt.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");
