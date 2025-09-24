@@ -120,3 +120,10 @@ pub fn moveCursorForward(
 ) error{WriteFailed}!void {
     try writer.print(CSI ++ "{d}C", .{n});
 }
+
+pub fn moveCursorBackward(
+    writer: *std.Io.Writer,
+    n: u16,
+) error{WriteFailed}!void {
+    try writer.print(CSI ++ "{d}D", .{n});
+}
