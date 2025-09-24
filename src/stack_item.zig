@@ -1,9 +1,13 @@
+const Dimensions = @import("dimensions.zig").Dimensions;
 const StackConstraint = @import("stack_constraint.zig").StackConstraint;
 const Widget = @import("widget.zig").Widget;
 
 pub const StackItem = struct {
     widget: Widget,
     constraint: StackConstraint,
+
+    /// For measurement
+    _dimensions: Dimensions = undefined,
 
     /// Relevant during rendering and measurement.
     _value: u16 = undefined,
