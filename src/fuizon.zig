@@ -38,13 +38,13 @@ pub const getScreenSize = terminal.getScreenSize;
 var gpa: std.mem.Allocator = undefined;
 var buffer: Buffer = undefined;
 var renderer: Renderer = undefined;
-var rendering: bool = undefined;
+var in_frame: bool = undefined;
 
 pub fn init() error{ NotATerminal, Unexpected }!void {
     gpa = std.heap.c_allocator;
     buffer = .init();
     renderer = .init();
-    rendering = false;
+    in_frame = false;
 
     // hide the cursor in the first frame
     // (unless the user provides a render position)
@@ -53,13 +53,7 @@ pub fn init() error{ NotATerminal, Unexpected }!void {
     try terminal.enableRawMode();
 }
 
-pub fn deinit() error{ OutOfMemory, NotATerminal, RenderFailed, Unexpected }!void {
-    buffer.cursor = .{ .x = 0, .y = 0 };
-    for (buffer.characters) |*char| {
-        char.* = .{};
-    }
-    try renderer.render(gpa, &buffer);
-
+pub fn deinit() error{ NotATerminal, Unexpected }!void {
     buffer.deinit(gpa);
     renderer.deinit(gpa);
 
@@ -87,6 +81,20 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     const widget: Widget = object.widget();
     try widget.render(&buffer, buffer.getArea());
     try renderer.render(gpa, &buffer);
+
+    in_frame = true;
+}
+
+pub fn clear() !void {
+    if (!in_frame) return;
+
+    buffer.cursor = .{ .x = 0, .y = 0 };
+    for (buffer.characters) |*char| {
+        char.* = .{};
+    }
+    try renderer.render(gpa, &buffer);
+
+    in_frame = false;
 }
 
 test "fuizon" {
