@@ -41,11 +41,15 @@ var buffer: Buffer = undefined;
 var renderer: Renderer = undefined;
 var in_frame: bool = undefined;
 
+// do not exceed the screen height while rendering
+var limit_height: bool = undefined;
+
 pub fn init() error{ NotATerminal, Unexpected }!void {
     gpa = std.heap.c_allocator;
     buffer = .init();
     renderer = .init();
     in_frame = false;
+    limit_height = true;
 
     // hide the cursor in the first frame
     // (unless the user provides a render position)
@@ -74,10 +78,11 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     const widget: Widget = object.widget();
 
     // zig fmt: off
-    const screen = try terminal.getScreenSize();
-    const width  = screen.width;
-    const height = switch (viewport) {
-        .auto => (try widget.measure(.opts(width, screen.height))).height,
+    const screen     = try terminal.getScreenSize();
+    const max_height = if (limit_height) screen.height else std.math.maxInt(u16);
+    const width      = screen.width;
+    const height     = switch (viewport) {
+        .auto => (try widget.measure(.opts(width, max_height))).height,
         .fixed => |h| @min(h, screen.height),
         .fullscreen => screen.height,
     };
@@ -98,8 +103,11 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
 }
 
 pub fn print(object: anytype) anyerror!void {
+    const old_value = limit_height;
+    limit_height = false;
     try render(object, .Auto());
     try advance();
+    limit_height = old_value;
 }
 
 pub fn advance() !void {
