@@ -71,10 +71,13 @@ pub fn deinit() error{Unexpected}!void {
 }
 
 pub fn render(object: anytype, viewport: Viewport) anyerror!void {
+    const widget: Widget = object.widget();
+
     // zig fmt: off
     const screen = try terminal.getScreenSize();
     const width  = screen.width;
     const height = switch (viewport) {
+        .auto => (try widget.measure(.opts(width, screen.height))).height,
         .fixed => |h| @min(h, screen.height),
         .fullscreen => screen.height,
     };
@@ -88,7 +91,6 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
         char.* = .{};
     }
 
-    const widget: Widget = object.widget();
     try widget.render(&buffer, buffer.getArea());
     try renderer.render(gpa, &buffer);
 
