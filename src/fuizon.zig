@@ -97,6 +97,11 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     in_frame = true;
 }
 
+pub fn print(object: anytype) anyerror!void {
+    try render(object, .Auto());
+    try advance();
+}
+
 pub fn advance() !void {
     if (!in_frame) return;
 
