@@ -35,8 +35,6 @@ pub const Spacing = @import("spacing.zig").Spacing;
 pub const Widget = @import("widget.zig").Widget;
 pub const getScreenSize = terminal.getScreenSize;
 
-pub var viewport: Viewport = .fullscreen;
-
 var gpa: std.mem.Allocator = undefined;
 var buffer: Buffer = undefined;
 var renderer: Renderer = undefined;
@@ -56,9 +54,11 @@ pub fn init() error{ NotATerminal, Unexpected }!void {
 }
 
 pub fn deinit() error{ OutOfMemory, NotATerminal, RenderFailed, Unexpected }!void {
-    _ = try nextFrame();
     buffer.cursor = .{ .x = 0, .y = 0 };
-    try render();
+    for (buffer.characters) |*char| {
+        char.* = .{};
+    }
+    try renderer.render(gpa, &buffer);
 
     buffer.deinit(gpa);
     renderer.deinit(gpa);
@@ -66,7 +66,7 @@ pub fn deinit() error{ OutOfMemory, NotATerminal, RenderFailed, Unexpected }!voi
     try terminal.disableRawMode();
 }
 
-pub fn nextFrame() error{ NotATerminal, OutOfMemory, Unexpected }!*Buffer {
+pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     // zig fmt: off
     const screen = try terminal.getScreenSize();
     const width  = screen.width;
@@ -84,10 +84,8 @@ pub fn nextFrame() error{ NotATerminal, OutOfMemory, Unexpected }!*Buffer {
         char.* = .{};
     }
 
-    return &buffer;
-}
-
-pub fn render() Renderer.Error!void {
+    const widget: Widget = object.widget();
+    try widget.render(&buffer, buffer.getArea());
     try renderer.render(gpa, &buffer);
 }
 
