@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vt = @import("vt.zig");
 const terminal = @import("terminal.zig");
 const Renderer = @import("renderer.zig").Renderer;
@@ -143,6 +144,24 @@ pub fn clear() !void {
     try renderer.render(gpa, &buffer);
 
     in_frame = false;
+}
+
+pub const ReadOpts = struct {
+    // provided in milliseconds
+    timeout: ?u32 = null,
+};
+
+pub fn read(opts: ReadOpts) error{ NotATerminal, ReadFailed, Interrupted, Unexpected }!?Input {
+    return switch (builtin.os.tag) {
+        // zig fmt: off
+
+        .linux, .macos => @import("posix.zig").read(opts.timeout),
+        .windows       => @import("windows.zig").read(opts.timeout),
+
+        else => unreachable,
+
+        // zig fmt: on
+    };
 }
 
 test "fuizon" {
