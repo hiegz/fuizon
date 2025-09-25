@@ -53,11 +53,11 @@ pub fn init() error{ NotATerminal, Unexpected }!void {
     try terminal.enableRawMode();
 }
 
-pub fn deinit() error{ NotATerminal, Unexpected }!void {
+pub fn deinit() error{ Unexpected }!void {
     buffer.deinit(gpa);
     renderer.deinit(gpa);
 
-    try terminal.disableRawMode();
+    terminal.disableRawMode() catch return error.Unexpected;
 }
 
 pub fn render(object: anytype, viewport: Viewport) anyerror!void {
