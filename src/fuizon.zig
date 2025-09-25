@@ -32,6 +32,7 @@ pub const Border = @import("border.zig").Border;
 pub const Borders = @import("borders.zig").Borders;
 pub const BorderType = @import("border_type.zig").BorderType;
 pub const Spacing = @import("spacing.zig").Spacing;
+pub const Widget = @import("widget.zig").Widget;
 pub const getScreenSize = terminal.getScreenSize;
 
 pub var viewport: Viewport = .fullscreen;
