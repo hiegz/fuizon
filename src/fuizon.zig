@@ -95,6 +95,29 @@ pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     in_frame = true;
 }
 
+pub fn advance() !void {
+    if (!in_frame) return;
+
+    var out_buffer: [1024]u8 = undefined; // disable buffering
+    const out: std.fs.File = .{ .handle = terminal.getOutputHandle() catch return error.Unexpected };
+    var out_writer = out.writer(&out_buffer);
+    const writer = &out_writer.interface;
+
+    for (0..renderer.last_buffer.height()) |_|
+        try writer.writeAll("\n");
+
+    if (renderer.last_buffer.cursor == null)
+        try vt.showCursor(writer);
+
+    try writer.flush();
+
+    renderer.last_buffer.deinit(gpa);
+    renderer.last_buffer = .init();
+    renderer.last_buffer.cursor = .{ .x = 0, .y = 0 };
+
+    in_frame = false;
+}
+
 pub fn clear() !void {
     if (!in_frame) return;
 
