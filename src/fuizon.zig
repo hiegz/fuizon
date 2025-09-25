@@ -1,4 +1,5 @@
 const std = @import("std");
+const vt = @import("vt.zig");
 const terminal = @import("terminal.zig");
 const Renderer = @import("renderer.zig").Renderer;
 
@@ -53,9 +54,18 @@ pub fn init() error{ NotATerminal, Unexpected }!void {
     try terminal.enableRawMode();
 }
 
-pub fn deinit() error{ Unexpected }!void {
+pub fn deinit() error{Unexpected}!void {
     buffer.deinit(gpa);
     renderer.deinit(gpa);
+
+    // Cursor is hidden, restore it.
+    if (renderer.last_buffer.cursor == null) {
+        var out_buffer: [0]u8 = undefined; // disable buffering
+        const out: std.fs.File = .{ .handle = terminal.getOutputHandle() catch return error.Unexpected };
+        var out_writer = out.writer(&out_buffer);
+
+        vt.showCursor(&out_writer.interface) catch return error.Unexpected;
+    }
 
     terminal.disableRawMode() catch return error.Unexpected;
 }
