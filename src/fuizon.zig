@@ -66,7 +66,7 @@ pub fn deinit() error{Unexpected}!void {
     // Cursor is hidden, restore it.
     if (renderer.last_buffer.cursor == null) {
         var out_buffer: [0]u8 = undefined; // disable buffering
-        const out: std.fs.File = .{ .handle = terminal.getOutputHandle() catch return error.Unexpected };
+        const out = std.fs.File.stdout();
         var out_writer = out.writer(&out_buffer);
 
         vt.showCursor(&out_writer.interface) catch return error.Unexpected;
@@ -115,7 +115,7 @@ pub fn advance() !void {
     if (!in_frame) return;
 
     var out_buffer: [1024]u8 = undefined; // disable buffering
-    const out: std.fs.File = .{ .handle = terminal.getOutputHandle() catch return error.Unexpected };
+    const out = std.fs.File.stdout();
     var out_writer = out.writer(&out_buffer);
     const writer = &out_writer.interface;
 
