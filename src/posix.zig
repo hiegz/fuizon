@@ -3,6 +3,7 @@ const std = @import("std");
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Input = @import("input.zig").Input;
 const InputParser = @import("input_parser.zig").InputParser;
+const Source = @import("source.zig").Source;
 const terminal = @import("terminal.zig");
 
 // zig fmt: off
@@ -76,8 +77,8 @@ fn sighandler(signo: c_int) callconv(.c) void {
     }
 }
 
-pub fn read(maybe_timeout: ?u32) error{ NotATerminal, ReadFailed, Interrupted, Unexpected }!?Input {
-    const input:  std.posix.fd_t     = try terminal.getInputHandle();
+pub fn read(source: Source, maybe_timeout: ?u32) error{ NotATerminal, ReadFailed, Interrupted, Unexpected }!?Input {
+    const input:  std.posix.fd_t     = switch (source) { .stdin => std.fs.File.stdin().handle, .file => |f| f.handle };
     var   ret:    usize              = undefined;
     var   byte:   u8                 = undefined;
     var   parser: InputParser        = .{};

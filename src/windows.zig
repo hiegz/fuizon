@@ -3,6 +3,7 @@
 const std = @import("std");
 const windows = std.os.windows;
 const terminal = @import("terminal.zig");
+const Source = @import("source.zig").Source;
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Input = @import("input.zig").Input;
 const InputParser = @import("input_parser.zig").InputParser;
@@ -119,6 +120,7 @@ pub extern fn GetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode: *windows.DW
 pub extern fn SetConsoleMode(hConsoleHandle: windows.HANDLE, dwMode:  windows.DWORD) windows.BOOL;
 pub extern fn GetFileType(hConsoleHandle: windows.HANDLE) windows.DWORD;
 pub extern fn WaitForSingleObject(hHandle: windows.HANDLE, dwMilliseconds: windows.DWORD) windows.DWORD;
+pub extern fn ReadConsoleW(hConsoleInput: HANDLE, lpBuffer: ?*anyopaque, nNumberOfCharsToRead: DWORD, lpNumberOfCharsRead: *DWORD, pInputControl: ?*anyopaque) BOOL;
 pub extern fn ReadConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsRead: *windows.DWORD) windows.BOOL;
 pub extern fn PeekConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsRead: *windows.DWORD) windows.BOOL;
 
@@ -231,79 +233,154 @@ pub fn getScreenSize() !Dimensions {
     return Dimensions.init(@intCast(info.dwSize.X), @intCast(info.dwSize.Y));
 }
 
-pub fn read(maybe_timeout: ?u32) error{NotATerminal, ReadFailed, Unexpected}!?Input {
+pub fn read(source: Source, maybe_timeout: ?u32) error{ReadFailed, PollFailed, Unexpected}!?Input {
+    const handle = switch (source) {
+        .file  => |f| tag: {
+            // If the caller accidentally passes standard input as a file
+            // source, we need to treat it as a console input instead.
+            if (GetFileType(f.handle) == FILE_TYPE_CHAR)
+                return read(.stdin, maybe_timeout);
+
+            break :tag f.handle;
+        },
+
+        .stdin => tag: {
+            if (selectInputHandle()) |h|
+                break :tag h;
+
+            // if stdin is not related to a controlling terminal,
+            // then just treat it as if it was a file source.
+            const file = std.fs.File.stdin();
+            return read(.File(file), maybe_timeout);
+        },
+    };
+
     const timeout = if (maybe_timeout) |t| t else windows.INFINITE;
-    const input   = selectInputHandle() orelse @panic("Not A Terminal");
+    var   ready   = @as(bool, undefined);
 
-    var ret:      windows.BOOL  = undefined;
-    var wait_ret: windows.DWORD = undefined;
+    ready = try poll(handle, timeout);
+    if (!ready) return null;
 
-    wait_ret = WaitForSingleObject(input, timeout);
+    if (source == .stdin) {
+        var  ret     = @as(BOOL, undefined);
+        var  records = @as([1]INPUT_RECORD, undefined);
+        var nrecords = @as(DWORD, undefined);
 
-    if (wait_ret == WAIT_ABANDONED)
-        return error.ReadFailed;
+        ret = PeekConsoleInputW(handle, &records, 1, &nrecords);
+        if (1 != ret)      return error.ReadFailed;
+        if (nrecords != 1) return error.Unexpected;
 
-    if (wait_ret == WAIT_FAILED)
-        return error.ReadFailed;
+        if (records[0].EventType == WINDOW_BUFFER_SIZE_EVENT) {
+            ret = ReadConsoleInputW(handle, &records, 1, &nrecords);
+            if (1 != ret)      return error.ReadFailed;
+            if (nrecords != 1) return error.Unexpected;
 
-    if (wait_ret == WAIT_TIMEOUT)
-        return null;
-
-    var records: [1]INPUT_RECORD  = undefined;
-    var nrecord: windows.DWORD = 0;
-    ret = PeekConsoleInputW(input, &records, 1, &nrecord);
-    if (1 != ret)     return error.ReadFailed;
-    if (nrecord != 1) return error.Unexpected;
-
-    if (records[0].EventType == WINDOW_BUFFER_SIZE_EVENT) {
-        ret = ReadConsoleInputW(input, &records, 1, &nrecord);
-        if (1 != ret)     return error.ReadFailed;
-        if (nrecord != 1) return error.Unexpected;
-
-        return .resize;
+            return .resize;
+        }
     }
 
-    wait_ret = WaitForSingleObject(input, 0);
+    ready = try poll(handle, timeout);
+    if (!ready) return null;
 
-    if (wait_ret == WAIT_ABANDONED)
-        return error.ReadFailed;
+    return switch (source) {
+        .file  => readFromFile(handle),
+        .stdin => readFromStdin(handle),
+    };
+}
 
-    if (wait_ret == WAIT_FAILED)
-        return error.ReadFailed;
-
-    if (wait_ret == WAIT_TIMEOUT)
-        return null;
-
-    var parser: InputParser        = .{};
-    var result: InputParser.Result = .none;
+fn readFromStdin(handle: HANDLE) error{ReadFailed, PollFailed, Unexpected}!?Input{
+    var codepoint    = @as(u21, undefined);
+    var codepointlen = @as(u3, undefined);
+    var ready        = @as(bool, undefined);
+    var parser       = @as(InputParser, .{});
+    var result       = @as(InputParser.Result, .none);
 
     while (true) {
-        var byte: u8 = undefined;
-        const nbytes = windows.ReadFile(input, @ptrCast(&byte), null) catch |err| switch (err) {
-            error.Unexpected => return error.Unexpected,
-            else             => return error.ReadFailed,
-        };
-        if (nbytes == 0)
-            return .eof;
-        std.debug.assert(nbytes == 1);
+        codepoint = outer_loop: while (true) {
+            var curr = @as(u16, undefined);
+            var prev = @as(u16, undefined);
 
-        result = try parser.step(byte);
+            curr = inner_loop: while (true) {
+                var ret:   BOOL     = undefined;
+                var chars: [1]WCHAR = undefined;
+                var nread: DWORD    = 0;
+
+                ret = ReadConsoleW(handle, @ptrCast(&chars), 1, &nread, null);
+                if (ret == 0)   return error.ReadFailed;
+                if (nread == 0) return .eof;
+
+                break :inner_loop chars[0];
+            };
+
+            if (std.unicode.utf16IsHighSurrogate(curr))
+                prev = curr
+            else if (std.unicode.utf16IsLowSurrogate(curr))
+                break :outer_loop std.unicode.utf16DecodeSurrogatePair(
+                    &.{prev, curr},
+                ) catch return error.Unexpected
+            else
+                break: outer_loop curr;
+
+            ready = try poll(handle, 0);
+            if (!ready) return error.Unexpected;
+        };
+
+        codepointlen = std.unicode.utf8CodepointSequenceLength(codepoint)
+            catch return error.Unexpected;
+        if (codepointlen == 1) result = try parser.step(@intCast(codepoint))
+        else result = parser.unicode(codepoint);
 
         if (result == .final)
             return result.final;
 
-        wait_ret = WaitForSingleObject(input, 0);
+        ready = try poll(handle, 0);
 
-        if (wait_ret == WAIT_ABANDONED)
-            return error.ReadFailed;
-
-        if (wait_ret == WAIT_FAILED)
-            return error.ReadFailed;
-
-        if (wait_ret == WAIT_TIMEOUT and result == .none)
+        if (!ready and result == .none)
             return error.Unexpected;
 
-        if (wait_ret == WAIT_TIMEOUT and result == .ambiguous)
+        if (!ready and result == .ambiguous)
             return result.ambiguous;
     }
+}
+
+fn readFromFile(handle: HANDLE) error{ReadFailed, PollFailed, Unexpected}!?Input {
+    var bytes  = @as([1]u8, undefined);
+    var nread  = @as(usize, undefined);
+    var ready  = @as(bool, undefined);
+    var parser = @as(InputParser, .{});
+    var result = @as(InputParser.Result, .none);
+
+    while (true) {
+        nread = windows.ReadFile(handle, &bytes, null)
+            catch return error.ReadFailed;
+        if (nread == 0) return .eof;
+
+        result = try parser.step(bytes[0]);
+
+        if (result == .final)
+            return result.final;
+
+        ready = try poll(handle, 0);
+
+        if (!ready and result == .none)
+            return error.Unexpected;
+
+        if (!ready and result == .ambiguous)
+            return result.ambiguous;
+    }
+}
+
+fn poll(handle: HANDLE, timeout: DWORD) error{PollFailed}!bool {
+    const wait_ret = WaitForSingleObject(handle, timeout);
+
+    if (wait_ret == WAIT_ABANDONED)
+        return error.PollFailed;
+
+    if (wait_ret == WAIT_FAILED)
+        return error.PollFailed;
+
+    if (wait_ret == WAIT_TIMEOUT)
+        return false;
+
+    return true;
 }
