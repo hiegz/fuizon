@@ -18,10 +18,11 @@ pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
             var handle: std.c.fd_t = undefined;
 
             handle = std.fs.File.stdin().handle;
-            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
-                break :tag handle;
+            // if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
+            //    break :tag handle;
 
-            break :tag error.NotATerminal;
+            // break :tag error.NotATerminal;
+            break :tag handle;
         },
 
         else => unreachable,
@@ -59,6 +60,8 @@ pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
     };
 }
 
+// zig fmt: off
+
 /// Terminal mode that we save before entering the raw mode.
 var cooked: switch (builtin.os.tag) {
     .macos, .linux => ?posix.termios,
@@ -66,19 +69,18 @@ var cooked: switch (builtin.os.tag) {
     else => unreachable,
 } = undefined;
 
-pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
+pub fn enableRawMode() error{Unexpected}!void {
     switch (builtin.os.tag) {
         .linux, .macos => {
-            const handle = try getOutputHandle();
-            var mode = posix.tcgetattr(handle) catch return error.Unexpected;
-
-            cooked = mode;
+            const flags   = std.posix.O { .ACCMODE = .RDWR };
+            const tty     = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
+            var   mode    = std.posix.tcgetattr(tty)             catch return error.Unexpected;
+            const _cooked = mode;
 
             // cfmakeraw
             //
             // man page: https://www.man7.org/linux/man-pages/man3/termios.3.html
 
-            // zig fmt: off
             mode.iflag.IGNBRK = false;
             mode.iflag.BRKINT = false;
             mode.iflag.PARMRK = false;
@@ -95,10 +97,12 @@ pub fn enableRawMode() error{ NotATerminal, Unexpected }!void {
             mode.lflag.ISIG   = false;
             mode.cflag.CSIZE  = .CS8;
             mode.cflag.PARENB = false;
-            // zig fmt: on
 
-            posix.tcsetattr(handle, posix.TCSA.NOW, mode) catch return error.Unexpected;
+            posix.tcsetattr(tty, posix.TCSA.NOW, mode) catch return error.Unexpected;
+
+            cooked = _cooked;
         },
+
         .windows => {
             var ret: windows.BOOL = undefined;
 
@@ -139,8 +143,13 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
     switch (builtin.os.tag) {
         .linux, .macos => {
             if (cooked == null) return;
-            const handle = try getOutputHandle();
-            posix.tcsetattr(handle, posix.TCSA.NOW, cooked.?) catch return error.Unexpected;
+
+            const flags = std.posix.O { .ACCMODE = .RDWR };
+            const tty   = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
+
+            posix.tcsetattr(tty, posix.TCSA.NOW, cooked.?) catch return error.Unexpected;
+
+            cooked = null;
         },
         .windows => {
             if (cooked.input) |input| {
@@ -160,19 +169,20 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
     }
 }
 
-pub fn getScreenSize() error{ NotATerminal, Unexpected }!Dimensions {
+pub fn getScreenSize() error{ Unexpected }!Dimensions {
     return switch (builtin.os.tag) {
         .linux, .macos => tag: {
-            var ret: c_int = undefined;
-            var winsize: posix.winsize = undefined;
-            const handle = try getOutputHandle();
+            var   ret   = @as(c_int, undefined);
+            var   ws    = @as(std.posix.winsize, undefined);
+            const flags = std.posix.O { .ACCMODE = .RDWR };
+            const tty   = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
 
-            ret = std.c.ioctl(handle, posix.T.IOCGWINSZ, &winsize);
+            ret = std.c.ioctl(tty, posix.T.IOCGWINSZ, &ws);
             if (0 != ret) return error.Unexpected;
 
             break :tag Dimensions{
-                .width = winsize.col,
-                .height = winsize.row,
+                .width  = ws.col,
+                .height = ws.row,
             };
         },
 
