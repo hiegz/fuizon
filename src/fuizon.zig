@@ -11,6 +11,7 @@ pub const Color = @import("color.zig").Color;
 pub const Ansi = @import("ansi.zig").Ansi;
 pub const Rgb = @import("rgb.zig").Rgb;
 pub const Coordinate = @import("coordinate.zig").Coordinate;
+pub const Source = @import("source.zig").Source;
 pub const Dimensions = @import("dimensions.zig").Dimensions;
 pub const Input = @import("input.zig").Input;
 pub const InputParser = @import("input_parser.zig").InputParser;
@@ -151,12 +152,12 @@ pub const ReadOpts = struct {
     timeout: ?u32 = null,
 };
 
-pub fn read(opts: ReadOpts) error{ NotATerminal, ReadFailed, Interrupted, Unexpected }!?Input {
+pub fn read(source: Source, opts: ReadOpts) error{ NotATerminal, ReadFailed, PollFailed, Interrupted, Unexpected }!?Input {
     return switch (builtin.os.tag) {
         // zig fmt: off
 
-        .linux, .macos => @import("posix.zig").read(opts.timeout),
-        .windows       => @import("windows.zig").read(opts.timeout),
+        .linux, .macos => @import("posix.zig").read(source, opts.timeout),
+        .windows       => @import("windows.zig").read(source, opts.timeout),
 
         else => unreachable,
 
@@ -189,6 +190,7 @@ test "fuizon" {
     _ = @import("queue.zig");
     _ = @import("renderer.zig");
     _ = @import("rgb.zig");
+    _ = @import("source.zig");
     _ = @import("spacing.zig");
     _ = @import("span.zig");
     _ = @import("stack.zig");
