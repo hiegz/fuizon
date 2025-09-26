@@ -91,6 +91,7 @@ pub const InputParser = struct {
     }
 
     // zig fmt: off
+
     fn utf8(
         self: *InputParser,
         byte: u8,
@@ -123,24 +124,37 @@ pub const InputParser = struct {
             else => return error.Unexpected,
         };
 
+        return self.unicode(ch);
+    }
+
+    /// Submit a decoded unicode character.
+    ///
+    /// Only allowed to be used externally if the provided codepoint is outside
+    /// of the 8-bit range. Otherwise, the caller **MUST** use Parser.step() to
+    /// ensure that the special sequence characters are interpreted correctly.
+    ///
+    /// This function has to be public so that the Windows I/O API can pass
+    /// decoded UTF-16LE characters through the parser.
+    pub fn unicode(
+        self: *InputParser,
+        codepoint: u21,
+    ) Result {
         var modifiers = KeyModifiers.none;
         if (self.state == .esc)
             modifiers.set(&.{.alt});
-        if (ch >= 'A' and ch <= 'Z')
+        if (codepoint >= 'A' and codepoint <= 'Z')
             modifiers.set(&.{.shift});
 
-        const input: Input = .{ .key = Key.initChar(ch, modifiers) };
+        const input: Input = .{ .key = Key.initChar(codepoint, modifiers) };
 
         // the sequence "ESC O" is ambiguous;
         // it can still resolve to F1–F4 if followed by another byte.
-        return if (self.state == .esc and ch == 'O')
+        return if (self.state == .esc and codepoint == 'O')
             Result.Ambiguous(input)
         else
             Result.Final(input);
     }
-    // zig fmt: on
 
-    // zig fmt: off
     fn csi(
         self: *InputParser,
         byte: u8,
@@ -201,6 +215,7 @@ pub const InputParser = struct {
             else => return error.Unexpected,
         };
     }
+
     // zig fmt: on
 
     fn arrow_key(
