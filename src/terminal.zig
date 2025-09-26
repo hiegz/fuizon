@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const windows = @import("windows.zig");
-const posix = std.posix;
+const posix = @import("posix.zig");
 const Dimensions = @import("dimensions.zig").Dimensions;
 
 pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
@@ -10,7 +10,7 @@ pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
             var handle: std.c.fd_t = undefined;
 
             handle = std.fs.File.stdin().handle;
-            if (posix.isatty(handle)) break :tag handle;
+            if (std.posix.isatty(handle)) break :tag handle;
 
             break :tag error.NotATerminal;
         },
@@ -35,10 +35,10 @@ pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
             var handle: std.c.fd_t = undefined;
 
             handle = std.fs.File.stdout().handle;
-            if (posix.isatty(handle)) break :tag handle;
+            if (std.posix.isatty(handle)) break :tag handle;
 
             handle = std.fs.File.stderr().handle;
-            if (posix.isatty(handle)) break :tag handle;
+            if (std.posix.isatty(handle)) break :tag handle;
 
             break :tag error.NotATerminal;
         },
@@ -64,44 +64,14 @@ pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
 
 /// Terminal mode that we save before entering the raw mode.
 var cooked: switch (builtin.os.tag) {
-    .macos, .linux => ?posix.termios,
+    .macos, .linux => ?std.posix.termios,
     .windows => struct { output: ?windows.DWORD, input: ?windows.DWORD },
     else => unreachable,
 } = undefined;
 
 pub fn enableRawMode() error{Unexpected}!void {
     switch (builtin.os.tag) {
-        .linux, .macos => {
-            const flags   = std.posix.O { .ACCMODE = .RDWR };
-            const tty     = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
-            var   mode    = std.posix.tcgetattr(tty)             catch return error.Unexpected;
-            const _cooked = mode;
-
-            // cfmakeraw
-            //
-            // man page: https://www.man7.org/linux/man-pages/man3/termios.3.html
-
-            mode.iflag.IGNBRK = false;
-            mode.iflag.BRKINT = false;
-            mode.iflag.PARMRK = false;
-            mode.iflag.ISTRIP = false;
-            mode.iflag.INLCR  = false;
-            mode.iflag.IGNCR  = false;
-            mode.iflag.ICRNL  = false;
-            mode.iflag.IXON   = false;
-            mode.oflag.OPOST  = false;
-            mode.lflag.ECHO   = false;
-            mode.lflag.ECHONL = false;
-            mode.lflag.ICANON = false;
-            mode.lflag.IEXTEN = false;
-            mode.lflag.ISIG   = false;
-            mode.cflag.CSIZE  = .CS8;
-            mode.cflag.PARENB = false;
-
-            posix.tcsetattr(tty, posix.TCSA.NOW, mode) catch return error.Unexpected;
-
-            cooked = _cooked;
-        },
+        .linux, .macos => posix.enableRawMode() catch return error.Unexpected,
 
         .windows => {
             var ret: windows.BOOL = undefined;
@@ -141,16 +111,7 @@ pub fn enableRawMode() error{Unexpected}!void {
 
 pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
     switch (builtin.os.tag) {
-        .linux, .macos => {
-            if (cooked == null) return;
-
-            const flags = std.posix.O { .ACCMODE = .RDWR };
-            const tty   = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
-
-            posix.tcsetattr(tty, posix.TCSA.NOW, cooked.?) catch return error.Unexpected;
-
-            cooked = null;
-        },
+        .linux, .macos => posix.disableRawMode() catch return error.Unexpected,
         .windows => {
             if (cooked.input) |input| {
                 const handle = try getInputHandle();
@@ -171,20 +132,7 @@ pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
 
 pub fn getScreenSize() error{ Unexpected }!Dimensions {
     return switch (builtin.os.tag) {
-        .linux, .macos => tag: {
-            var   ret   = @as(c_int, undefined);
-            var   ws    = @as(std.posix.winsize, undefined);
-            const flags = std.posix.O { .ACCMODE = .RDWR };
-            const tty   = std.posix.open("/dev/tty", flags, 0) catch return error.Unexpected;
-
-            ret = std.c.ioctl(tty, posix.T.IOCGWINSZ, &ws);
-            if (0 != ret) return error.Unexpected;
-
-            break :tag Dimensions{
-                .width  = ws.col,
-                .height = ws.row,
-            };
-        },
+        .linux, .macos => posix.getScreenSize() catch return error.Unexpected,
 
         .windows => tag: {
             var ret: windows.BOOL = undefined;
