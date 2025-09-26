@@ -1,9 +1,69 @@
 const std = @import("std");
-const terminal = @import("terminal.zig");
+
+const Dimensions = @import("dimensions.zig").Dimensions;
 const Input = @import("input.zig").Input;
 const InputParser = @import("input_parser.zig").InputParser;
+const terminal = @import("terminal.zig");
 
 // zig fmt: off
+
+/// Terminal mode that we save before entering the raw mode.
+var cooked: ?std.posix.termios = null;
+
+pub fn enableRawMode() !void {
+    const flags   =     std.posix.O { .ACCMODE = .RDWR };
+    const tty     = try std.posix.open("/dev/tty", flags, 0);
+    var   mode    = try std.posix.tcgetattr(tty);
+    const _cooked = mode;
+
+    // cfmakeraw
+    //
+    // man page: https://www.man7.org/linux/man-pages/man3/termios.3.html
+
+    mode.iflag.IGNBRK = false;
+    mode.iflag.BRKINT = false;
+    mode.iflag.PARMRK = false;
+    mode.iflag.ISTRIP = false;
+    mode.iflag.INLCR  = false;
+    mode.iflag.IGNCR  = false;
+    mode.iflag.ICRNL  = false;
+    mode.iflag.IXON   = false;
+    mode.oflag.OPOST  = false;
+    mode.lflag.ECHO   = false;
+    mode.lflag.ECHONL = false;
+    mode.lflag.ICANON = false;
+    mode.lflag.IEXTEN = false;
+    mode.lflag.ISIG   = false;
+    mode.cflag.CSIZE  = .CS8;
+    mode.cflag.PARENB = false;
+
+    try std.posix.tcsetattr(tty, std.posix.TCSA.NOW, mode);
+
+    cooked = _cooked;
+}
+
+pub fn disableRawMode() !void {
+    if (cooked == null) return;
+
+    const flags =     std.posix.O { .ACCMODE = .RDWR };
+    const tty   = try std.posix.open("/dev/tty", flags, 0);
+
+    try std.posix.tcsetattr(tty, std.posix.TCSA.NOW, cooked.?);
+
+    cooked = null;
+}
+
+pub fn getScreenSize() !Dimensions {
+    var   ret   = @as(c_int, undefined);
+    var   ws    = @as(std.posix.winsize, undefined);
+    const flags =     std.posix.O { .ACCMODE = .RDWR };
+    const tty   = try std.posix.open("/dev/tty", flags, 0);
+
+    ret = std.c.ioctl(tty, std.posix.T.IOCGWINSZ, &ws);
+    if (0 != ret) return error.Unexpected;
+
+    return Dimensions.init(ws.col, ws.row);
+}
 
 /// Flag to indicate that a SIGWINCH signal interrupted.
 ///
