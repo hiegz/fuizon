@@ -4,6 +4,8 @@ const windows = @import("windows.zig");
 const posix = @import("posix.zig");
 const Dimensions = @import("dimensions.zig").Dimensions;
 
+// zig fmt: off
+
 pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
     return switch (builtin.os.tag) {
         .linux, .macos => tag: {
@@ -18,11 +20,10 @@ pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
             var handle: std.c.fd_t = undefined;
 
             handle = std.fs.File.stdin().handle;
-            // if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
-            //    break :tag handle;
+            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
+                break :tag handle;
 
-            // break :tag error.NotATerminal;
-            break :tag handle;
+            break :tag error.NotATerminal;
         },
 
         else => unreachable,
@@ -60,8 +61,6 @@ pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
     };
 }
 
-// zig fmt: off
-
 /// Terminal mode that we save before entering the raw mode.
 var cooked: switch (builtin.os.tag) {
     .macos, .linux => ?std.posix.termios,
@@ -70,84 +69,37 @@ var cooked: switch (builtin.os.tag) {
 } = undefined;
 
 pub fn enableRawMode() error{Unexpected}!void {
-    switch (builtin.os.tag) {
-        .linux, .macos => posix.enableRawMode() catch return error.Unexpected,
+    const err =
+        switch (builtin.os.tag) {
+            .linux, .macos => posix.enableRawMode(),
+            .windows       => windows.enableRawMode(),
 
-        .windows => {
-            var ret: windows.BOOL = undefined;
+            else => unreachable,
+        };
 
-            const inputHandle: windows.HANDLE = try getInputHandle();
-            if (inputHandle == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            var inputMode: windows.DWORD = 0;
-            ret = windows.GetConsoleMode(inputHandle, &inputMode);
-            if (1 != ret) return error.Unexpected;
-            cooked.input = inputMode;
-            inputMode |= windows.ENABLE_VIRTUAL_TERMINAL_INPUT;
-            inputMode |= windows.ENABLE_WINDOW_INPUT;
-            inputMode &= ~windows.ENABLE_PROCESSED_INPUT;
-            inputMode &= ~windows.ENABLE_ECHO_INPUT;
-            inputMode &= ~windows.ENABLE_LINE_INPUT;
-            inputMode &= ~windows.ENABLE_MOUSE_INPUT;
-            ret = windows.SetConsoleMode(inputHandle, inputMode);
-            if (1 != ret) return error.Unexpected;
-
-            const outputHandle: windows.HANDLE = try getOutputHandle();
-            if (outputHandle == windows.INVALID_HANDLE_VALUE) return error.Unexpected;
-            var outputMode: windows.DWORD = 0;
-            ret = windows.GetConsoleMode(outputHandle, &outputMode);
-            if (1 != ret) return error.Unexpected;
-            cooked.output = outputMode;
-            outputMode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            outputMode |= windows.ENABLE_PROCESSED_OUTPUT;
-            outputMode |= windows.ENABLE_WRAP_AT_EOL_OUTPUT;
-            outputMode |= windows.DISABLE_NEWLINE_AUTO_RETURN;
-            ret = windows.SetConsoleMode(outputHandle, outputMode);
-            if (1 != ret) return error.Unexpected;
-        },
-
-        else => unreachable,
-    }
+    err catch return error.Unexpected;
 }
 
-pub fn disableRawMode() error{ NotATerminal, Unexpected }!void {
-    switch (builtin.os.tag) {
-        .linux, .macos => posix.disableRawMode() catch return error.Unexpected,
-        .windows => {
-            if (cooked.input) |input| {
-                const handle = try getInputHandle();
-                const ret = windows.SetConsoleMode(handle, input);
-                if (ret == 0) return error.Unexpected;
-            }
+pub fn disableRawMode() error{Unexpected}!void {
+    const err =
+        switch (builtin.os.tag) {
+            .linux, .macos => posix.disableRawMode(),
+            .windows       => windows.disableRawMode(),
 
-            if (cooked.output) |output| {
-                const handle = try getOutputHandle();
-                const ret = windows.SetConsoleMode(handle, output);
-                if (ret == 0) return error.Unexpected;
-            }
-        },
+            else => unreachable,
+        };
 
-        else => unreachable,
-    }
+    err catch return error.Unexpected;
 }
 
 pub fn getScreenSize() error{ Unexpected }!Dimensions {
-    return switch (builtin.os.tag) {
-        .linux, .macos => posix.getScreenSize() catch return error.Unexpected,
+    const maybe_dimensions =
+        switch (builtin.os.tag) {
+            .linux, .macos => posix.getScreenSize(),
+            .windows       => windows.getScreenSize(),
 
-        .windows => tag: {
-            var ret: windows.BOOL = undefined;
-            var info: windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-            const handle = try getOutputHandle();
+            else => unreachable,
+        };
 
-            ret = windows.GetConsoleScreenBufferInfo(handle, &info);
-            if (ret == 0) return error.Unexpected;
-
-            break :tag Dimensions{
-                .width = @intCast(info.dwSize.X),
-                .height = @intCast(info.dwSize.Y),
-            };
-        },
-
-        else => unreachable,
-    };
+    return maybe_dimensions catch return error.Unexpected;
 }

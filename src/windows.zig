@@ -3,6 +3,7 @@
 const std = @import("std");
 const windows = std.os.windows;
 const terminal = @import("terminal.zig");
+const Dimensions = @import("dimensions.zig").Dimensions;
 const Input = @import("input.zig").Input;
 const InputParser = @import("input_parser.zig").InputParser;
 
@@ -123,9 +124,116 @@ pub extern fn PeekConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPU
 
 //
 
+/// Selects an input handle linked to the controlling terminal (if any)
+fn selectInputHandle() ?HANDLE {
+    var handle: HANDLE = undefined;
+
+    handle = std.fs.File.stdin().handle;
+    if (GetFileType(handle) == FILE_TYPE_CHAR)
+        return handle;
+
+    return null;
+}
+
+/// Selects an output handle linked to the controlling terminal (if any)
+fn selectOutputHandle() ?HANDLE {
+    var handle: HANDLE = undefined;
+
+    handle = std.fs.File.stdout().handle;
+    if (GetFileType(handle) == FILE_TYPE_CHAR)
+        return handle;
+
+    handle = std.fs.File.stderr().handle;
+    if (GetFileType(handle) == FILE_TYPE_CHAR)
+        return handle;
+
+    return null;
+}
+
+var cookedInput:  ?DWORD = null;
+var cookedOutput: ?DWORD = null;
+
+pub fn enableRawMode() !void {
+    var ret: BOOL = undefined;
+
+    if (selectOutputHandle()) |handle| {
+        var mode: DWORD = 0;
+        ret = GetConsoleMode(handle, &mode);
+        if (ret == 0)
+            return error.Unexpected;
+
+        const _cooked = mode;
+
+        mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        mode |= ENABLE_PROCESSED_OUTPUT;
+        mode |= ENABLE_WRAP_AT_EOL_OUTPUT;
+        mode |= DISABLE_NEWLINE_AUTO_RETURN;
+
+        ret = SetConsoleMode(handle, mode);
+        if (ret == 0)
+            return error.Unexpected;
+
+        cookedOutput = _cooked;
+    }
+
+    if (selectInputHandle()) |handle| {
+        var mode: DWORD = 0;
+        ret = GetConsoleMode(handle, &mode);
+        if (ret == 0)
+            return error.Unexpected;
+
+        const _cooked = mode;
+
+        mode |=  ENABLE_VIRTUAL_TERMINAL_INPUT;
+        mode |=  ENABLE_WINDOW_INPUT;
+        mode &= ~ENABLE_PROCESSED_INPUT;
+        mode &= ~ENABLE_ECHO_INPUT;
+        mode &= ~ENABLE_LINE_INPUT;
+        mode &= ~ENABLE_MOUSE_INPUT;
+
+        ret = SetConsoleMode(handle, mode);
+        if (1 != ret) return error.Unexpected;
+
+        cookedOutput = _cooked;
+    }
+}
+
+pub fn disableRawMode() !void {
+    var ret: BOOL = undefined;
+
+    if (selectOutputHandle()) |handle| output: {
+        if (cookedOutput == null)
+            break :output;
+
+        ret = SetConsoleMode(handle, cookedOutput.?);
+        if (ret == 0)
+            return error.Unexpected;
+    }
+
+    if (selectInputHandle()) |handle| input: {
+        if (cookedInput == null)
+            break :input;
+
+        ret = SetConsoleMode(handle, cookedInput.?);
+        if (ret == 0)
+            return error.Unexpected;
+    }
+}
+
+pub fn getScreenSize() !Dimensions {
+    const handle = selectOutputHandle() orelse @panic("Not A Terminal");
+
+    var   info = @as(CONSOLE_SCREEN_BUFFER_INFO, undefined);
+    const ret  = GetConsoleScreenBufferInfo(handle, &info);
+    if (ret == 0)
+        return error.Unexpected;
+
+    return Dimensions.init(@intCast(info.dwSize.X), @intCast(info.dwSize.Y));
+}
+
 pub fn read(maybe_timeout: ?u32) error{NotATerminal, ReadFailed, Unexpected}!?Input {
     const timeout = if (maybe_timeout) |t| t else windows.INFINITE;
-    const input   = try terminal.getInputHandle();
+    const input   = selectInputHandle() orelse @panic("Not A Terminal");
 
     var ret:      windows.BOOL  = undefined;
     var wait_ret: windows.DWORD = undefined;
