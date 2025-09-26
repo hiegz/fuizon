@@ -124,37 +124,65 @@ pub extern fn PeekConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPU
 //
 
 pub fn read(maybe_timeout: ?u32) error{NotATerminal, ReadFailed, Unexpected}!?Input {
-    while (true) {
-        const timeout = if (maybe_timeout) |t| t else windows.INFINITE;
-        const input   = try terminal.getInputHandle();
+    const timeout = if (maybe_timeout) |t| t else windows.INFINITE;
+    const input   = try terminal.getInputHandle();
 
-        var ret:      windows.BOOL  = undefined;
-        var wait_ret: windows.DWORD = undefined;
+    var ret:      windows.BOOL  = undefined;
+    var wait_ret: windows.DWORD = undefined;
 
-        wait_ret = WaitForSingleObject(input, timeout);
+    wait_ret = WaitForSingleObject(input, timeout);
 
-        if (wait_ret == WAIT_ABANDONED)
-            return error.ReadFailed;
+    if (wait_ret == WAIT_ABANDONED)
+        return error.ReadFailed;
 
-        if (wait_ret == WAIT_FAILED)
-            return error.ReadFailed;
+    if (wait_ret == WAIT_FAILED)
+        return error.ReadFailed;
 
-        if (wait_ret == WAIT_TIMEOUT)
-            return null;
+    if (wait_ret == WAIT_TIMEOUT)
+        return null;
 
-        var records: [1]INPUT_RECORD  = undefined;
-        var nrecord: windows.DWORD = 0;
-        ret = PeekConsoleInputW(input, &records, 1, &nrecord);
+    var records: [1]INPUT_RECORD  = undefined;
+    var nrecord: windows.DWORD = 0;
+    ret = PeekConsoleInputW(input, &records, 1, &nrecord);
+    if (1 != ret)     return error.ReadFailed;
+    if (nrecord != 1) return error.Unexpected;
+
+    if (records[0].EventType == WINDOW_BUFFER_SIZE_EVENT) {
+        ret = ReadConsoleInputW(input, &records, 1, &nrecord);
         if (1 != ret)     return error.ReadFailed;
         if (nrecord != 1) return error.Unexpected;
 
-        if (records[0].EventType == WINDOW_BUFFER_SIZE_EVENT) {
-            ret = ReadConsoleInputW(input, &records, 1, &nrecord);
-            if (1 != ret)     return error.ReadFailed;
-            if (nrecord != 1) return error.Unexpected;
+        return .resize;
+    }
 
-            return .resize;
-        }
+    wait_ret = WaitForSingleObject(input, 0);
+
+    if (wait_ret == WAIT_ABANDONED)
+        return error.ReadFailed;
+
+    if (wait_ret == WAIT_FAILED)
+        return error.ReadFailed;
+
+    if (wait_ret == WAIT_TIMEOUT)
+        return null;
+
+    var parser: InputParser        = .{};
+    var result: InputParser.Result = .none;
+
+    while (true) {
+        var byte: u8 = undefined;
+        const nbytes = windows.ReadFile(input, @ptrCast(&byte), null) catch |err| switch (err) {
+            error.Unexpected => return error.Unexpected,
+            else             => return error.ReadFailed,
+        };
+        if (nbytes == 0)
+            return .eof;
+        std.debug.assert(nbytes == 1);
+
+        result = try parser.step(byte);
+
+        if (result == .final)
+            return result.final;
 
         wait_ret = WaitForSingleObject(input, 0);
 
@@ -164,40 +192,10 @@ pub fn read(maybe_timeout: ?u32) error{NotATerminal, ReadFailed, Unexpected}!?In
         if (wait_ret == WAIT_FAILED)
             return error.ReadFailed;
 
-        if (wait_ret == WAIT_TIMEOUT)
-            return null;
+        if (wait_ret == WAIT_TIMEOUT and result == .none)
+            return error.Unexpected;
 
-        var parser: InputParser        = .{};
-        var result: InputParser.Result = .none;
-
-        while (true) {
-            var byte: u8 = undefined;
-            const nbytes = windows.ReadFile(input, @ptrCast(&byte), null) catch |err| switch (err) {
-                error.Unexpected => return error.Unexpected,
-                else             => return error.ReadFailed,
-            };
-            if (nbytes == 0)
-                return .eof;
-            std.debug.assert(nbytes == 1);
-
-            result = try parser.step(byte);
-
-            if (result == .final)
-                return result.final;
-
-            wait_ret = WaitForSingleObject(input, 0);
-
-            if (wait_ret == WAIT_ABANDONED)
-                return error.ReadFailed;
-
-            if (wait_ret == WAIT_FAILED)
-                return error.ReadFailed;
-
-            if (wait_ret == WAIT_TIMEOUT and result == .none)
-                return error.Unexpected;
-
-            if (wait_ret == WAIT_TIMEOUT and result == .ambiguous)
-                return result.ambiguous;
-        }
+        if (wait_ret == WAIT_TIMEOUT and result == .ambiguous)
+            return result.ambiguous;
     }
 }
