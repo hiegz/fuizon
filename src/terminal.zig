@@ -30,32 +30,10 @@ pub fn getInputHandle() error{NotATerminal}!std.c.fd_t {
     };
 }
 
-pub fn getOutputHandle() error{NotATerminal}!std.c.fd_t {
+pub fn selectOutputHandle() ?std.c.fd_t {
     return switch (builtin.os.tag) {
-        .linux, .macos => tag: {
-            var handle: std.c.fd_t = undefined;
-
-            handle = std.fs.File.stdout().handle;
-            if (std.posix.isatty(handle)) break :tag handle;
-
-            handle = std.fs.File.stderr().handle;
-            if (std.posix.isatty(handle)) break :tag handle;
-
-            break :tag error.NotATerminal;
-        },
-        .windows => tag: {
-            var handle: std.c.fd_t = undefined;
-
-            handle = std.fs.File.stdout().handle;
-            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
-                break :tag handle;
-
-            handle = std.fs.File.stderr().handle;
-            if (windows.GetFileType(handle) == windows.FILE_TYPE_CHAR)
-                break :tag handle;
-
-            break :tag error.NotATerminal;
-        },
+        .linux, .macos => posix.selectOutputHandle(),
+        .windows       => windows.selectOutputHandle(),
 
         else => unreachable,
     };

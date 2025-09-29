@@ -8,6 +8,14 @@ const terminal = @import("terminal.zig");
 
 // zig fmt: off
 
+pub fn selectOutputHandle() ?std.c.fd_t {
+    return std.posix.open(
+        "/dev/tty",
+        .{ .ACCMODE = .RDWR },
+        0,
+    ) catch return null;
+}
+
 /// Terminal mode that we save before entering the raw mode.
 var cooked: ?std.posix.termios = null;
 
@@ -64,6 +72,13 @@ pub fn getScreenSize() !Dimensions {
     if (0 != ret) return error.Unexpected;
 
     return Dimensions.init(ws.col, ws.row);
+}
+
+pub fn write(
+    bytes: []const u8,
+) error{WriteFailed}!void {
+    const file: std.fs.File = .{ .handle = selectOutputHandle() orelse return };
+    file.writeAll(bytes) catch return error.WriteFailed;
 }
 
 /// Flag to indicate that a SIGWINCH signal interrupted.
