@@ -123,6 +123,7 @@ pub extern fn WaitForSingleObject(hHandle: windows.HANDLE, dwMilliseconds: windo
 pub extern fn ReadConsoleW(hConsoleInput: HANDLE, lpBuffer: ?*anyopaque, nNumberOfCharsToRead: DWORD, lpNumberOfCharsRead: *DWORD, pInputControl: ?*anyopaque) BOOL;
 pub extern fn ReadConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsRead: *windows.DWORD) windows.BOOL;
 pub extern fn PeekConsoleInputW(hConsoleInput: windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: windows.DWORD, lpNumberOfEventsRead: *windows.DWORD) windows.BOOL;
+pub extern fn WriteConsoleW(hConsoleOutput: windows.HANDLE, lpBuffer: [*]const u16, nNumberOfCharsToWrite: DWORD, lpNumberOfCharsWritter: *DWORD, lpReserved: ?*anyopaque) BOOL;
 
 //
 
@@ -138,7 +139,7 @@ fn selectInputHandle() ?HANDLE {
 }
 
 /// Selects an output handle linked to the controlling terminal (if any)
-fn selectOutputHandle() ?HANDLE {
+pub fn selectOutputHandle() ?HANDLE {
     var handle: HANDLE = undefined;
 
     handle = std.fs.File.stdout().handle;
@@ -231,6 +232,31 @@ pub fn getScreenSize() !Dimensions {
         return error.Unexpected;
 
     return Dimensions.init(@intCast(info.dwSize.X), @intCast(info.dwSize.Y));
+}
+
+pub fn write(
+    gpa: std.mem.Allocator,
+    bytes: []const u8,
+) error{OutOfMemory, WriteFailed}!void {
+    const handle: HANDLE = selectOutputHandle() orelse return;
+
+    const utf16 = std.unicode.utf8ToUtf16LeAlloc(gpa, bytes) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.InvalidUtf8 => return error.WriteFailed,
+    };
+    defer gpa.free(utf16);
+
+    var todo    = utf16.len;
+    var done    = @as(usize, 0);
+    var ret     = @as(BOOL,  undefined);
+    var written = @as(DWORD, undefined);
+
+    while (todo != 0) {
+        ret = WriteConsoleW(handle, utf16[done..].ptr, @intCast(todo), &written, null);
+        if (ret == 0) return error.WriteFailed;
+        done += @intCast(written);
+        todo -= @intCast(written);
+    }
 }
 
 pub fn read(source: Source, maybe_timeout: ?u32) error{ReadFailed, PollFailed, Unexpected}!?Input {

@@ -1,6 +1,9 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vt = @import("vt.zig");
 const terminal = @import("terminal.zig");
+const posix = @import("posix.zig");
+const windows = @import("windows.zig");
 const Attributes = @import("attributes.zig").Attributes;
 const Buffer = @import("buffer.zig").Buffer;
 const Color = @import("color.zig").Color;
@@ -35,10 +38,9 @@ pub const Renderer = struct {
         var   px: i16 = 0;
         var   py: u16 = 0;
 
-        var   write_buffer: [4096]u8 = undefined;
-        var   screen: std.fs.File = .{ .handle = try terminal.getOutputHandle() };
-        var   screen_writer = screen.writer(&write_buffer);
-        const writer = &screen_writer.interface;
+        var allocating_writer = std.Io.Writer.Allocating.init(gpa);
+        defer allocating_writer.deinit();
+        const writer = &allocating_writer.writer;
 
         if (self.last_buffer.cursor) |coordinate| {
             try vt.hideCursor(writer);
@@ -125,9 +127,14 @@ pub const Renderer = struct {
             try vt.showCursor(writer);
         }
 
-        try writer.flush();
-
         // save this buffer
         try self.last_buffer.copy(gpa, buffer.*);
+
+        switch (builtin.os.tag) {
+            .linux, .macos => try posix.write(allocating_writer.written()),
+            .windows => try windows.write(gpa, allocating_writer.written()),
+
+            else => unreachable,
+        }
     }
 };
