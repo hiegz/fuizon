@@ -1,8 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const vt = @import("vt.zig");
-const terminal = @import("terminal.zig");
-const posix = @import("posix.zig");
+const Terminal = @import("terminal.zig").Terminal;
 const windows = @import("windows.zig");
 const Attributes = @import("attributes.zig").Attributes;
 const Buffer = @import("buffer.zig").Buffer;
@@ -11,8 +10,8 @@ const Color = @import("color.zig").Color;
 // zig fmt: off
 
 pub const Renderer = struct {
-    pub const Error  = error{ OutOfMemory, NotATerminal, RenderFailed, Unexpected };
-    const WriteError = error{ OutOfMemory, NotATerminal, WriteFailed,  Unexpected };
+    pub const Error  = error{ OutOfMemory, RenderFailed, Unexpected };
+    const WriteError = error{ OutOfMemory, WriteFailed,  Unexpected };
 
     last_buffer: Buffer,
 
@@ -130,11 +129,6 @@ pub const Renderer = struct {
         // save this buffer
         try self.last_buffer.copy(gpa, buffer.*);
 
-        switch (builtin.os.tag) {
-            .linux, .macos => try posix.write(allocating_writer.written()),
-            .windows => try windows.write(gpa, allocating_writer.written()),
-
-            else => unreachable,
-        }
+        try Terminal.instance().write(gpa, allocating_writer.written());
     }
 };
