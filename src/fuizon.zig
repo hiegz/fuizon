@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const vt = @import("vt.zig");
-const terminal = @import("terminal.zig");
+const Terminal = @import("terminal.zig").Terminal;
 const Renderer = @import("renderer.zig").Renderer;
 
 pub const Area = @import("area.zig").Area;
@@ -36,7 +36,6 @@ pub const Borders = @import("borders.zig").Borders;
 pub const BorderType = @import("border_type.zig").BorderType;
 pub const Spacing = @import("spacing.zig").Spacing;
 pub const Widget = @import("widget.zig").Widget;
-pub const getScreenSize = terminal.getScreenSize;
 
 var gpa: std.mem.Allocator = undefined;
 var buffer: Buffer = undefined;
@@ -57,7 +56,7 @@ pub fn init() error{ NotATerminal, Unexpected }!void {
     // (unless the user provides a render position)
     renderer.last_buffer.cursor = .{ .x = 0, .y = 0 };
 
-    try terminal.enableRawMode();
+    try Terminal.instance().enableRawMode();
 }
 
 pub fn deinit() error{Unexpected}!void {
@@ -73,14 +72,14 @@ pub fn deinit() error{Unexpected}!void {
         vt.showCursor(&out_writer.interface) catch return error.Unexpected;
     }
 
-    terminal.disableRawMode() catch return error.Unexpected;
+    Terminal.instance().disableRawMode() catch return error.Unexpected;
 }
 
 pub fn render(object: anytype, viewport: Viewport) anyerror!void {
     const widget: Widget = object.widget();
 
     // zig fmt: off
-    const screen     = try terminal.getScreenSize();
+    const screen     = try Terminal.instance().getScreenSize();
     const max_height = if (limit_height) screen.height else std.math.maxInt(u16);
     const width      = screen.width;
     const height     = switch (viewport) {
@@ -152,17 +151,10 @@ pub const ReadOpts = struct {
     timeout: ?u32 = null,
 };
 
-pub fn read(source: Source, opts: ReadOpts) error{ NotATerminal, ReadFailed, PollFailed, Interrupted, Unexpected }!?Input {
-    return switch (builtin.os.tag) {
-        // zig fmt: off
+pub const ReadInputOptions = Terminal.ReadInputOptions;
 
-        .linux, .macos => @import("posix.zig").read(source, opts.timeout),
-        .windows       => @import("windows.zig").read(source, opts.timeout),
-
-        else => unreachable,
-
-        // zig fmt: on
-    };
+pub fn readInput(opts: ReadInputOptions) error{ ReadFailed, PollFailed, Interrupted, Unexpected }!?Input {
+    return Terminal.instance().readInput(opts);
 }
 
 test "fuizon" {
