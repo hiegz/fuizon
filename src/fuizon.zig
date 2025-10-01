@@ -197,7 +197,7 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
 
         false => {
             try vt.moveCursorBackward(writer, current_buffer.width());
-            try vt.moveCursorUp      (writer, current_buffer.height() - 1);
+            try vt.moveCursorUp      (writer, current_buffer.height() -| 1);
 
             if (current_buffer.cursor) |coordinate| {
                 try vt.moveCursorForward(writer, coordinate.x);
