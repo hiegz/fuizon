@@ -188,7 +188,7 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
 
     switch (advance) {
         true => {
-            try writer.writeAll("\n");
+            try writer.writeAll("\n\r");
             try vt.showCursor(writer);
 
             previous_buffer.deinit(gpa);
