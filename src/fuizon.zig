@@ -214,7 +214,7 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
     // zig fmt: on
 }
 
-pub fn print(object: anytype) anyerror!void {
+pub fn printWidget(object: anytype) anyerror!void {
     try render(object, .auto, .{ .advance = true, .overflow = true });
 }
 
