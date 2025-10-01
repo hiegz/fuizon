@@ -214,84 +214,77 @@ pub const WindowsTerminal = struct {
         opts: ReadInputOptions,
     ) error{ ReadFailed, PollFailed, Unexpected }!?Input {
         const timeout = if (opts.timeout) |t| t else windows.INFINITE;
-        const handle  = self.in;
-        var   ready   = @as(bool, undefined);
 
-        ready = try self.poll(timeout);
-        if (!ready) return null;
-
-        // Some events are only available if read with |ReadConsoleInputW()|
-        if (isTty(handle)) {
-            var ret      = @as(windows.BOOL,            undefined);
-            var records  = @as([1]windows.INPUT_RECORD, undefined);
-            var nrecords = @as(windows.DWORD,           undefined);
-
-            ret = windows.PeekConsoleInputW(handle, &records, 1, &nrecords);
-            if (1 != ret) return error.ReadFailed;
-            if (nrecords != 1) return error.Unexpected;
-
-            if (records[0].EventType == windows.WINDOW_BUFFER_SIZE_EVENT) {
-                ret = windows.ReadConsoleInputW(handle, &records, 1, &nrecords);
-                if (1 != ret) return error.ReadFailed;
-                if (nrecords != 1) return error.Unexpected;
-
-                return .resize;
-            }
+        while (true) {
+            return self.readInputOnce(timeout) catch |err| switch (err) {
+                error.InvalidEvent => continue,
+                else => |e| e,
+            };
         }
-
-        ready = try self.poll(timeout);
-        if (!ready) return null;
-
-        return
-            if (isTty(self.in))
-                self.readInputFromTty()
-            else
-                self.readInputFromFile();
     }
 
-    fn readInputFromTty(self: WindowsTerminal) error{ReadFailed, PollFailed, Unexpected}!?Input {
+    fn readInputOnce(
+        self: WindowsTerminal,
+        timeout: windows.DWORD,
+    ) error{ReadFailed, PollFailed, InvalidEvent, Unexpected}!?Input {
+        return switch (isTty(self.in)) {
+            true  => self.readInputFromTty(timeout),
+            false => self.readInputFromFile(timeout),
+        };
+    }
+
+    fn readInputFromTty(self: WindowsTerminal, timeout: windows.DWORD) error{ReadFailed, PollFailed, InvalidEvent, Unexpected}!?Input {
         std.debug.assert(isTty(self.in));
 
-        var codepoint    = @as(u21, undefined);
-        var codepointlen = @as(u3, undefined);
         var ready        = @as(bool, undefined);
         var parser       = @as(InputParser, .{});
         var result       = @as(InputParser.Result, .none);
 
+        ready = try self.poll(timeout);
+        if (!ready) return null;
+
+        const record = try self.peekConsoleInput();
+
+        switch (record.EventType) {
+            windows.WINDOW_BUFFER_SIZE_EVENT => {
+                try self.discardConsoleInput();
+                return .resize;
+            },
+
+            windows.KEY_EVENT => tag: {
+                if (record.Event.KeyEvent.bKeyDown == 1)
+                    break :tag;
+
+                try self.discardConsoleInput();
+                return error.InvalidEvent;
+            },
+
+            windows.FOCUS_EVENT,
+            windows.MENU_EVENT => {
+                try self.discardConsoleInput();
+                return error.InvalidEvent;
+            },
+
+            // mouse events are disabled at the moment
+            windows.MOUSE_EVENT
+                => return error.Unexpected,
+
+            else => unreachable,
+        }
+
         while (true) {
-            codepoint = outer_loop: while (true) {
-                var curr = @as(u16, undefined);
-                var prev = @as(u16, undefined);
-
-                curr = inner_loop: while (true) {
-                    var ret:   windows.BOOL     = undefined;
-                    var chars: [1]windows.WCHAR = undefined;
-                    var nread: windows.DWORD    = 0;
-
-                    ret = windows.ReadConsoleW(self.in, @ptrCast(&chars), 1, &nread, null);
-                    if (ret == 0)   return error.ReadFailed;
-                    if (nread == 0) return .eof;
-
-                    break :inner_loop chars[0];
+            const codepoint =
+                self.readConsoleCodepoint() catch |err| switch (err) {
+                    error.EndOfFile =>     return .eof,
+                    else            => |e| return e,
                 };
 
-                if (std.unicode.utf16IsHighSurrogate(curr))
-                    prev = curr
-                else if (std.unicode.utf16IsLowSurrogate(curr))
-                    break :outer_loop std.unicode.utf16DecodeSurrogatePair(
-                        &.{prev, curr},
-                    ) catch return error.Unexpected
-                else
-                    break: outer_loop curr;
+            const length = std.unicode.utf8CodepointSequenceLength(codepoint) catch return error.Unexpected;
 
-                ready = try self.poll(0);
-                if (!ready) return error.Unexpected;
-            };
-
-            codepointlen = std.unicode.utf8CodepointSequenceLength(codepoint)
-                catch return error.Unexpected;
-            if (codepointlen == 1) result = try parser.step(@intCast(codepoint))
-            else result = parser.unicode(codepoint);
+            if (length == 1)
+                result = try parser.step(@intCast(codepoint))
+            else
+                result = parser.unicode(codepoint);
 
             if (result == .final)
                 return result.final;
@@ -304,16 +297,84 @@ pub const WindowsTerminal = struct {
             if (!ready and result == .ambiguous)
                 return result.ambiguous;
         }
-
     }
 
-    fn readInputFromFile(self: WindowsTerminal) error{ReadFailed, PollFailed, Unexpected}!?Input {
+    /// Reads the next console input record without removing it from the
+    /// buffer. To discard that record, call `discardConsoleInput`.
+    fn peekConsoleInput(self: WindowsTerminal) error{ReadFailed, Unexpected}!windows.INPUT_RECORD {
+        std.debug.assert(isTty(self.in));
+
+        var records = @as([1]windows.INPUT_RECORD, undefined);
+        var read    = @as(windows.DWORD, undefined);
+
+        const ret = windows.PeekConsoleInputW(self.in, &records, 1, &read);
+        if (ret  == 0) return error.ReadFailed;
+        if (read != 1) return error.Unexpected;
+
+        return records[0];
+    }
+
+    /// Discards the next console input record.
+    fn discardConsoleInput(self: WindowsTerminal) error{ReadFailed, Unexpected}!void {
+        std.debug.assert(isTty(self.in));
+
+        var records = @as([1]windows.INPUT_RECORD, undefined);
+        var read    = @as(windows.DWORD, undefined);
+
+        const ret = windows.ReadConsoleInputW(self.in, &records, 1, &read);
+        if (ret  == 0) return error.ReadFailed;
+        if (read != 1) return error.Unexpected;
+    }
+
+    fn readConsoleCharacter(self: WindowsTerminal) error{ReadFailed, EndOfFile, Unexpected}!windows.WCHAR {
+        var chars = @as([1]windows.WCHAR, undefined);
+        var read  = @as(windows.DWORD, undefined);
+
+        const ret = windows.ReadConsoleW(self.in, @ptrCast(&chars), 1, &read, null);
+        if (ret  == 0) return error.ReadFailed;
+        if (read == 0) return error.EndOfFile;
+
+        return chars[0];
+    }
+
+    fn readConsoleCodepoint(self: WindowsTerminal) error{ReadFailed, PollFailed, EndOfFile, Unexpected}!u21 {
+        var ready = @as(bool, undefined);
+        var curr  = @as(u16,  undefined);
+        var prev  = @as(u16,  undefined);
+
+        while (true) {
+            curr = try self.readConsoleCharacter();
+
+            if (std.unicode.utf16IsHighSurrogate(curr)) {
+                prev = curr;
+
+                ready = try self.poll(0);
+                if (!ready) return error.Unexpected;
+
+                continue;
+            }
+
+            if (std.unicode.utf16IsLowSurrogate(curr)) {
+                const pair: []const u16 = &.{prev, curr};
+                return std.unicode.utf16DecodeSurrogatePair(pair) catch error.Unexpected;
+            }
+
+            return curr;
+        }
+    }
+
+    fn readInputFromFile(self: WindowsTerminal, timeout: windows.DWORD) error{ReadFailed, PollFailed, Unexpected}!?Input {
+        std.debug.assert(!isTty(self.in));
+
         var bytes  = @as([1]u8, undefined);
         var ret    = @as(windows.BOOL, undefined);
         var nread  = @as(windows.DWORD , undefined);
         var ready  = @as(bool, undefined);
         var parser = @as(InputParser, .{});
         var result = @as(InputParser.Result, .none);
+
+        ready = try self.poll(timeout);
+        if (!ready) return null;
 
         while (true) {
             ret = windows.ReadFile(self.in, &bytes, 1, &nread, null);
