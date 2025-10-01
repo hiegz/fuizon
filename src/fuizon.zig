@@ -218,8 +218,8 @@ pub fn print(object: anytype) anyerror!void {
     try render(object, .auto, .{ .advance = true, .overflow = true });
 }
 
-pub fn clear() !void {
-    // TODO: restore clear implementation
+pub fn clear() anyerror!void {
+    try render(&Void, .auto, .{});
 }
 
 pub const ReadInputOptions = Terminal.ReadInputOptions;
