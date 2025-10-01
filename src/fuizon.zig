@@ -214,6 +214,13 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
     // zig fmt: on
 }
 
+pub fn print(comptime fmt: []const u8, args: anytype) anyerror!void {
+    var buffer: [0]u8 = undefined;
+    var writer = Terminal.instance().writer(gpa, &buffer);
+
+    try writer.interface.print(fmt, args);
+}
+
 pub fn printWidget(object: anytype) anyerror!void {
     try render(object, .auto, .{ .advance = true, .overflow = true });
 }
