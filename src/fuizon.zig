@@ -79,6 +79,20 @@ pub const RenderOpts = struct {
     overflow: bool = false,
 };
 
+pub fn enterAlternateScreen() error{Unexpected}!void {
+    var buffer: [0]u8 = undefined;
+    var writer = Terminal.instance().writer(gpa, &buffer);
+
+    vt.enterAlternateScreen(&writer.interface) catch return error.Unexpected;
+}
+
+pub fn leaveAlternateScreen() error{Unexpected}!void {
+    var buffer: [0]u8 = undefined;
+    var writer = Terminal.instance().writer(gpa, &buffer);
+
+    vt.leaveAlternateScreen(&writer.interface) catch return error.Unexpected;
+}
+
 pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!void {
     // zig fmt: off
     const terminal   = Terminal.instance();
