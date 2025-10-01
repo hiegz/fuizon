@@ -45,7 +45,7 @@ var in_frame: bool = undefined;
 // do not exceed the screen height while rendering
 var limit_height: bool = undefined;
 
-pub fn init() error{ NotATerminal, Unexpected }!void {
+pub fn init() error{Unexpected}!void {
     gpa = std.heap.c_allocator;
     buffer = .init();
     renderer = .init();
