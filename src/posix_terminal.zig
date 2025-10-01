@@ -114,7 +114,7 @@ pub const PosixTerminal = struct {
         return .init(gpa, self, buffer);
     }
 
-    pub fn write(
+    pub fn writeAll(
         self: PosixTerminal,
         gpa: std.mem.Allocator,
         bytes: []const u8,

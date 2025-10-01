@@ -129,6 +129,6 @@ pub const Renderer = struct {
         // save this buffer
         try self.last_buffer.copy(gpa, buffer.*);
 
-        try Terminal.instance().write(gpa, allocating_writer.written());
+        try Terminal.instance().writeAll(gpa, allocating_writer.written());
     }
 };
