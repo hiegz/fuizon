@@ -186,6 +186,12 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
         try writer.print("{u}", .{character.value});
     }
 
+    if (current_buffer.characters.len < previous_buffer.characters.len) {
+        try vt.moveCursorDown(writer, 1);
+        try vt.clearFromCursorDown(writer);
+        try vt.moveCursorUp(writer, 1);
+    }
+
     switch (advance) {
         true => {
             try writer.writeAll("\n\r");
