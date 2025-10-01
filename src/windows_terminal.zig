@@ -4,6 +4,7 @@ const windows = @import("windows.zig");
 const Dimensions = @import("dimensions.zig").Dimensions;
 const Input = @import("input.zig").Input;
 const InputParser = @import("input_parser.zig").InputParser;
+const TerminalWriter = @import("terminal_writer.zig").TerminalWriter;
 
 pub const WindowsTerminal = struct {
     pub const Handle = windows.HANDLE;
@@ -168,6 +169,10 @@ pub const WindowsTerminal = struct {
 
             self.cookedInput = null;
         }
+    }
+
+    pub fn writer(self: *WindowsTerminal, gpa: std.mem.Allocator, buffer: []u8) TerminalWriter {
+        return .init(gpa, self, buffer);
     }
 
     // zig fmt: off

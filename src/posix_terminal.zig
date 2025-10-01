@@ -3,6 +3,7 @@ const std = @import("std");
 const Dimensions = @import("dimensions.zig").Dimensions;
 const InputParser = @import("input_parser.zig").InputParser;
 const Input = @import("input.zig").Input;
+const TerminalWriter = @import("terminal_writer.zig").TerminalWriter;
 
 pub const PosixTerminal = struct {
     pub const Handle = std.posix.fd_t;
@@ -107,6 +108,10 @@ pub const PosixTerminal = struct {
             self.cooked.?,
         ) catch return error.Unexpected;
         self.cooked = null;
+    }
+
+    pub fn writer(self: *PosixTerminal, gpa: std.mem.Allocator, buffer: []u8) TerminalWriter {
+        return .init(gpa, self, buffer);
     }
 
     pub fn write(
