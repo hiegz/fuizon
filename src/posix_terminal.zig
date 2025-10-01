@@ -203,6 +203,8 @@ pub const PosixTerminal = struct {
         timespec.nsec = 0;
 
         while (true) {
+            if (fds[0].revents & std.posix.POLL.HUP != 0)
+                return .eof;
             if (fds[0].revents & std.posix.POLL.IN == 0)
                 return error.ReadFailed;
 
