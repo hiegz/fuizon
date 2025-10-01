@@ -65,11 +65,10 @@ pub fn deinit() error{Unexpected}!void {
 
     // Cursor is hidden, restore it.
     if (renderer.last_buffer.cursor == null) {
-        var out_buffer: [0]u8 = undefined; // disable buffering
-        const out = std.fs.File.stdout();
-        var out_writer = out.writer(&out_buffer);
+        var _buffer: [0]u8 = undefined;
+        var writer = Terminal.instance().writer(gpa, &_buffer);
 
-        vt.showCursor(&out_writer.interface) catch return error.Unexpected;
+        vt.showCursor(&writer.interface) catch return error.Unexpected;
     }
 
     Terminal.instance().disableRawMode() catch return error.Unexpected;
@@ -114,18 +113,16 @@ pub fn print(object: anytype) anyerror!void {
 pub fn advance() !void {
     if (!in_frame) return;
 
-    var out_buffer: [1024]u8 = undefined; // disable buffering
-    const out = std.fs.File.stdout();
-    var out_writer = out.writer(&out_buffer);
-    const writer = &out_writer.interface;
+    var _buffer: [1024]u8 = undefined;
+    var writer = Terminal.instance().writer(gpa, &_buffer);
 
     for (0..renderer.last_buffer.height()) |_|
-        try writer.writeAll("\n");
+        try writer.interface.writeAll("\n");
 
     if (renderer.last_buffer.cursor == null)
-        try vt.showCursor(writer);
+        try vt.showCursor(&writer.interface);
 
-    try writer.flush();
+    try writer.interface.flush();
 
     renderer.last_buffer.deinit(gpa);
     renderer.last_buffer = .init();
