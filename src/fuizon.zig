@@ -95,17 +95,22 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
             .fullscreen => screen.height,
         };
 
-    if (width != current_buffer.width() or height != current_buffer.height())
+    var   allocating = std.Io.Writer.Allocating.init(gpa);
+    defer allocating.deinit();
+    const writer = &allocating.writer;
+
+    if (width != current_buffer.width() or height != current_buffer.height()) {
+        try vt.clearFromCursorDown(writer);
+        previous_buffer.deinit(gpa);
+        previous_buffer = .init();
+        previous_buffer.cursor = .{ .x = 0, .y = 0 };
         try current_buffer.resize(gpa, .init(width, height));
+    }
 
     for (current_buffer.characters) |*char|
         char.* = .{};
 
     try widget.render(&current_buffer, current_buffer.getArea());
-
-    var   allocating = std.Io.Writer.Allocating.init(gpa);
-    defer allocating.deinit();
-    const writer = &allocating.writer;
 
     // these define the cursor position relative to the current one.
     var px: i16 = 0;
