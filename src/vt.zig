@@ -138,3 +138,9 @@ pub fn moveCursorBackward(
     if (n == 0) return;
     try writer.print(CSI ++ "{d}D", .{n});
 }
+
+pub fn clearFromCursorDown(
+    writer: *std.Io.Writer,
+) error{WriteFailed}!void {
+    try writer.writeAll(CSI ++ "999M");
+}
