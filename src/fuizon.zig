@@ -2,7 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const vt = @import("vt.zig");
 const Terminal = @import("terminal.zig").Terminal;
-const Renderer = @import("renderer.zig").Renderer;
 
 pub const Area = @import("area.zig").Area;
 pub const Attribute = @import("attribute.zig").Attribute;
@@ -37,34 +36,27 @@ pub const BorderType = @import("border_type.zig").BorderType;
 pub const Spacing = @import("spacing.zig").Spacing;
 pub const Widget = @import("widget.zig").Widget;
 
-var gpa: std.mem.Allocator = undefined;
-var buffer: Buffer = undefined;
-var renderer: Renderer = undefined;
-var in_frame: bool = undefined;
+// zig fmt: off
 
-// do not exceed the screen height while rendering
-var limit_height: bool = undefined;
+/// Global allocator used by fuizon.
+var gpa = std.heap.c_allocator;
+
+var previous_buffer = Buffer.init();
+var  current_buffer = Buffer.init();
+
+// zig fmt: on
 
 pub fn init() error{Unexpected}!void {
-    gpa = std.heap.c_allocator;
-    buffer = .init();
-    renderer = .init();
-    in_frame = false;
-    limit_height = true;
-
-    // hide the cursor in the first frame
+    // this makes the renderer hide the cursor in the first frame
     // (unless the user provides a render position)
-    renderer.last_buffer.cursor = .{ .x = 0, .y = 0 };
+    previous_buffer.cursor = .{ .x = 0, .y = 0 };
 
     try Terminal.instance().enableRawMode();
 }
 
 pub fn deinit() error{Unexpected}!void {
-    buffer.deinit(gpa);
-    renderer.deinit(gpa);
-
     // Cursor is hidden, restore it.
-    if (renderer.last_buffer.cursor == null) {
+    if (previous_buffer.cursor == null) {
         var _buffer: [0]u8 = undefined;
         var writer = Terminal.instance().writer(gpa, &_buffer);
 
@@ -74,73 +66,159 @@ pub fn deinit() error{Unexpected}!void {
     Terminal.instance().disableRawMode() catch return error.Unexpected;
 }
 
-pub fn render(object: anytype, viewport: Viewport) anyerror!void {
-    const widget: Widget = object.widget();
+pub const RenderOpts = struct {
+    /// When enabled, the cursor advances to the next line after rendering
+    /// instead of resetting to its initial position.
+    advance: bool = false,
 
+    /// Allow content height to exceed the screen height.
+    ///
+    /// Useful for one-time renders where the element does not need
+    /// to be re-rendered.
+    overflow: bool = false,
+};
+
+pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!void {
     // zig fmt: off
-    const screen     = try Terminal.instance().getScreenSize();
-    const max_height = if (limit_height) screen.height else std.math.maxInt(u16);
+    const terminal   = Terminal.instance();
+    const screen     = try terminal.getScreenSize();
+    const widget     = Widget.impl(object);
+    const advance    = opts.advance;
+    const overflow   = opts.overflow;
+    const max_height = if (overflow) std.math.maxInt(u16) else screen.height;
     const width      = screen.width;
-    const height     = switch (viewport) {
-        .auto => (try widget.measure(.opts(width, max_height))).height,
-        .fixed => |h| @min(h, screen.height),
-        .fullscreen => screen.height,
-    };
-    // zig fmt: on
+    const height     =
+        switch (viewport) {
+            .auto       => (try widget.measure(.opts(width, max_height))).height,
+            .fixed      => |height| @min(height, max_height),
+            .fullscreen => screen.height,
+        };
 
-    if (width != buffer.width() or height != buffer.height())
-        try buffer.resize(gpa, .init(width, height));
+    if (width != current_buffer.width() or height != current_buffer.height())
+        try current_buffer.resize(gpa, .init(width, height));
 
-    // clear the buffer
-    for (buffer.characters) |*char| {
+    for (current_buffer.characters) |*char|
         char.* = .{};
+
+    try widget.render(&current_buffer, current_buffer.getArea());
+
+    var   allocating = std.Io.Writer.Allocating.init(gpa);
+    defer allocating.deinit();
+    const writer = &allocating.writer;
+
+    // these define the cursor position relative to the current one.
+    var px: i16 = 0;
+    var py: u16 = 0;
+
+    if (previous_buffer.cursor) |coordinate| {
+        try vt.hideCursor(writer);
+        try vt.moveCursorUp(writer, coordinate.y);
+        try vt.moveCursorBackward(writer, coordinate.x);
+
+        previous_buffer.cursor = null;
     }
 
-    try widget.render(&buffer, buffer.getArea());
-    try renderer.render(gpa, &buffer);
+    var last_foreground: Color      = .default;
+    var last_background: Color      = .default;
+    var last_attributes: Attributes = .none;
 
-    in_frame = true;
+    for (0..current_buffer.characters.len) |index| {
+        const character = current_buffer.characters[index];
+
+        // reached the end of line
+        if (index != 0 and index % current_buffer.width() == 0) {
+            px -= @intCast(current_buffer.width());
+            py += 1;
+        }
+
+        // Make sure the cursor is in the right position before printing
+        for (0..py) |_| try writer.writeAll("\n");
+        if  (px > 0)    try vt.moveCursorForward (writer, @abs(px));
+        if  (px < 0)    try vt.moveCursorBackward(writer, @abs(px));
+        px = 0;
+        py = 0;
+
+        if (index < previous_buffer.characters.len) {
+            const previous_character = previous_buffer.characters[index];
+            const previous_position  = previous_buffer.posOf(index);
+            const current_position   = current_buffer.posOf(index);
+
+            if (std.meta.eql(previous_position, current_position) and
+                std.meta.eql(previous_character, character))
+            {
+                px += 1;
+                continue;
+            }
+        }
+
+        const foreground = character.style.foreground_color;
+        const background = character.style.background_color;
+        const attributes = character.style.attributes;
+
+        if (!std.meta.eql(last_foreground, foreground)) {
+            last_foreground = foreground;
+            try vt.setForeground(writer, foreground);
+        }
+
+        if (!std.meta.eql(last_background, background)) {
+            last_background = background;
+            try vt.setBackground(writer, background);
+        }
+
+        var   it:  Attributes.Iterator = undefined;
+        const on:  Attributes = .{ .bitset = ~last_attributes.bitset &  attributes.bitset };
+        const off: Attributes = .{ .bitset =  last_attributes.bitset & ~attributes.bitset };
+
+        it = on.iterator();
+        while (it.next()) |attribute| {
+            try vt.setAttribute(writer, attribute);
+        }
+
+        it = off.iterator();
+        while (it.next()) |attribute| {
+            try vt.resetAttribute(writer, attribute);
+        }
+
+        last_attributes = attributes;
+
+        // finally
+        try writer.print("{u}", .{character.value});
+    }
+
+    switch (advance) {
+        true => {
+            try writer.writeAll("\n");
+            try vt.showCursor(writer);
+
+            previous_buffer.deinit(gpa);
+            previous_buffer = .init();
+        },
+
+        false => {
+            try vt.moveCursorBackward(writer, current_buffer.width());
+            try vt.moveCursorUp      (writer, current_buffer.height() - 1);
+
+            if (current_buffer.cursor) |coordinate| {
+                try vt.moveCursorForward(writer, coordinate.x);
+                try vt.moveCursorDown(writer, coordinate.y);
+                try vt.showCursor(writer);
+            }
+
+            try previous_buffer.copy(gpa, current_buffer);
+        },
+    }
+
+    try terminal.writeAll(gpa, allocating.written());
+
+    // zig fmt: on
 }
 
 pub fn print(object: anytype) anyerror!void {
-    const old_value = limit_height;
-    limit_height = false;
-    try render(object, .Auto());
-    try advance();
-    limit_height = old_value;
-}
-
-pub fn advance() !void {
-    if (!in_frame) return;
-
-    var _buffer: [1024]u8 = undefined;
-    var writer = Terminal.instance().writer(gpa, &_buffer);
-
-    for (0..renderer.last_buffer.height()) |_|
-        try writer.interface.writeAll("\n");
-
-    if (renderer.last_buffer.cursor == null)
-        try vt.showCursor(&writer.interface);
-
-    try writer.interface.flush();
-
-    renderer.last_buffer.deinit(gpa);
-    renderer.last_buffer = .init();
-    renderer.last_buffer.cursor = .{ .x = 0, .y = 0 };
-
-    in_frame = false;
+    try render(object, .auto, .{ .advance = true, .overflow = true });
 }
 
 pub fn clear() !void {
-    if (!in_frame) return;
-
-    buffer.cursor = .{ .x = 0, .y = 0 };
-    for (buffer.characters) |*char| {
-        char.* = .{};
-    }
-    try renderer.render(gpa, &buffer);
-
-    in_frame = false;
+    // TODO: restore clear implementation
 }
 
 pub const ReadOpts = struct {
@@ -177,7 +255,6 @@ test "fuizon" {
     _ = @import("key_modifier.zig");
     _ = @import("key_modifiers.zig");
     _ = @import("queue.zig");
-    _ = @import("renderer.zig");
     _ = @import("rgb.zig");
     _ = @import("source.zig");
     _ = @import("spacing.zig");
