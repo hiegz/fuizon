@@ -1,75 +1,61 @@
 const std = @import("std");
 const fuizon = @import("fuizon");
 
+// zig fmt: off
+
+fn gap(n: u16) fuizon.StackItem {
+    return .item(&fuizon.Void, .Fixed(n));
+}
+
+fn row(arena: std.mem.Allocator, label_text: []const u8, color: fuizon.Color) error{OutOfMemory}!fuizon.StackItem {
+    const stack = try arena.create(fuizon.Stack);
+    const label = try arena.create(fuizon.Text);
+    const  demo = try arena.create(fuizon.Text);
+
+    label.* = try    .raw(arena, label_text);
+     demo.* = try .styled(arena, "this text should be invisible", .init(color, color, .none));
+
+    label.alignment = .right;
+     demo.alignment = .left;
+
+    stack.* = try .horizontal(arena, &.{
+        .item(label, .Fill(1)),
+          gap(2),
+        .item(demo, .Auto()),
+    });
+
+    return .item(stack, fuizon.StackConstraint.Auto());
+}
+
 pub fn main() !void {
-    try fuizon.init(std.heap.page_allocator, 1024, .stdout);
-    defer fuizon.deinit(std.heap.page_allocator) catch unreachable;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer _ = gpa.deinit();
 
-    const writer = fuizon.getWriter();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-    try writer.print("Black:   ", .{});
-    try fuizon.setForeground(.black);
-    try fuizon.setBackground(.black);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
+    try fuizon.init();
+    defer fuizon.deinit() catch unreachable;
 
-    try writer.print("White:   ", .{});
-    try fuizon.setForeground(.white);
-    try fuizon.setBackground(.white);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
+    var stack = fuizon.Stack.empty(.vertical);
 
-    try writer.print("Red:     ", .{});
-    try fuizon.setForeground(.red);
-    try fuizon.setBackground(.red);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
+    try stack.push(allocator,     gap(1));
+    try stack.push(allocator, try row(allocator, "Black:",   .black));
+    try stack.push(allocator, try row(allocator, "White:",   .white));
+    try stack.push(allocator, try row(allocator, "Red:",     .red));
+    try stack.push(allocator, try row(allocator, "Green:",   .green));
+    try stack.push(allocator, try row(allocator, "Blue:",    .blue));
+    try stack.push(allocator, try row(allocator, "Yellow:",  .yellow));
+    try stack.push(allocator, try row(allocator, "Magenta:", .magenta));
+    try stack.push(allocator, try row(allocator, "Cyan:",    .cyan));
+    try stack.push(allocator,     gap(1));
 
-    try writer.print("Green:   ", .{});
-    try fuizon.setForeground(.green);
-    try fuizon.setBackground(.green);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Blue:    ", .{});
-    try fuizon.setForeground(.blue);
-    try fuizon.setBackground(.blue);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Yellow:  ", .{});
-    try fuizon.setForeground(.yellow);
-    try fuizon.setBackground(.yellow);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Magenta: ", .{});
-    try fuizon.setForeground(.magenta);
-    try fuizon.setBackground(.magenta);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.print("Cyan:    ", .{});
-    try fuizon.setForeground(.cyan);
-    try fuizon.setBackground(.cyan);
-    try writer.print("this text should be invisible", .{});
-    try fuizon.setForeground(.default);
-    try fuizon.setBackground(.default);
-    try writer.print("\n\r", .{});
-
-    try writer.flush();
+    try fuizon.printWidget(
+        &fuizon.Container{
+            .margin_left  = .Fixed(2),
+            .margin_right = .auto,
+            .child = stack.widget(),
+        },
+    );
 }
