@@ -221,11 +221,6 @@ pub fn clear() !void {
     // TODO: restore clear implementation
 }
 
-pub const ReadOpts = struct {
-    // provided in milliseconds
-    timeout: ?u32 = null,
-};
-
 pub const ReadInputOptions = Terminal.ReadInputOptions;
 
 pub fn readInput(opts: ReadInputOptions) error{ ReadFailed, PollFailed, Interrupted, Unexpected }!?Input {
