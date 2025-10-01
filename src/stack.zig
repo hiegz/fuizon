@@ -339,9 +339,9 @@ test "render()" {
                     right.wrap = true;
 
                     var stack = try Stack.init(self.direction, gpa, &.{
-                        .item(left.widget(),   self.left),
-                        .item(center.widget(), self.center),
-                        .item(right.widget(),  self.right),
+                        .item(&left,   self.left),
+                        .item(&center, self.center),
+                        .item(&right,  self.right),
                     });
                     defer stack.deinit(gpa);
 

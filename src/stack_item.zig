@@ -12,8 +12,8 @@ pub const StackItem = struct {
     /// Relevant during rendering and measurement.
     _value: u16 = undefined,
 
-    pub fn init(widget: Widget, constraint: StackConstraint) StackItem {
-        return .{ .widget = widget, .constraint = constraint };
+    pub fn init(widget: anytype, constraint: StackConstraint) StackItem {
+        return .{ .widget = Widget.impl(widget), .constraint = constraint };
     }
 
     pub const item = StackItem.init;
