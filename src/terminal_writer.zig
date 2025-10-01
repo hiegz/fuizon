@@ -55,16 +55,16 @@ pub const TerminalWriter = struct {
 
         // zig fmt: on
 
-        terminal.write(gpa, buffered) catch return error.WriteFailed;
+        terminal.writeAll(gpa, buffered) catch return error.WriteFailed;
         _ = io_writer.consumeAll();
 
         for (data[0 .. data.len - 1]) |slice| {
-            terminal.write(gpa, slice) catch return error.WriteFailed;
+            terminal.writeAll(gpa, slice) catch return error.WriteFailed;
             consumed += slice.len;
         }
 
         for (0..splat) |_| {
-            terminal.write(gpa, data[data.len - 1]) catch return error.WriteFailed;
+            terminal.writeAll(gpa, data[data.len - 1]) catch return error.WriteFailed;
             consumed += data[data.len - 1].len;
         }
 

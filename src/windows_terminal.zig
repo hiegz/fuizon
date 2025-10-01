@@ -177,7 +177,7 @@ pub const WindowsTerminal = struct {
 
     // zig fmt: off
 
-    pub fn write(
+    pub fn writeAll(
         self: WindowsTerminal,
         gpa: std.mem.Allocator,
         bytes: []const u8,
