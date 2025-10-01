@@ -34,6 +34,7 @@ pub const Border = @import("border.zig").Border;
 pub const Borders = @import("borders.zig").Borders;
 pub const BorderType = @import("border_type.zig").BorderType;
 pub const Spacing = @import("spacing.zig").Spacing;
+pub const Void = @import("void.zig").Void;
 pub const Widget = @import("widget.zig").Widget;
 
 // zig fmt: off
@@ -263,6 +264,7 @@ test "fuizon" {
     _ = @import("text.zig");
     _ = @import("text_alignment.zig");
     _ = @import("viewport.zig");
+    _ = @import("void.zig");
     _ = @import("vt.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");
