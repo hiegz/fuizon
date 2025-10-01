@@ -201,6 +201,15 @@ pub fn render(object: anytype, viewport: Viewport, opts: RenderOpts) anyerror!vo
 
         last_attributes = attributes;
 
+        // don't render spaces
+        if (index >= previous_buffer.characters.len and
+            std.meta.eql(character.style, Style{})  and
+            character.value == ' ')
+        {
+            px += 1;
+            continue;
+        }
+
         // finally
         try writer.print("{u}", .{character.value});
     }
