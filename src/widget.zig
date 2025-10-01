@@ -6,9 +6,9 @@ const Dimensions = @import("dimensions.zig").Dimensions;
 pub const Widget = struct {
 
     // zig fmt: off
-    data:      *const anyopaque,
-    measureFn: *const fn (*const anyopaque, MeasureOptions) anyerror!Dimensions,
-    renderFn:  *const fn (*const anyopaque, *Buffer, Area) anyerror!void,
+    data:      *anyopaque,
+    measureFn: *const fn (*anyopaque, MeasureOptions) anyerror!Dimensions,
+    renderFn:  *const fn (*anyopaque, *Buffer, Area) anyerror!void,
 
     pub const MeasureOptions = struct {
         max_width:  u16 = std.math.maxInt(u16),
@@ -23,7 +23,7 @@ pub const Widget = struct {
 
     pub fn impl(w: anytype) Widget {
         return .{
-            .data      = @ptrCast(@alignCast(w)),
+            .data      = @ptrCast(@alignCast(@constCast(w))),
 
             .measureFn = Widget.makeMeasureFn(@TypeOf(w)),
             .renderFn  = Widget.makeRenderFn(@TypeOf(w)),
@@ -38,9 +38,9 @@ pub const Widget = struct {
         return self.measureFn(self.data, opts);
     }
 
-    pub fn makeMeasureFn(comptime T: type) fn (*const anyopaque, MeasureOptions) anyerror!Dimensions {
+    pub fn makeMeasureFn(comptime T: type) fn (*anyopaque, MeasureOptions) anyerror!Dimensions {
         return struct {
-            pub fn function(data: *const anyopaque, opts: MeasureOptions) anyerror!Dimensions {
+            pub fn function(data: *anyopaque, opts: MeasureOptions) anyerror!Dimensions {
                 return @as(T, @ptrCast(@alignCast(data))).measure(opts);
             }
         }.function;
@@ -54,9 +54,9 @@ pub const Widget = struct {
         return self.renderFn(self.data, buffer, area);
     }
 
-    pub fn makeRenderFn(comptime T: type) fn (*const anyopaque, *Buffer, Area) anyerror!void {
+    pub fn makeRenderFn(comptime T: type) fn (*anyopaque, *Buffer, Area) anyerror!void {
         return struct {
-            pub fn function(data: *const anyopaque, buffer: *Buffer, area: Area) anyerror!void {
+            pub fn function(data: *anyopaque, buffer: *Buffer, area: Area) anyerror!void {
                 return @as(T, @ptrCast(@alignCast(data))).render(buffer, area);
             }
         }.function;
