@@ -10,6 +10,7 @@ const Text = @import("text.zig").Text;
 const TextAlignment = @import("text_alignment.zig").TextAlignment;
 const Spacing = @import("spacing.zig").Spacing;
 const Style = @import("style.zig").Style;
+const Void = @import("void.zig").Void;
 const Widget = @import("widget.zig").Widget;
 
 pub const Container = struct {
@@ -34,7 +35,7 @@ pub const Container = struct {
 
     // zig fmt: on
 
-    child: ?Widget = null,
+    child: Widget = Widget.impl(&Void),
 
     pub const empty: Container = .{};
 
@@ -184,13 +185,10 @@ pub const Container = struct {
         const max_inner_dimensions =
             self.calculateMaxInnerDimensions(max_outer_dimensions);
 
-        return if (self.child) |child|
-            try child.measure(.{
-                .max_width  = max_inner_dimensions.width,
-                .max_height = max_inner_dimensions.height,
-            })
-        else
-            Dimensions.init(0, 0);
+        return try self.child.measure(.{
+            .max_width  = max_inner_dimensions.width,
+            .max_height = max_inner_dimensions.height,
+        });
     }
 
     fn applyAreaSpacing(
@@ -296,8 +294,7 @@ pub const Container = struct {
         self.renderBorders(buffer, container_area);
         self.renderTitle(buffer, container_area);
 
-        if (self.child) |child|
-            try child.render(buffer, child_area);
+        try self.child.render(buffer, child_area);
     }
 
     fn renderTitle(
