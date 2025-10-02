@@ -279,6 +279,7 @@ test "fuizon" {
     _ = @import("border_type.zig");
     _ = @import("borders.zig");
     _ = @import("buffer.zig");
+    _ = @import("cassowary.zig");
     _ = @import("character.zig");
     _ = @import("color.zig");
     _ = @import("container.zig");
