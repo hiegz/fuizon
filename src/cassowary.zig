@@ -252,6 +252,13 @@ pub const Variable = struct {
     name: []const u8 = "",
     value: f32 = 0.0,
 
+    // zig fmt: off
+
+    err_plus:  ?*Variable = null,
+    err_minus: ?*Variable = null,
+
+    // zig fmt: on
+
     pub fn init(name: []const u8) Variable {
         return .{ .name = name };
     }
@@ -278,6 +285,29 @@ pub const Expression = struct {
     pub const VarMap = std.AutoHashMap(*Variable, f32);
 };
 
+// zig fmt: off
+
+pub const Strength = struct {
+    pub fn init(s: f32, m: f32, w: f32) f32 {
+        const lo = @as(f32, -1000.0);
+        const hi = @as(f32,  1000.0);
+        var   rt = @as(f32,     0.0);
+
+        rt += std.math.clamp(s, lo, hi) * 1000000.0;
+        rt += std.math.clamp(m, lo, hi) * 1000.0;
+        rt += std.math.clamp(w, lo, hi);
+
+        return rt;
+    }
+
+    pub const required = init(1000.0, 1000.0, 1000.0);
+    pub const strong   = init(1.0, 0.0, 0.0);
+    pub const medium   = init(0.0, 1.0, 0.0);
+    pub const weak     = init(0.0, 0.0, 1.0);
+};
+
+// zig fmt: on
+
 /// Performs Phase II of the standard two-phase simplex algorithm.
 ///
 /// Given a simplex tableau that is already in a basic feasible solved form
@@ -297,6 +327,24 @@ fn optimize(
         std.debug.assert(leaving_row.basis != null);
         for (tableau.rows()) |*row| try row.substitute(gpa, leaving_row);
         try objective.substitute(gpa, leaving_row);
+    }
+}
+
+/// Performs the dual simplex optimization algorithm.
+///
+/// Given a system with an optimal but infeasible solution, this function finds
+/// an optimal and feasible solution.
+fn reoptimize(
+    gpa: std.mem.Allocator,
+    tableau: *Tableau,
+    objective: *Row,
+) error{ OutOfMemory, EntryVariableNotFound }!void {
+    while (selectInfeasibleRow(tableau)) |index| {
+        const infeasible_row = &tableau.row_list.items[index];
+        const entering_variable = try selectDualEnteringVariable(infeasible_row, objective);
+        try infeasible_row.solveFor(gpa, entering_variable);
+        for (tableau.rows()) |*row| try row.substitute(gpa, infeasible_row);
+        try objective.substitute(gpa, infeasible_row);
     }
 }
 
@@ -323,6 +371,50 @@ fn selectEnteringVariable(objective: *const Row) ?*Variable {
     }
 
     return entering_variable;
+}
+
+/// Selects the entry variable for the dual simplex optimization.
+///
+/// Returns the variable that meets the criteria (if any)
+fn selectDualEnteringVariable(
+    infeasible_row: *const Row,
+    objective: *const Row,
+) error{EntryVariableNotFound}!*Variable {
+    std.debug.assert(infeasible_row.constant < 0.0 and !nearZero(infeasible_row.constant));
+
+    var min_id: usize = std.math.maxInt(usize);
+    var min_ratio: f32 = std.math.floatMax(f32);
+    var entering_variable: ?*Variable = null;
+
+    for (infeasible_row.term_list.items) |term| {
+        const variable = term.variable;
+        const d = objective.coefficientOf(variable);
+        const a = term.coefficient;
+
+        if (a <= 0.0)
+            continue;
+
+        const ratio = d / a;
+
+        if (ratio < min_ratio) {
+            min_id = variable.id;
+            min_ratio = ratio;
+            entering_variable = variable;
+
+            continue;
+        }
+
+        // choose the lowest numbered variable to prevent cycling.
+        if (nearEq(ratio, min_ratio) and variable.id < min_id) {
+            min_id = variable.id;
+            min_ratio = ratio;
+            entering_variable = variable;
+
+            continue;
+        }
+    }
+
+    return if (entering_variable) |some| some else error.EntryVariableNotFound;
 }
 
 /// Select the row that contains the exit variable for a pivot.
@@ -369,6 +461,16 @@ fn selectLeavingRow(
     if (leaving_row == null)
         return error.ObjectiveUnbound;
     return leaving_row.?;
+}
+
+fn selectInfeasibleRow(tableau: *const Tableau) ?usize {
+    for (tableau.rows(), 0..) |row, i| {
+        // row is feasible. skipping ...
+        if (row.constant >= 0.0)
+            continue;
+        return i;
+    }
+    return null;
 }
 
 // zig fmt: off
@@ -510,9 +612,266 @@ test "optimize()" {
     };
 }
 
+test "reoptimize()" {
+    const inc = struct {
+        pub fn function(n: *usize) usize {
+            defer  n.* += 1;
+            return n.*;
+        }
+    }.function;
+
+    const gpa  = std.testing.allocator;
+    var   tick = @as(usize, FIRST_ID);
+    var   row  = @as(*Row, undefined);
+
+    var actual_objective   = Row.empty;
+    var expected_objective = Row.empty;
+    var actual_tableau     = Tableau.empty;
+    var expected_tableau   = Tableau.empty;
+
+    defer actual_objective.deinit(gpa);
+    defer expected_objective.deinit(gpa);
+    defer actual_tableau.deinit(gpa);
+    defer expected_tableau.deinit(gpa);
+
+    var s1:  Variable = .{ .name = "s1",  .kind = .slack,    .id = inc(&tick) };
+    var s2:  Variable = .{ .name = "s2",  .kind = .slack,    .id = inc(&tick) };
+    var s3:  Variable = .{ .name = "s3",  .kind = .slack,    .id = inc(&tick) };
+
+    var xl:  Variable = .{ .name = "xl",  .kind = .external, .id = inc(&tick) };
+    var xlp: Variable = .{ .name = "xlp", .kind = .err,      .id = inc(&tick) };
+    var xlm: Variable = .{ .name = "xlm", .kind = .err,      .id = inc(&tick) };
+
+    xl.err_plus  = &xlp;
+    xl.err_minus = &xlm;
+
+    var xm:  Variable = .{ .name = "xm",  .kind = .external, .id = inc(&tick) };
+    var xmp: Variable = .{ .name = "xmp", .kind = .err,      .id = inc(&tick) };
+    var xmm: Variable = .{ .name = "xmm", .kind = .err,      .id = inc(&tick) };
+
+    xm.err_plus  = &xmp;
+    xm.err_minus = &xmm;
+
+    var xr:  Variable = .{ .name = "xr",  .kind = .external, .id = inc(&tick) };
+    var xrp: Variable = .{ .name = "xrp", .kind = .err,      .id = inc(&tick) };
+    var xrm: Variable = .{ .name = "xrm", .kind = .err,      .id = inc(&tick) };
+
+    xr.err_plus  = &xrp;
+    xr.err_minus = &xrm;
+
+    // ------------ //
+    //   Expected   //
+    // ------------ //
+
+    // [0,60] + [1,2]xm.err_plus + [1,-2]xm.err_minus + [0,2]xl.err_minus + [0,2]xr.err_minus
+
+    expected_objective.basis = null;
+    expected_objective.constant = Strength.init(0.0, 0.0, 60.0);
+
+    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), xm.err_plus.?));
+    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), xm.err_minus.?));
+    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), xl.err_minus.?));
+    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), xr.err_minus.?));
+
+    // xm = 90 + xm.err_plus - xm.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = &xm;
+    row.constant = 90;
+
+    try row.insertTerm(gpa, Term.init( 1.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xm.err_minus.?));
+
+    // xl = 80 + s3 + 2 * xm.err_plus - 2 * xm.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = &xl;
+    row.constant = 80;
+
+    try row.insertTerm(gpa, Term.init( 1.0, &s3));
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+
+    // xr = 100 - s3
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = &xr;
+    row.constant = 100;
+
+    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+
+    // s1 = 10 - 2 * s3 - 2 * xm.err_plus + 2 * xm.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = &s1;
+    row.constant = 10;
+
+    try row.insertTerm(gpa, Term.init(-2.0, &s3));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_minus.?));
+
+    // xl.err_plus = 50 + s3 + 2 * xm.err_plus - 2 * xm.err_minus + xl.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = xl.err_plus.?;
+    row.constant = 50;
+
+    try row.insertTerm(gpa, Term.init( 1.0, &s3));
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_minus.?));
+
+    // xr.err_plus = 10 - s3 + xr.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = xr.err_plus.?;
+    row.constant = 10;
+
+    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+    try row.insertTerm(gpa, Term.init( 1.0, xr.err_minus.?));
+
+    // s2 = 90 + s3 + 2 * xm.err_plus - 2 * xm.err_minus
+
+    row = try expected_tableau.addRow(gpa);
+
+    row.basis = &s2;
+    row.constant = 90;
+
+    try row.insertTerm(gpa, Term.init( 1.0, &s3));
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+
+    // ------------ //
+    //  Test input  //
+    // ------------ //
+
+    // [0,60] + [1,2]xm.err_plus + [1,-2]xm.err_minus + [0,2]xl.err_mius + [0,2]xr.err_minus
+
+    actual_objective.basis = null;
+    actual_objective.constant = Strength.init(0.0, 0.0, 60.0);
+
+    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), xm.err_plus.?));
+    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), xm.err_minus.?));
+    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), xl.err_minus.?));
+    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), xr.err_minus.?));
+
+    // xm = 90 + xm.err_plus - xm.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &xm;
+    row.constant = 90;
+
+    try row.insertTerm(gpa, Term.init( 1.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xm.err_minus.?));
+
+    // xl = 30 + xl.err_plus - xl.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &xl;
+    row.constant = 30;
+
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xl.err_minus.?));
+
+    // xr = 150 + 2 * xm.err_plus - 2 * xm.err_minus - xl.err_plus + xl.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &xr;
+    row.constant = 150;
+
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_minus.?));
+
+    // s1 = 110 + 2 * xm.err_plus - 2 * xm.err_minus - 2 * xl.err_plus + 2 * xl.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &s1;
+    row.constant = 110;
+
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init( 2.0, xl.err_minus.?));
+
+    // s3 = -50 - 2 * xm.err_plus + 2 * xm.err_minus + xl.err_plus - xl.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &s3;
+    row.constant = -50;
+
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_minus.?));
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xl.err_minus.?));
+
+    // xr.err_plus = 60 + 2 * xm.err_plus - 2 * xm.err_minus - xl.err_plus + xl.err_minus + xr.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = xr.err_plus.?;
+    row.constant = 60;
+
+    try row.insertTerm(gpa, Term.init( 2.0, xm.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-2.0, xm.err_minus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_minus.?));
+    try row.insertTerm(gpa, Term.init( 1.0, xr.err_minus.?));
+
+    // s2 = 40 + xl.err_plus - xl.err_minus
+
+    row = try actual_tableau.addRow(gpa);
+
+    row.basis = &s2;
+    row.constant = 40;
+
+    try row.insertTerm(gpa, Term.init( 1.0, xl.err_plus.?));
+    try row.insertTerm(gpa, Term.init(-1.0, xl.err_minus.?));
+
+    //
+
+    try reoptimize(gpa, &actual_tableau, &actual_objective);
+
+    std.testing.expect(
+        expected_objective.equals(actual_objective)
+    ) catch |err| {
+        std.debug.print("\t\n", .{});
+        std.debug.print("expected objective: {f}\n", .{expected_objective});
+        std.debug.print("  actual objective: {f}\n", .{  actual_objective});
+
+        return err;
+    };
+
+    std.testing.expect(
+        expected_tableau.equals(actual_tableau)
+    ) catch |err| {
+        std.debug.print("\t\n", .{});
+        std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
+        std.debug.print("  actual tableau:\n{f}\n",   .{actual_tableau});
+
+        return err;
+    };
+}
+
 // zig fmt: on
 
 /// Returns true if two floating point values are equal within `TOLERANCE`
 fn nearEq(lhs: f32, rhs: f32) bool {
     return @abs(lhs - rhs) <= TOLERANCE;
+}
+
+fn nearZero(num: f32) bool {
+    return nearEq(num, 0.0);
 }
