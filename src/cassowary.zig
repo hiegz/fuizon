@@ -170,6 +170,8 @@ const Row = struct {
 
         coefficient = -1.0 / coefficient;
 
+        self.constant *= coefficient;
+
         for (self.term_list.items) |*term|
             term.coefficient *= coefficient;
 
