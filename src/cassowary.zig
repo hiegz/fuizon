@@ -294,8 +294,6 @@ pub const Strength = struct {
     pub const weak     = init(0.0, 0.0, 1.0);
 };
 
-// zig fmt: on
-
 /// Performs Phase II of the standard two-phase simplex algorithm.
 ///
 /// Given a simplex tableau that is already in a basic feasible solved form
@@ -309,159 +307,79 @@ fn optimize(
     tableau: *Tableau,
     objective: *Row,
 ) error{ OutOfMemory, ObjectiveUnbound }!void {
-    while (selectEnteringVariable(objective)) |entering_variable| {
-        const leaving_row = try selectLeavingRow(tableau, entering_variable);
-        try leaving_row.solveFor(gpa, entering_variable);
-        std.debug.assert(leaving_row.basis != null);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, leaving_row);
-        try objective.substitute(gpa, leaving_row);
-    }
-}
+    var min_id:    usize = undefined;
+    var min_ratio: f32   = undefined;
 
-/// Performs the dual simplex optimization algorithm.
-///
-/// Given a system with an optimal but infeasible solution, this function finds
-/// an optimal and feasible solution.
-fn reoptimize(
-    gpa: std.mem.Allocator,
-    tableau: *Tableau,
-    objective: *Row,
-) error{ OutOfMemory, EntryVariableNotFound }!void {
-    while (selectInfeasibleRow(tableau)) |index| {
-        const infeasible_row = &tableau.row_list.items[index];
-        const entering_variable = try selectDualEnteringVariable(infeasible_row, objective);
-        try infeasible_row.solveFor(gpa, entering_variable);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row);
-        try objective.substitute(gpa, infeasible_row);
-    }
-}
+    while (true) {
+        var entry_variable: ?*Variable = null;
+        var exit_row:       ?*Row      = null;
 
-/// Selects the entry variable for a pivot operation.
-///
-/// Returns the variable that meets the criteria. If no variable is found,
-/// the optimum has been reached.
-fn selectEnteringVariable(objective: *const Row) ?*Variable {
-    var min_id: usize = std.math.maxInt(usize);
-    var entering_variable: ?*Variable = null;
+        // select an entry variable for the pivot operation
 
-    for (objective.term_list.items) |term| {
-        const coefficient = term.coefficient;
-        const variable = term.variable;
+        min_id = std.math.maxInt(usize);
 
-        if (variable.kind == .dummy or coefficient >= 0.0)
-            continue;
+        for (objective.term_list.items) |term| {
+            const coefficient = term.coefficient;
+            const variable = term.variable;
 
-        // choose the lowest numbered variable to prevent cycling.
-        if (variable.id() < min_id) {
-            min_id = variable.id();
-            entering_variable = variable;
-        }
-    }
+            if (variable.kind == .dummy or coefficient >= 0.0)
+                continue;
 
-    return entering_variable;
-}
-
-/// Selects the entry variable for the dual simplex optimization.
-///
-/// Returns the variable that meets the criteria (if any)
-fn selectDualEnteringVariable(
-    infeasible_row: *const Row,
-    objective: *const Row,
-) error{EntryVariableNotFound}!*Variable {
-    std.debug.assert(infeasible_row.constant < 0.0 and !nearZero(infeasible_row.constant));
-
-    var min_id: usize = std.math.maxInt(usize);
-    var min_ratio: f32 = std.math.floatMax(f32);
-    var entering_variable: ?*Variable = null;
-
-    for (infeasible_row.term_list.items) |term| {
-        const variable = term.variable;
-        const d = objective.coefficientOf(variable);
-        const a = term.coefficient;
-
-        if (a <= 0.0)
-            continue;
-
-        const ratio = d / a;
-
-        if (ratio < min_ratio) {
-            min_id = variable.id();
-            min_ratio = ratio;
-            entering_variable = variable;
-
-            continue;
+            // choose the lowest numbered variable to prevent cycling
+            if (variable.id() < min_id) {
+                min_id = variable.id();
+                entry_variable = variable;
+            }
         }
 
-        // choose the lowest numbered variable to prevent cycling.
-        if (nearEq(ratio, min_ratio) and variable.id() < min_id) {
-            min_id = variable.id();
-            min_ratio = ratio;
-            entering_variable = variable;
+        // Optimum has been reached.
+        if (entry_variable == null)
+            break;
 
-            continue;
-        }
-    }
+        // select a row that contains an exit variable needed for a pivot
 
-    return if (entering_variable) |some| some else error.EntryVariableNotFound;
-}
+        min_id    = std.math.maxInt(usize);
+        min_ratio = std.math.floatMax(f32);
 
-/// Select the row that contains the exit variable for a pivot.
-///
-/// Returns the row that meets the criteria. If no row is found, the objective
-/// function is unbounded.
-fn selectLeavingRow(
-    tableau: *Tableau,
-    entering_variable: *const Variable,
-) error{ObjectiveUnbound}!*Row {
-    var min_id: usize = std.math.maxInt(usize);
-    var min_ratio: f32 = std.math.floatMax(f32);
-    var leaving_row: ?*Row = null;
+        for (tableau.row_list.items) |*row| {
+            const basic = row.basis.?;
+            const constant = row.constant;
+            const coefficient = row.coefficientOf(entry_variable.?);
 
-    for (tableau.row_list.items) |*row| {
-        const basic = row.basis.?;
-        const constant = row.constant;
-        const coefficient = row.coefficientOf(entering_variable);
+            // filter out unrestricted (external) variables + restricted variables
+            // that don't meet the criteria
+            if (basic.kind == .external or coefficient >= 0.0) continue;
 
-        // filter out unrestricted (external) variables + restricted variables
-        // that don't meet the criteria.
-        if (basic.kind == .external or coefficient >= 0.0) continue;
+            const ratio = -constant / coefficient;
 
-        const ratio = -constant / coefficient;
+            if (ratio < min_ratio) {
+                min_id = basic.id();
+                min_ratio = ratio;
+                exit_row = row;
 
-        if (ratio < min_ratio) {
-            min_id = basic.id();
-            min_ratio = ratio;
-            leaving_row = row;
+                continue;
+            }
 
-            continue;
+            // choose the lowest numbered variable to prevent cycling
+            if (nearEq(ratio, min_ratio) and basic.id() < min_id) {
+                min_id = basic.id();
+                min_ratio = ratio;
+                exit_row = row;
+
+                continue;
+            }
         }
 
-        // choose the lowest numbered variable to prevent cycling.
-        if (nearEq(ratio, min_ratio) and basic.id() < min_id) {
-            min_id = basic.id();
-            min_ratio = ratio;
-            leaving_row = row;
+        if (exit_row == null)
+            return error.ObjectiveUnbound;
 
-            continue;
-        }
+        // perform the pivot
+
+        try exit_row.?.solveFor(gpa, entry_variable.?);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, exit_row.?);
+        try objective.substitute(gpa, exit_row.?);
     }
-
-    if (leaving_row == null)
-        return error.ObjectiveUnbound;
-    return leaving_row.?;
 }
-
-fn selectInfeasibleRow(tableau: *const Tableau) ?usize {
-    for (tableau.row_list.items, 0..) |row, i| {
-        // row is feasible. skipping ...
-        if (row.constant >= 0.0)
-            continue;
-        return i;
-    }
-    return null;
-}
-
-// zig fmt: off
 
 test "optimize()" {
     const gpa  = std.testing.allocator;
@@ -590,6 +508,81 @@ test "optimize()" {
 
         return err;
     };
+}
+
+/// Performs the dual simplex optimization algorithm.
+///
+/// Given a system with an optimal but infeasible solution, this function finds
+/// an optimal and feasible solution.
+fn reoptimize(
+    gpa: std.mem.Allocator,
+    tableau: *Tableau,
+    objective: *Row,
+) error{ OutOfMemory, EntryVariableNotFound }!void {
+    var min_id:    usize = undefined;
+    var min_ratio: f32   = undefined;
+
+    while (true) {
+        var infeasible_row: ?*Row      = null;
+        var entry_variable: ?*Variable = null;
+
+        // find an infeasible row
+
+        for (tableau.row_list.items) |*row| {
+            // row is feasible. skipping ...
+            if (row.constant >= 0.0)
+                continue;
+
+            infeasible_row = row;
+        }
+
+        // all rows are feasible. we're good to go
+        if (infeasible_row == null)
+            return;
+
+        // find an entry variable
+
+        min_id    = std.math.maxInt(usize);
+        min_ratio = std.math.floatMax(f32);
+
+        for (infeasible_row.?.term_list.items) |term| {
+            const variable = term.variable;
+            const d = objective.coefficientOf(variable);
+            const a = term.coefficient;
+
+            if (a <= 0.0)
+                continue;
+
+            const ratio = d / a;
+
+            if (ratio < min_ratio) {
+                min_id = variable.id();
+                min_ratio = ratio;
+                entry_variable = variable;
+
+                continue;
+            }
+
+            // choose the lowest numbered variable to prevent cycling
+            if (nearEq(ratio, min_ratio) and variable.id() < min_id) {
+                min_id = variable.id();
+                min_ratio = ratio;
+                entry_variable = variable;
+
+                continue;
+            }
+        }
+
+        // this can't be good
+        if (entry_variable == null)
+            return error.EntryVariableNotFound;
+
+        // perform the pivot
+
+        try infeasible_row.?.solveFor(gpa, entry_variable.?);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row.?);
+        try objective.substitute(gpa, infeasible_row.?);
+    }
 }
 
 test "reoptimize()" {
