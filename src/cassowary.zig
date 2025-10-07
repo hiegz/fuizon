@@ -21,26 +21,16 @@ const Tableau = struct {
         return &self.row_list.items[self.row_list.items.len - 1];
     }
 
-    pub fn rows(self: anytype) switch (@TypeOf(self)) {
-               Tableau => []const Row,
-              *Tableau => []Row,
-        *const Tableau => []const Row,
-
-                  else => @compileError("expected Tableau"),
-    } {
-        return self.row_list.items;
-    }
-
     pub fn numberOfRows(self: Tableau) usize {
         return self.row_list.items.len;
     }
 
     pub fn equals(self: Tableau, other: Tableau) bool {
-        for (self.rows()) |row|
+        for (self.row_list.items) |row|
             if (!other.contains(row))
                 return false;
 
-        for (other.rows()) |row|
+        for (other.row_list.items) |row|
             if (!self.contains(row))
                 return false;
 
@@ -56,14 +46,14 @@ const Tableau = struct {
     }
 
     pub fn format(self: Tableau, writer: *std.Io.Writer) !void {
-        for (self.rows()) |row| {
+        for (self.row_list.items) |row| {
             if (row.basis.?.kind != .external) continue;
             try writer.print("{f}\n", .{row});
         }
 
         try writer.writeAll("-----\n");
 
-        for (self.rows()) |row| {
+        for (self.row_list.items) |row| {
             if (row.basis.?.kind == .external) continue;
             try writer.print("{f}\n", .{row});
         }
@@ -323,7 +313,7 @@ fn optimize(
         const leaving_row = try selectLeavingRow(tableau, entering_variable);
         try leaving_row.solveFor(gpa, entering_variable);
         std.debug.assert(leaving_row.basis != null);
-        for (tableau.rows()) |*row| try row.substitute(gpa, leaving_row);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, leaving_row);
         try objective.substitute(gpa, leaving_row);
     }
 }
@@ -341,7 +331,7 @@ fn reoptimize(
         const infeasible_row = &tableau.row_list.items[index];
         const entering_variable = try selectDualEnteringVariable(infeasible_row, objective);
         try infeasible_row.solveFor(gpa, entering_variable);
-        for (tableau.rows()) |*row| try row.substitute(gpa, infeasible_row);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row);
         try objective.substitute(gpa, infeasible_row);
     }
 }
@@ -427,7 +417,7 @@ fn selectLeavingRow(
     var min_ratio: f32 = std.math.floatMax(f32);
     var leaving_row: ?*Row = null;
 
-    for (tableau.rows()) |*row| {
+    for (tableau.row_list.items) |*row| {
         const basic = row.basis.?;
         const constant = row.constant;
         const coefficient = row.coefficientOf(entering_variable);
@@ -462,7 +452,7 @@ fn selectLeavingRow(
 }
 
 fn selectInfeasibleRow(tableau: *const Tableau) ?usize {
-    for (tableau.rows(), 0..) |row, i| {
+    for (tableau.row_list.items, 0..) |row, i| {
         // row is feasible. skipping ...
         if (row.constant >= 0.0)
             continue;
