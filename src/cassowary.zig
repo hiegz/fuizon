@@ -530,7 +530,7 @@ fn reoptimize(
 
         for (tableau.row_list.items) |*row| {
             // row is feasible. skipping ...
-            if (row.constant >= 0.0)
+            if (row.basis.?.kind == .external or row.constant >= 0.0)
                 continue;
 
             infeasible_row = row;
