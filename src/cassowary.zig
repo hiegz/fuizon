@@ -3,11 +3,7 @@ const std = @import("std");
 // zig fmt: off
 
 /// used for comparing float values.
-const  TOLERANCE = 1.0e-8;
-
-/// assigned to new variables that are not yet assigned to a solver.
-const INVALID_ID = std.math.maxInt(usize);
-const   FIRST_ID = 1;
+const TOLERANCE = 1.0e-8;
 
 const Tableau = struct {
     row_list: std.ArrayList(Row) = .empty,
@@ -225,8 +221,8 @@ const Row = struct {
 
             for (self.term_list.items) |term| {
                 const variable = term.variable;
-                if (variable.id > low_id and variable.id < min_id) {
-                    min_id   = variable.id;
+                if (variable.id() > low_id and variable.id() < min_id) {
+                    min_id   = variable.id();
                     min_term = term;
                 }
             }
@@ -246,8 +242,6 @@ const Row = struct {
 // zig fmt: on
 
 pub const Variable = struct {
-    // solver: ?*Solver = null,
-    id: usize = INVALID_ID,
     kind: VariableKind = .external,
     name: []const u8 = "",
     value: f32 = 0.0,
@@ -261,6 +255,10 @@ pub const Variable = struct {
 
     pub fn init(name: []const u8) Variable {
         return .{ .name = name };
+    }
+
+    pub fn id(self: *const Variable) usize {
+        return @intFromPtr(self);
     }
 };
 
@@ -364,8 +362,8 @@ fn selectEnteringVariable(objective: *const Row) ?*Variable {
             continue;
 
         // choose the lowest numbered variable to prevent cycling.
-        if (variable.id < min_id) {
-            min_id = variable.id;
+        if (variable.id() < min_id) {
+            min_id = variable.id();
             entering_variable = variable;
         }
     }
@@ -397,7 +395,7 @@ fn selectDualEnteringVariable(
         const ratio = d / a;
 
         if (ratio < min_ratio) {
-            min_id = variable.id;
+            min_id = variable.id();
             min_ratio = ratio;
             entering_variable = variable;
 
@@ -405,8 +403,8 @@ fn selectDualEnteringVariable(
         }
 
         // choose the lowest numbered variable to prevent cycling.
-        if (nearEq(ratio, min_ratio) and variable.id < min_id) {
-            min_id = variable.id;
+        if (nearEq(ratio, min_ratio) and variable.id() < min_id) {
+            min_id = variable.id();
             min_ratio = ratio;
             entering_variable = variable;
 
@@ -441,7 +439,7 @@ fn selectLeavingRow(
         const ratio = -constant / coefficient;
 
         if (ratio < min_ratio) {
-            min_id = basic.id;
+            min_id = basic.id();
             min_ratio = ratio;
             leaving_row = row;
 
@@ -449,8 +447,8 @@ fn selectLeavingRow(
         }
 
         // choose the lowest numbered variable to prevent cycling.
-        if (nearEq(ratio, min_ratio) and basic.id < min_id) {
-            min_id = basic.id;
+        if (nearEq(ratio, min_ratio) and basic.id() < min_id) {
+            min_id = basic.id();
             min_ratio = ratio;
             leaving_row = row;
 
@@ -476,15 +474,7 @@ fn selectInfeasibleRow(tableau: *const Tableau) ?usize {
 // zig fmt: off
 
 test "optimize()" {
-    const inc = struct {
-        pub fn function(n: *usize) usize {
-            defer  n.* += 1;
-            return n.*;
-        }
-    }.function;
-
     const gpa  = std.testing.allocator;
-    var   tick = @as(usize, FIRST_ID);
     var   row  = @as(*Row, undefined);
 
     var   actual_objective   = Row.empty;
@@ -497,12 +487,12 @@ test "optimize()" {
     defer actual_tableau.deinit(gpa);
     defer expected_tableau.deinit(gpa);
 
-    var xl: Variable = .{ .name = "xl", .kind = .external, .id = inc(&tick) };
-    var xm: Variable = .{ .name = "xm", .kind = .external, .id = inc(&tick) };
-    var xr: Variable = .{ .name = "xr", .kind = .external, .id = inc(&tick) };
-    var s1: Variable = .{ .name = "s1", .kind = .slack,    .id = inc(&tick) };
-    var s2: Variable = .{ .name = "s2", .kind = .slack,    .id = inc(&tick) };
-    var s3: Variable = .{ .name = "s3", .kind = .slack,    .id = inc(&tick) };
+    var xl: Variable = .{ .name = "xl", .kind = .external };
+    var xm: Variable = .{ .name = "xm", .kind = .external };
+    var xr: Variable = .{ .name = "xr", .kind = .external };
+    var s1: Variable = .{ .name = "s1", .kind = .slack    };
+    var s2: Variable = .{ .name = "s2", .kind = .slack    };
+    var s3: Variable = .{ .name = "s3", .kind = .slack    };
 
     // ------------ //
     //   Expected   //
@@ -613,15 +603,7 @@ test "optimize()" {
 }
 
 test "reoptimize()" {
-    const inc = struct {
-        pub fn function(n: *usize) usize {
-            defer  n.* += 1;
-            return n.*;
-        }
-    }.function;
-
     const gpa  = std.testing.allocator;
-    var   tick = @as(usize, FIRST_ID);
     var   row  = @as(*Row, undefined);
 
     var actual_objective   = Row.empty;
@@ -634,27 +616,27 @@ test "reoptimize()" {
     defer actual_tableau.deinit(gpa);
     defer expected_tableau.deinit(gpa);
 
-    var s1:  Variable = .{ .name = "s1",  .kind = .slack,    .id = inc(&tick) };
-    var s2:  Variable = .{ .name = "s2",  .kind = .slack,    .id = inc(&tick) };
-    var s3:  Variable = .{ .name = "s3",  .kind = .slack,    .id = inc(&tick) };
+    var s1:  Variable = .{ .name = "s1",  .kind = .slack    };
+    var s2:  Variable = .{ .name = "s2",  .kind = .slack    };
+    var s3:  Variable = .{ .name = "s3",  .kind = .slack    };
 
-    var xl:  Variable = .{ .name = "xl",  .kind = .external, .id = inc(&tick) };
-    var xlp: Variable = .{ .name = "xlp", .kind = .err,      .id = inc(&tick) };
-    var xlm: Variable = .{ .name = "xlm", .kind = .err,      .id = inc(&tick) };
+    var xl:  Variable = .{ .name = "xl",  .kind = .external };
+    var xlp: Variable = .{ .name = "xlp", .kind = .err      };
+    var xlm: Variable = .{ .name = "xlm", .kind = .err      };
 
     xl.err_plus  = &xlp;
     xl.err_minus = &xlm;
 
-    var xm:  Variable = .{ .name = "xm",  .kind = .external, .id = inc(&tick) };
-    var xmp: Variable = .{ .name = "xmp", .kind = .err,      .id = inc(&tick) };
-    var xmm: Variable = .{ .name = "xmm", .kind = .err,      .id = inc(&tick) };
+    var xm:  Variable = .{ .name = "xm",  .kind = .external };
+    var xmp: Variable = .{ .name = "xmp", .kind = .err      };
+    var xmm: Variable = .{ .name = "xmm", .kind = .err      };
 
     xm.err_plus  = &xmp;
     xm.err_minus = &xmm;
 
-    var xr:  Variable = .{ .name = "xr",  .kind = .external, .id = inc(&tick) };
-    var xrp: Variable = .{ .name = "xrp", .kind = .err,      .id = inc(&tick) };
-    var xrm: Variable = .{ .name = "xrm", .kind = .err,      .id = inc(&tick) };
+    var xr:  Variable = .{ .name = "xr",  .kind = .external };
+    var xrp: Variable = .{ .name = "xrp", .kind = .err      };
+    var xrm: Variable = .{ .name = "xrm", .kind = .err      };
 
     xr.err_plus  = &xrp;
     xr.err_minus = &xrm;
