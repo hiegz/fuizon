@@ -46,9 +46,11 @@ pub const System = struct {
         if (self.constraint_marker_map.contains(constraint))
             return error.DuplicateConstraint;
 
-        var new_row = try self.tableau.addRow(gpa);
 
         // use the current tableau to substitute out all the basic variables
+
+        var new_row = try self.tableau.addRow(gpa);
+        var new_row_iterator: Row.Iterator = undefined;
 
         new_row.constant = constraint.expression.constant;
 
@@ -57,7 +59,7 @@ pub const System = struct {
                 if (row.basis != term.variable)
                     continue;
 
-                try new_row.insertRow(gpa, row, term.coefficient);
+                try new_row.insertRow(gpa, term.coefficient, row.*);
 
                 continue :outer;
             }
@@ -136,8 +138,9 @@ pub const System = struct {
         // this is possible because the row is of the form l = 0
         if (new_row.constant < 0.0 and !nearZero(new_row.constant)) {
             new_row.constant *= -1;
-            for (new_row.term_list.items) |*term|
-                term.coefficient *= -1;
+            new_row_iterator = new_row.iterator();
+            while (new_row_iterator.next()) |entry|
+                entry.coefficient.* *= -1;
         }
 
         // choose the subject to enter the basis
@@ -150,8 +153,12 @@ pub const System = struct {
         // the chosen subject will be assigned to `subject`. Otherwise,
         // `subject` is null.
         selection: {
-            for (new_row.term_list.items) |term| {
-                if (term.variable.kind != .external) continue;
+            new_row_iterator = new_row.iterator();
+            while (new_row_iterator.next()) |entry| {
+                const term = entry.toTerm();
+
+                if (term.variable.kind != .external)
+                    continue;
 
                 subject = term.variable;
                 break :selection;
@@ -170,8 +177,8 @@ pub const System = struct {
 
         if (subject != null) {
             try new_row.solveFor(gpa, subject.?);
-            for (self.tableau.row_list.items) |*row| try row.substitute(gpa, new_row);
-            try self.objective.substitute(gpa, new_row);
+            for (self.tableau.row_list.items) |*row| try row.substitute(gpa, new_row.*);
+            try self.objective.substitute(gpa, new_row.*);
         }
 
         // no subject was found, use an artificial variable
@@ -189,8 +196,9 @@ pub const System = struct {
             if (!nearZero(artificial_objective.constant))
                 return error.UnsatisfiableConstraint;
 
-            var artificial_row_index: ?usize = null;
-            var artificial_row:       *Row   = undefined;
+            var artificial_row_index:    ?usize        = null;
+            var artificial_row:          *Row          = undefined;
+            var artificial_row_iterator:  Row.Iterator = undefined;
 
             for (self.tableau.row_list.items, 0..) |*row, i| {
                 if (row.basis.? != &artificial_variable) continue;
@@ -211,9 +219,13 @@ pub const System = struct {
 
                 var entry_variable: ?*Variable = null;
 
-                for (artificial_row.term_list.items) |term| {
+                artificial_row_iterator = artificial_row.iterator();
+                while (artificial_row_iterator.next()) |entry| {
+                    const term = entry.toTerm();
+
                     if (term.variable.kind == .dummy)
                         continue;
+
                     entry_variable = term.variable;
                     break;
                 }
@@ -226,26 +238,16 @@ pub const System = struct {
                 // perform the pivot
                 else {
                     try artificial_row.solveFor(gpa, entry_variable.?);
-                    for (self.tableau.row_list.items) |*row| try row.substitute(gpa, artificial_row);
-                    try self.objective.substitute(gpa, artificial_row);
+                    for (self.tableau.row_list.items) |*row| try row.substitute(gpa, artificial_row.*);
+                    try self.objective.substitute(gpa, artificial_row.*);
                 }
             }
 
             // remove any occurrence of the artificial variable from the system
 
-            for (self.tableau.row_list.items) |*row| {
-                for (row.term_list.items, 0..) |*term, i| {
-                    if (term.variable != &artificial_variable) continue;
-                    _ = row.term_list.swapRemove(i);
-                    break;
-                }
-            }
-
-            for (self.objective.term_list.items, 0..) |*term, i| {
-                if (term.variable != &artificial_variable) continue;
-                _ = self.objective.term_list.swapRemove(i);
-                break;
-            }
+            for (self.tableau.row_list.items) |*row|
+                _ = row.removeVariable(&artificial_variable);
+            _ = self.objective.removeVariable(&artificial_variable);
         }
 
         try optimize(gpa, &self.tableau, &self.objective);
@@ -286,13 +288,14 @@ pub const System = struct {
             if (marked_row) |row| {
                 self.objective.insertRow(
                     undefined,
-                    row,
                     -constraint.strength,
+                    row.*,
                 ) catch unreachable;
             } else {
-                self.objective.insertTerm(
+                self.objective.insert(
                     undefined,
-                    Term.init(-constraint.strength, marker.?),
+                    -constraint.strength,
+                    marker.?,
                 ) catch unreachable;
             }
         }
@@ -360,8 +363,8 @@ pub const System = struct {
 
             try leaving_row.solveFor(gpa, marker);
             for (self.tableau.row_list.items) |*row|
-                try row.substitute(gpa, leaving_row);
-            try self.objective.substitute(gpa, leaving_row);
+                try row.substitute(gpa, leaving_row.*);
+            try self.objective.substitute(gpa, leaving_row.*);
             for (self.tableau.row_list.items, 0..) |*row, i| {
                 if (row == leaving_row) {
                     _ = self.tableau.row_list.swapRemove(i);
@@ -451,139 +454,198 @@ const Tableau = struct {
 };
 
 const Row = struct {
-    // zig fmt: off
+    const Map = std.AutoHashMapUnmanaged(*Variable, f32);
 
-    basis:     ?*Variable = null,
-    constant:    f32 = 0.0,
-    term_list:   std.ArrayList(Term) = .empty,
-
-    // zig fmt: on
+    basis: ?*Variable = null,
+    constant: f32 = 0.0,
+    term_map: Map = .empty,
 
     pub const empty = Row{};
 
     pub fn deinit(self: *Row, gpa: std.mem.Allocator) void {
-        self.term_list.deinit(gpa);
+        self.term_map.deinit(gpa);
     }
 
     pub fn clone(self: Row, gpa: std.mem.Allocator) error{OutOfMemory}!Row {
         var ret: Row = undefined;
         ret.basis = self.basis;
         ret.constant = self.constant;
-        ret.term_list = try self.term_list.clone(gpa);
+        ret.term_map = try self.term_map.clone(gpa);
         return ret;
     }
 
-    pub fn coefficientOf(self: Row, variable: *const Variable) f32 {
-        for (self.term_list.items) |term| {
-            if (term.variable != variable) continue;
-            return term.coefficient;
+    pub const Entry = struct {
+        coefficient: *f32,
+        variable: *Variable,
+
+        pub fn toTerm(self: Entry) Term {
+            return Term.init(self.coefficient.*, self.variable);
         }
-        return 0;
+    };
+
+    pub fn findVariable(self: *const Row, variable: *Variable) ?Entry {
+        if (self.term_map.getEntry(variable)) |entry| {
+            return Entry{
+                .coefficient = entry.value_ptr,
+                .variable = entry.key_ptr.*,
+            };
+        }
+
+        return null;
     }
 
-    pub fn containsVariable(self: Row, variable: *const Variable) bool {
+    pub const Iterator = struct {
+        term_map_iterator: Map.Iterator,
+
+        pub fn next(self: *Iterator) ?Entry {
+            if (self.term_map_iterator.next()) |entry| {
+                return Entry{
+                    .coefficient = entry.value_ptr,
+                    .variable = entry.key_ptr.*,
+                };
+            }
+
+            return null;
+        }
+    };
+
+    pub fn iterator(self: *const Row) Iterator {
+        return .{ .term_map_iterator = self.term_map.iterator() };
+    }
+
+    pub fn coefficientOf(self: Row, variable: *Variable) f32 {
+        return self.term_map.get(variable) orelse 0.0;
+    }
+
+    pub fn containsVariable(self: Row, variable: *Variable) bool {
         return self.coefficientOf(variable) != 0.0;
     }
 
-    pub fn containsTerm(self: Row, _term: Term) bool {
-        for (self.term_list.items) |term| {
-            if (term.variable != _term.variable) continue;
-            if (term.coefficient != _term.coefficient)
-                return false;
-            return true;
-        }
-
-        return false;
+    pub fn containsTerm(self: Row, term: Term) bool {
+        return term.coefficient == self.coefficientOf(term.variable);
     }
 
-    pub fn insertRow(self: *Row, gpa: std.mem.Allocator, _row: *const Row, _coefficient: f32) error{OutOfMemory}!void {
-        self.constant += _coefficient * _row.constant;
+    pub fn insertRow(
+        self: *Row,
+        gpa: std.mem.Allocator,
+        coefficient: f32,
+        row: Row,
+    ) error{OutOfMemory}!void {
+        self.constant += coefficient * row.constant;
 
-        for (_row.term_list.items) |term| {
-            const coefficient = term.coefficient * _coefficient;
+        var row_iterator = row.iterator();
+        while (row_iterator.next()) |entry| {
+            const term = entry.toTerm();
+            const new_coefficient = coefficient * term.coefficient;
             const variable = term.variable;
 
-            try self.insertTerm(gpa, Term.init(coefficient, variable));
+            try self.insert(gpa, new_coefficient, variable);
         }
     }
 
-    pub fn insertTerm(self: *Row, gpa: std.mem.Allocator, _term: Term) error{OutOfMemory}!void {
-        if (nearEq(_term.coefficient, 0.0)) return;
+    pub fn insertTerm(self: *Row, gpa: std.mem.Allocator, term: Term) error{OutOfMemory}!void {
+        if (nearEq(term.coefficient, 0.0)) return;
 
-        for (self.term_list.items, 0..) |*term, i| {
-            if (term.variable != _term.variable) continue;
-            term.coefficient += _term.coefficient;
-            if (nearEq(term.coefficient, 0.0))
-                _ = self.term_list.swapRemove(i);
-            return;
+        if (self.findVariable(term.variable)) |entry| {
+            entry.coefficient.* += term.coefficient;
+            if (nearZero(entry.coefficient.*))
+                self.removeEntry(entry);
+        } else {
+            try self.term_map.putNoClobber(gpa, term.variable, term.coefficient);
         }
+    }
 
-        // at this point, _term is not in term_list, so we simply add it.
-        try self.term_list.append(gpa, _term);
+    pub fn insert(
+        self: *Row,
+        gpa: std.mem.Allocator,
+        coefficient: f32,
+        variable: *Variable,
+    ) error{OutOfMemory}!void {
+        return self.insertTerm(gpa, Term.init(coefficient, variable));
+    }
+
+    pub fn removeEntry(self: *Row, entry: Entry) void {
+        _ = self.removeVariable(entry.variable);
+    }
+
+    pub fn removeVariable(self: *Row, variable: *Variable) bool {
+        return self.term_map.remove(variable);
     }
 
     pub fn substitute(
         self: *Row,
         gpa: std.mem.Allocator,
-        _row: *const Row,
+        row: Row,
     ) error{OutOfMemory}!void {
-        for (self.term_list.items, 0..) |term, i| {
-            if (term.variable != _row.basis) continue;
-            const coefficient = term.coefficient;
-            _ = self.term_list.swapRemove(i);
-            try self.insertRow(gpa, _row, coefficient);
-            break;
+        if (self.findVariable(row.basis.?)) |entry| {
+            const coefficient = entry.coefficient.*;
+            self.removeEntry(entry);
+            try self.insertRow(gpa, coefficient, row);
         }
     }
 
-    pub fn solveFor(self: *Row, gpa: std.mem.Allocator, variable: *Variable) error{OutOfMemory}!void {
+    // zig fmt: off
+
+    pub fn solveFor(
+        self: *Row,
+        gpa: std.mem.Allocator,
+        variable: *Variable,
+    ) error{OutOfMemory}!void {
         var coefficient: f32 = 0.0;
 
-        for (self.term_list.items, 0..) |term, i| {
-            if (term.variable != variable) continue;
-            coefficient = term.coefficient;
-            _ = self.term_list.swapRemove(i);
+        if (self.findVariable(variable)) |entry| {
+            coefficient = -1.0 / entry.coefficient.*;
+            self.removeEntry(entry);
         }
 
         if (coefficient == 0.0)
             @panic("variable is not in the row");
 
         if (self.basis) |basic|
-            try self.insertTerm(gpa, Term.init(-1.0, basic));
-        self.basis = variable;
+            try self.insert(gpa, -1.0, basic);
 
-        coefficient = -1.0 / coefficient;
-
+        self.basis     = variable;
         self.constant *= coefficient;
 
-        for (self.term_list.items) |*term|
-            term.coefficient *= coefficient;
+        // any modification in the hash map invalidates live entries and
+        // iterators, so we can't remove variables while iterating over the
+        // map. instead, we memorize these variables inside `remove_list` and
+        // remove them later.
+        var   remove_list = std.ArrayList(*Variable).empty;
+        defer remove_list.deinit(gpa);
 
-        var i = self.term_list.items.len - 1;
-        while (true) : (i -= 1) {
-            const term = self.term_list.items[i];
+        var   row_iterator = self.iterator();
+        while (row_iterator.next()) |entry| {
+            entry.coefficient.* *= coefficient;
+            if (nearZero(entry.coefficient.*))
+                try remove_list.append(gpa, entry.variable);
+        }
 
-            if (nearEq(term.coefficient, 0.0))
-                _ = self.term_list.swapRemove(i);
-
-            if (i == 0)
-                break;
+        for (remove_list.items) |item| {
+            const removed = self.removeVariable(item);
+            std.debug.assert(removed);
         }
     }
 
+    // zig fmt: on
+
     pub fn equals(self: Row, other: Row) bool {
+        var row_iterator: Iterator = undefined;
+
         if (self.basis != other.basis)
             return false;
 
         if (!nearEq(self.constant, other.constant))
             return false;
 
-        for (self.term_list.items) |term|
-            if (!other.containsTerm(term))
+        row_iterator = self.iterator();
+        while (row_iterator.next()) |entry|
+            if (!other.containsTerm(entry.toTerm()))
                 return false;
 
-        for (other.term_list.items) |term|
-            if (!self.containsTerm(term))
+        row_iterator = other.iterator();
+        while (row_iterator.next()) |entry|
+            if (!self.containsTerm(entry.toTerm()))
                 return false;
 
         return true;
@@ -602,10 +664,13 @@ const Row = struct {
         var min_id:   usize = undefined;
         var min_term: Term  = undefined;
 
-        for (self.term_list.items) |_| {
+        var _row_iterator = self.iterator();
+        while (_row_iterator.next()) |_| {
             min_id = std.math.maxInt(usize);
 
-            for (self.term_list.items) |term| {
+            var row_iterator = self.iterator();
+            while (row_iterator.next()) |entry| {
+                const term = entry.toTerm();
                 const variable = term.variable;
                 if (variable.id() > low_id and variable.id() < min_id) {
                     min_id   = variable.id();
@@ -806,7 +871,9 @@ fn optimize(
 
         min_id = std.math.maxInt(usize);
 
-        for (objective.term_list.items) |term| {
+        var objective_iterator = objective.iterator();
+        while (objective_iterator.next()) |entry| {
+            const term = entry.toTerm();
             const coefficient = term.coefficient;
             const variable = term.variable;
 
@@ -864,8 +931,8 @@ fn optimize(
         // perform the pivot
 
         try exit_row.?.solveFor(gpa, entry_variable.?);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, exit_row.?);
-        try objective.substitute(gpa, exit_row.?);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, exit_row.?.*);
+        try objective.substitute(gpa, exit_row.?.*);
     }
 }
 
@@ -1033,7 +1100,9 @@ fn reoptimize(
         min_id    = std.math.maxInt(usize);
         min_ratio = std.math.floatMax(f32);
 
-        for (infeasible_row.?.term_list.items) |term| {
+        var infeasible_row_iterator = infeasible_row.?.iterator();
+        while (infeasible_row_iterator.next()) |entry| {
+            const term = entry.toTerm();
             const variable = term.variable;
             const d = objective.coefficientOf(variable);
             const a = term.coefficient;
@@ -1068,8 +1137,8 @@ fn reoptimize(
         // perform the pivot
 
         try infeasible_row.?.solveFor(gpa, entry_variable.?);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row.?);
-        try objective.substitute(gpa, infeasible_row.?);
+        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row.?.*);
+        try objective.substitute(gpa, infeasible_row.?.*);
     }
 }
 
