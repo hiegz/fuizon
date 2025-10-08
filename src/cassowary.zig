@@ -631,9 +631,7 @@ const Row = struct {
             try writer.print("{s} = ", .{basis.name});
         }
 
-        if (self.constant != 0.0) {
-            try writer.print("{d}", .{self.constant});
-        }
+        try writer.print("{d}", .{self.constant});
 
         // zig fmt: off
 
