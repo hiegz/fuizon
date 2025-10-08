@@ -415,6 +415,17 @@ pub const System = struct {
     }
 
     // zig fmt: on
+
+    pub fn refresh(self: *System) void {
+        // TODO: check for system anomalies when in debug mode
+
+        for (self.tableau.row_list.items) |row| {
+            const basis = row.basis.?;
+            if (basis.kind != .external)
+                continue;
+            basis.value = row.constant;
+        }
+    }
 };
 
 test "System" {
