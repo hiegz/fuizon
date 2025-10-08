@@ -46,32 +46,25 @@ pub const System = struct {
         if (self.constraint_marker_map.contains(constraint))
             return error.DuplicateConstraint;
 
+        try self.constraint_marker_map.putNoClobber(gpa, constraint, .{ null, null });
+        const markers = self.constraint_marker_map.getPtr(constraint).?;
 
         // use the current tableau to substitute out all the basic variables
 
-        var new_row = try self.tableau.addRow(gpa);
-        var new_row_iterator: Row.Iterator = undefined;
+        var   new_row:          Row          = .empty;
+        var   new_row_iterator: Row.Iterator = undefined;
+        defer new_row.deinit(gpa);
 
         new_row.constant = constraint.expression.constant;
 
-        outer: for (constraint.expression.term_list.items) |term| {
-            for (self.tableau.row_list.items) |*row| {
-                if (row.basis != term.variable)
-                    continue;
-
-                try new_row.insertRow(gpa, term.coefficient, row.*);
-
-                continue :outer;
-            }
-
-            // term.variable is not basic, so just insert it into the row
-            try new_row.insertTerm(gpa, term);
+        for (constraint.expression.term_list.items) |term| {
+            if (self.tableau.findBasis(term.variable)) |entry|
+                try new_row.insertRow(gpa, term.coefficient, entry.row.*)
+            else
+                try new_row.insertTerm(gpa, term);
         }
 
         // add slack and error variables
-
-        try self.constraint_marker_map.putNoClobber(gpa, constraint, .{ null, null });
-        const markers = self.constraint_marker_map.getPtr(constraint).?;
 
         switch (constraint.operator) {
             .le, .ge => {
@@ -83,8 +76,7 @@ pub const System = struct {
 
                 markers[0] = slack;
 
-                try new_row.insertTerm(gpa, Term.init(coefficient, slack));
-
+                try new_row.insert(gpa, coefficient, slack);
 
                 if (constraint.strength < Strength.required) {
                     const err = try gpa.create(Variable);
@@ -93,8 +85,8 @@ pub const System = struct {
 
                     markers[1] = err;
 
-                    try new_row.insertTerm(gpa, Term.init(-coefficient, err));
-                    try self.objective.insertTerm(gpa, Term.init(constraint.strength, err));
+                    try new_row.insert(gpa, -coefficient, err);
+                    try self.objective.insert(gpa, constraint.strength, err);
                 }
             },
 
@@ -107,7 +99,7 @@ pub const System = struct {
 
                     markers[0] = dummy;
 
-                    try new_row.insertTerm(gpa, Term.init(1.0, dummy));
+                    try new_row.insert(gpa, 1.0, dummy);
 
                     break :this;
                 }
@@ -118,8 +110,8 @@ pub const System = struct {
 
                 markers[0] = err_plus;
 
-                try new_row.insertTerm(gpa, Term.init(-1.0, err_plus));
-                try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_plus));
+                try new_row.insert(gpa, -1.0, err_plus);
+                try self.objective.insert(gpa, constraint.strength, err_plus);
 
                 const err_minus = try gpa.create(Variable);
                 err_minus.name  = "";
@@ -127,8 +119,8 @@ pub const System = struct {
 
                 markers[1] = err_minus;
 
-                try new_row.insertTerm(gpa, Term.init(1.0, err_minus));
-                try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_minus));
+                try new_row.insert(gpa, 1.0, err_minus);
+                try self.objective.insert(gpa, constraint.strength, err_minus);
             },
         }
 
@@ -177,8 +169,11 @@ pub const System = struct {
 
         if (subject != null) {
             try new_row.solveFor(gpa, subject.?);
-            for (self.tableau.row_list.items) |*row| try row.substitute(gpa, new_row.*);
-            try self.objective.substitute(gpa, new_row.*);
+            try self.tableau.substitute(gpa, subject.?, new_row);
+            try self.objective.substitute(gpa, subject.?, new_row);
+            try self.tableau.insert(gpa, subject.?, new_row);
+            new_row = .empty;
+
         }
 
         // no subject was found, use an artificial variable
@@ -190,38 +185,30 @@ pub const System = struct {
             var artificial_objective = try new_row.clone(gpa);
             defer artificial_objective.deinit(gpa);
 
-            new_row.basis = &artificial_variable;
+            try self.tableau.insert(gpa, &artificial_variable, new_row);
+            new_row = .empty;
 
             try optimize(gpa, &self.tableau, &artificial_objective);
             if (!nearZero(artificial_objective.constant))
                 return error.UnsatisfiableConstraint;
 
-            var artificial_row_index:    ?usize        = null;
-            var artificial_row:          *Row          = undefined;
-            var artificial_row_iterator:  Row.Iterator = undefined;
-
-            for (self.tableau.row_list.items, 0..) |*row, i| {
-                if (row.basis.? != &artificial_variable) continue;
-                artificial_row = row;
-                artificial_row_index = i;
-                break;
-            }
-
             // artificial variable is basic
-            if (artificial_row_index) |index| {
+            if (self.tableau.findBasis(&artificial_variable)) |tableau_entry| {
+                var row = tableau_entry.row.*;
+
                 // since we were able to achieve a value of zero for our
                 // artificial objective function which is equal to
                 // `artificial_variable`, the constant of this row must
                 // also be zero
-                std.debug.assert(nearZero(artificial_row.constant));
+                std.debug.assert(nearZero(row.constant));
 
                 // find a variable to enter the basis
 
                 var entry_variable: ?*Variable = null;
 
-                artificial_row_iterator = artificial_row.iterator();
-                while (artificial_row_iterator.next()) |entry| {
-                    const term = entry.toTerm();
+                var row_iterator = row.iterator();
+                while (row_iterator.next()) |row_entry| {
+                    const term = row_entry.toTerm();
 
                     if (term.variable.kind == .dummy)
                         continue;
@@ -232,21 +219,24 @@ pub const System = struct {
 
                 // the row is just a = 0 (+ dummies), so it can be removed
                 if (entry_variable == null) {
-                    _ = self.tableau.row_list.swapRemove(index);
+                    self.tableau.removeEntry(tableau_entry);
                 }
 
                 // perform the pivot
                 else {
-                    try artificial_row.solveFor(gpa, entry_variable.?);
-                    for (self.tableau.row_list.items) |*row| try row.substitute(gpa, artificial_row.*);
-                    try self.objective.substitute(gpa, artificial_row.*);
+                    self.tableau.removeEntry(tableau_entry);
+                    try row.solveFor(gpa, entry_variable.?);
+                    try self.tableau.insert(gpa, entry_variable.?, row);
+                    try self.tableau.substitute(gpa, entry_variable.?, row);
+                    try self.objective.substitute(gpa, entry_variable.?, row);
                 }
             }
 
             // remove any occurrence of the artificial variable from the system
 
-            for (self.tableau.row_list.items) |*row|
-                _ = row.removeVariable(&artificial_variable);
+            var tableau_iterator = self.tableau.iterator();
+            while (tableau_iterator.next()) |entry|
+                 _ = entry.row.removeVariable(&artificial_variable);
             _ = self.objective.removeVariable(&artificial_variable);
         }
 
@@ -261,35 +251,23 @@ pub const System = struct {
         if (!self.constraint_marker_map.contains(constraint))
             return error.UnknownConstraint;
 
-        // remove error variable effects from the objective function
-
         const markers = self.constraint_marker_map.get(constraint).?;
 
+        // remove error variable effects from the objective function
         for (markers) |marker| {
             if (marker == null or marker.?.kind != .err)
                 continue;
-
-            var marked_row: ?*Row = null;
-
-            for (self.tableau.row_list.items) |*row| {
-                if (row.basis.? != marker.?)
-                    continue;
-
-                marked_row = row;
-
-                break;
-            }
 
             // here, we assume the marker error variable or its equivalent
             // substitution are all part of the objective function so the
             // following just removes these terms from the objective without
             // allocating new memory. Hence, no allocator is needed and no
             // memory errors are anticipated.
-            if (marked_row) |row| {
+            if (self.tableau.findBasis(marker.?)) |entry| {
                 self.objective.insertRow(
                     undefined,
                     -constraint.strength,
-                    row.*,
+                    entry.row.*,
                 ) catch unreachable;
             } else {
                 self.objective.insert(
@@ -303,32 +281,27 @@ pub const System = struct {
         std.debug.assert(markers[0] != null);
         const marker = markers[0].?;
 
-        var marked_row_index: ?usize = null;
-
-        for (self.tableau.row_list.items, 0..) |*row, i| {
-            if (row.basis.? != marker)
-                continue;
-            marked_row_index = i;
-            break;
-        }
-
         // if the marker is already in the basis, just drop that row
-        if (marked_row_index) |i| {
-            var row = self.tableau.row_list.swapRemove(i);
-            row.deinit(gpa);
+        if (self.tableau.findBasis(marker)) |entry| {
+            entry.row.deinit(gpa);
+            self.tableau.removeEntry(entry);
         }
         // otherwise determine the most restrictive row with the marker
         // variable to be dropped
         else {
-            var min_ratio:   [2]f32   = undefined;
-            var candidates:  [3]?*Row = .{ null, null, null };
+            var min_ratio:   [2]f32            = undefined;
+            var candidates:  [3]?Tableau.Entry = .{ null, null, null };
 
             min_ratio[0] = std.math.floatMax(f32);
             min_ratio[1] = std.math.floatMax(f32);
 
-            for (self.tableau.row_list.items) |*row| {
-                if (row.basis.?.kind == .external)
-                    candidates[2] = row;
+            var tableau_iterator = self.tableau.iterator();
+            while (tableau_iterator.next()) |entry| {
+                const basis = entry.basis;
+                const row   = entry.row;
+
+                if (basis.kind == .external)
+                    candidates[2] = entry;
 
                 const constant    = row.constant;
                 const coefficient = row.coefficientOf(marker);
@@ -340,7 +313,7 @@ pub const System = struct {
                     const ratio = -constant / coefficient;
                     if (ratio < min_ratio[0]) {
                          min_ratio[0] = ratio;
-                        candidates[0] = row;
+                        candidates[0] = entry;
                     }
                     continue;
                 }
@@ -349,29 +322,25 @@ pub const System = struct {
                     const ratio = constant / coefficient;
                     if (ratio < min_ratio[1]) {
                          min_ratio[1] = ratio;
-                        candidates[1] = row;
+                        candidates[1] = entry;
                     }
                     continue;
                 }
             }
 
-            const leaving_row: *Row =
+            const leaving_entry: Tableau.Entry =
                 if      (candidates[0]) |candidate| candidate
                 else if (candidates[1]) |candidate| candidate
                 else if (candidates[2]) |candidate| candidate
                 else return error.ConstraintMarkerNotFound;
 
+            var   leaving_row = leaving_entry.row.*;
+            defer leaving_row.deinit(gpa);
+
+            self.tableau.removeEntry(leaving_entry);
             try leaving_row.solveFor(gpa, marker);
-            for (self.tableau.row_list.items) |*row|
-                try row.substitute(gpa, leaving_row.*);
-            try self.objective.substitute(gpa, leaving_row.*);
-            for (self.tableau.row_list.items, 0..) |*row, i| {
-                if (row == leaving_row) {
-                    _ = self.tableau.row_list.swapRemove(i);
-                    row.deinit(gpa);
-                    break;
-                }
-            }
+            try self.tableau.substitute(gpa, marker, leaving_row);
+            try self.objective.substitute(gpa, marker, leaving_row);
         }
 
         try optimize(gpa, &self.tableau, &self.objective);
@@ -389,8 +358,11 @@ pub const System = struct {
     pub fn refresh(self: *System) void {
         // TODO: check for system anomalies when in debug mode
 
-        for (self.tableau.row_list.items) |row| {
-            const basis = row.basis.?;
+        var tableau_iterator = self.tableau.iterator();
+        while (tableau_iterator.next()) |entry| {
+            const basis = entry.basis;
+            const row = entry.row;
+
             if (basis.kind != .external)
                 continue;
             basis.value = row.constant;
@@ -403,52 +375,111 @@ test "System" {
 }
 
 const Tableau = struct {
-    row_list: std.ArrayList(Row) = .empty,
+    const Map = std.AutoHashMapUnmanaged(*Variable, Row);
+
+    row_map: Map = .empty,
 
     pub const empty = Tableau{};
 
     pub fn deinit(self: *Tableau, gpa: std.mem.Allocator) void {
-        for (self.row_list.items) |*row|
-            row.deinit(gpa);
-        self.row_list.deinit(gpa);
+        var tableau_iterator = self.iterator();
+        while (tableau_iterator.next()) |entry|
+            entry.row.deinit(gpa);
+        self.row_map.deinit(gpa);
     }
 
-    pub fn addRow(self: *Tableau, gpa: std.mem.Allocator) error{OutOfMemory}!*Row {
-        try self.row_list.append(gpa, .empty);
-        return &self.row_list.items[self.row_list.items.len - 1];
+    pub const Entry = struct {
+        basis: *Variable,
+        row: *Row,
+    };
+
+    pub fn findBasis(self: *const Tableau, basis: *Variable) ?Entry {
+        if (self.row_map.getEntry(basis)) |entry| {
+            return Entry{
+                .basis = entry.key_ptr.*,
+                .row = entry.value_ptr,
+            };
+        }
+
+        return null;
+    }
+
+    pub const Iterator = struct {
+        row_map_iterator: Map.Iterator,
+
+        pub fn next(self: *Iterator) ?Entry {
+            if (self.row_map_iterator.next()) |entry| {
+                return Entry{
+                    .basis = entry.key_ptr.*,
+                    .row = entry.value_ptr,
+                };
+            }
+
+            return null;
+        }
+    };
+
+    pub fn iterator(self: *const Tableau) Iterator {
+        return .{ .row_map_iterator = self.row_map.iterator() };
+    }
+
+    pub fn insert(
+        self: *Tableau,
+        gpa: std.mem.Allocator,
+        basis: *Variable,
+        row: Row,
+    ) error{OutOfMemory}!void {
+        try self.row_map.putNoClobber(gpa, basis, row);
+    }
+
+    pub fn removeEntry(self: *Tableau, entry: Entry) void {
+        const removed = self.row_map.remove(entry.basis);
+        std.debug.assert(removed == true);
+    }
+
+    pub fn substitute(self: *Tableau, gpa: std.mem.Allocator, variable: *Variable, row: Row) error{OutOfMemory}!void {
+        var tableau_iterator = self.iterator();
+        while (tableau_iterator.next()) |entry|
+            try entry.row.substitute(gpa, variable, row);
     }
 
     pub fn equals(self: Tableau, other: Tableau) bool {
-        for (self.row_list.items) |row|
-            if (!other.contains(row))
+        var tableau_iterator: Tableau.Iterator = undefined;
+
+        tableau_iterator = self.iterator();
+        while (tableau_iterator.next()) |entry|
+            if (!other.contains(entry))
                 return false;
 
-        for (other.row_list.items) |row|
-            if (!self.contains(row))
+        tableau_iterator = other.iterator();
+        while (tableau_iterator.next()) |entry|
+            if (!self.contains(entry))
                 return false;
 
         return true;
     }
 
-    pub fn contains(self: Tableau, _row: Row) bool {
-        for (self.row_list.items) |row| {
-            if (row.equals(_row))
-                return true;
-        }
+    pub fn contains(self: Tableau, entry: Entry) bool {
+        if (self.row_map.getPtr(entry.basis)) |row|
+            return row.equals(entry.row.*);
         return false;
     }
 
     pub fn format(self: Tableau, writer: *std.Io.Writer) !void {
-        for (self.row_list.items) |row| {
-            if (row.basis.?.kind != .external) continue;
-            try writer.print("{f}\n", .{row});
+        var tableau_iterator: Tableau.Iterator = undefined;
+
+        tableau_iterator = self.iterator();
+        while (tableau_iterator.next()) |entry| {
+            if (entry.basis.kind != .external) continue;
+            try writer.print("{f} = {f}\n", .{ entry.basis, entry.row });
         }
 
         try writer.writeAll("-----\n");
 
-        for (self.row_list.items) |row| {
-            if (row.basis.?.kind == .external) continue;
-            try writer.print("{f}\n", .{row});
+        tableau_iterator = self.iterator();
+        while (tableau_iterator.next()) |entry| {
+            if (entry.basis.kind == .external) continue;
+            try writer.print("{f} = {f}\n", .{ entry.basis, entry.row });
         }
     }
 };
@@ -456,7 +487,6 @@ const Tableau = struct {
 const Row = struct {
     const Map = std.AutoHashMapUnmanaged(*Variable, f32);
 
-    basis: ?*Variable = null,
     constant: f32 = 0.0,
     term_map: Map = .empty,
 
@@ -468,7 +498,6 @@ const Row = struct {
 
     pub fn clone(self: Row, gpa: std.mem.Allocator) error{OutOfMemory}!Row {
         var ret: Row = undefined;
-        ret.basis = self.basis;
         ret.constant = self.constant;
         ret.term_map = try self.term_map.clone(gpa);
         return ret;
@@ -575,9 +604,10 @@ const Row = struct {
     pub fn substitute(
         self: *Row,
         gpa: std.mem.Allocator,
+        variable: *Variable,
         row: Row,
     ) error{OutOfMemory}!void {
-        if (self.findVariable(row.basis.?)) |entry| {
+        if (self.findVariable(variable)) |entry| {
             const coefficient = entry.coefficient.*;
             self.removeEntry(entry);
             try self.insertRow(gpa, coefficient, row);
@@ -601,10 +631,6 @@ const Row = struct {
         if (coefficient == 0.0)
             @panic("variable is not in the row");
 
-        if (self.basis) |basic|
-            try self.insert(gpa, -1.0, basic);
-
-        self.basis     = variable;
         self.constant *= coefficient;
 
         // any modification in the hash map invalidates live entries and
@@ -632,9 +658,6 @@ const Row = struct {
     pub fn equals(self: Row, other: Row) bool {
         var row_iterator: Iterator = undefined;
 
-        if (self.basis != other.basis)
-            return false;
-
         if (!nearEq(self.constant, other.constant))
             return false;
 
@@ -652,10 +675,6 @@ const Row = struct {
     }
 
     pub fn format(self: Row, writer: *std.Io.Writer) !void {
-        if (self.basis) |basis| {
-            try writer.print("{f} = ", .{basis});
-        }
-
         try writer.print("{d}", .{self.constant});
 
         // zig fmt: off
@@ -864,8 +883,8 @@ fn optimize(
     var min_ratio: f32   = undefined;
 
     while (true) {
-        var entry_variable: ?*Variable = null;
-        var exit_row:       ?*Row      = null;
+        var entry_variable: ?*Variable      = null;
+        var exit_entry:     ? Tableau.Entry = null;
 
         // select an entry variable for the pivot operation
 
@@ -896,49 +915,60 @@ fn optimize(
         min_id    = std.math.maxInt(usize);
         min_ratio = std.math.floatMax(f32);
 
-        for (tableau.row_list.items) |*row| {
-            const basic = row.basis.?;
+        var tableau_iterator = tableau.iterator();
+        while (tableau_iterator.next()) |entry| {
+            const basis = entry.basis;
+            const row = entry.row;
             const constant = row.constant;
             const coefficient = row.coefficientOf(entry_variable.?);
 
             // filter out unrestricted (external) variables + restricted variables
             // that don't meet the criteria
-            if (basic.kind == .external or coefficient >= 0.0) continue;
+            if (basis.kind == .external or coefficient >= 0.0) continue;
 
             const ratio = -constant / coefficient;
 
             if (ratio < min_ratio) {
-                min_id = basic.id();
+                min_id = basis.id();
                 min_ratio = ratio;
-                exit_row = row;
+                exit_entry = entry;
 
                 continue;
             }
 
             // choose the lowest numbered variable to prevent cycling
-            if (nearEq(ratio, min_ratio) and basic.id() < min_id) {
-                min_id = basic.id();
+            if (nearEq(ratio, min_ratio) and basis.id() < min_id) {
+                min_id = basis.id();
                 min_ratio = ratio;
-                exit_row = row;
+                exit_entry = entry;
 
                 continue;
             }
         }
 
-        if (exit_row == null)
+        if (exit_entry == null)
             return error.ObjectiveUnbound;
 
         // perform the pivot
 
-        try exit_row.?.solveFor(gpa, entry_variable.?);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, exit_row.?.*);
-        try objective.substitute(gpa, exit_row.?.*);
+        const exit_basis = exit_entry.?.basis;
+        var   exit_row   = exit_entry.?.row.*;
+
+        tableau.removeEntry(exit_entry.?);
+
+        try exit_row.insert(gpa, -1.0, exit_basis);
+        try exit_row.solveFor(gpa, entry_variable.?);
+        try tableau.insert(gpa, entry_variable.?, exit_row);
+        try tableau.substitute(gpa, entry_variable.?, exit_row);
+        try objective.substitute(gpa, entry_variable.?, exit_row);
     }
 }
 
 test "optimize()" {
     const gpa  = std.testing.allocator;
-    var   row  = @as(*Row, undefined);
+    var   row  = @as(Row, .empty);
+
+    defer row.deinit(gpa);
 
     var   actual_objective   = Row.empty;
     var   expected_objective = Row.empty;
@@ -963,40 +993,47 @@ test "optimize()" {
 
     // 5 + (1/2)s1
 
-    expected_objective.basis = null;
     expected_objective.constant = 5;
     try expected_objective.insertTerm(gpa, Term.init(0.5, &s1));
 
     // xl = 90 - s1 - s3
 
-    row = try expected_tableau.addRow(gpa);
-    row.basis = &xl;
+    row = .empty;
     row.constant = 90;
     try row.insertTerm(gpa, Term.init(-1.0, &s1));
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
+    try expected_tableau.insert(gpa, &xl, row);
+    row = .empty;
+
     // xm = 95 - (1/2)s1 - s3
 
-    row = try expected_tableau.addRow(gpa);
-    row.basis = &xm;
+    row = .empty;
     row.constant = 95;
     try row.insertTerm(gpa, Term.init(-0.5, &s1));
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
+    try expected_tableau.insert(gpa, &xm, row);
+    row = .empty;
+
     // xr = 100 - s3
 
-    row = try expected_tableau.addRow(gpa);
-    row.basis = &xr;
+    row = .empty;
     row.constant = 100;
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
+
+    try expected_tableau.insert(gpa, &xr, row);
+    row = .empty;
 
     // s2 = 100 - s1 - s3
 
-    row = try expected_tableau.addRow(gpa);
-    row.basis = &s2;
+    row = .empty;
     row.constant = 100;
     try row.insertTerm(gpa, Term.init(-1.0, &s1));
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
+
+    try expected_tableau.insert(gpa, &s2, row);
+    row = .empty;
 
     // ------------ //
     //  Test input  //
@@ -1004,41 +1041,47 @@ test "optimize()" {
 
     // 55 - (1/2) * s2 - (1/2) * s3
 
-    actual_objective.basis = null;
     actual_objective.constant = 55;
     try actual_objective.insertTerm(gpa, Term.init(-0.5, &s2));
     try actual_objective.insertTerm(gpa, Term.init(-0.5, &s3));
 
-
     // xl = -10 + s2
 
-    row = try actual_tableau.addRow(gpa);
-    row.basis = &xl;
+    row = .empty;
     row.constant = -10;
     try row.insertTerm(gpa, Term.init(1.0, &s2));
 
+    try actual_tableau.insert(gpa, &xl, row);
+    row = .empty;
+
     // xm = 45 + (1/2)s2 - (1/2)s3
 
-    row = try actual_tableau.addRow(gpa);
-    row.basis = &xm;
+    row = .empty;
     row.constant = 45;
     try row.insertTerm(gpa, Term.init( 0.5, &s2));
     try row.insertTerm(gpa, Term.init(-0.5, &s3));
 
+    try actual_tableau.insert(gpa, &xm, row);
+    row = .empty;
+
     // xr = 100 - s3
 
-    row = try actual_tableau.addRow(gpa);
-    row.basis = &xr;
+    row = .empty;
     row.constant = 100;
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
+
+    try actual_tableau.insert(gpa, &xr, row);
+    row = .empty;
 
     // s1 = 100 - s2 - s3
 
-    row = try actual_tableau.addRow(gpa);
-    row.basis = &s1;
+    row = .empty;
     row.constant = 100;
     try row.insertTerm(gpa, Term.init(-1.0, &s2));
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
+
+    try actual_tableau.insert(gpa, &s1, row);
+    row = .empty;
 
     //
 
@@ -1078,21 +1121,25 @@ fn reoptimize(
     var min_ratio: f32   = undefined;
 
     while (true) {
-        var infeasible_row: ?*Row      = null;
-        var entry_variable: ?*Variable = null;
+        var infeasible_entry: ? Tableau.Entry = null;
+        var entry_variable:   ?*Variable      = null;
 
         // find an infeasible row
 
-        for (tableau.row_list.items) |*row| {
+        var tableau_iterator = tableau.iterator();
+        while (tableau_iterator.next()) |entry| {
+            const row = entry.row;
+            const basis = entry.basis;
+
             // row is feasible. skipping ...
-            if (row.basis.?.kind == .external or row.constant >= 0.0)
+            if (basis.kind == .external or row.constant >= 0.0)
                 continue;
 
-            infeasible_row = row;
+            infeasible_entry = entry;
         }
 
         // all rows are feasible. we're good to go
-        if (infeasible_row == null)
+        if (infeasible_entry == null)
             return;
 
         // find an entry variable
@@ -1100,7 +1147,7 @@ fn reoptimize(
         min_id    = std.math.maxInt(usize);
         min_ratio = std.math.floatMax(f32);
 
-        var infeasible_row_iterator = infeasible_row.?.iterator();
+        var infeasible_row_iterator = infeasible_entry.?.row.iterator();
         while (infeasible_row_iterator.next()) |entry| {
             const term = entry.toTerm();
             const variable = term.variable;
@@ -1136,15 +1183,22 @@ fn reoptimize(
 
         // perform the pivot
 
-        try infeasible_row.?.solveFor(gpa, entry_variable.?);
-        for (tableau.row_list.items) |*row| try row.substitute(gpa, infeasible_row.?.*);
-        try objective.substitute(gpa, infeasible_row.?.*);
+        const infeasible_basis = infeasible_entry.?.basis;
+        var   infeasible_row   = infeasible_entry.?.row.*;
+
+        tableau.removeEntry(infeasible_entry.?);
+
+        try infeasible_row.insert(gpa, -1.0, infeasible_basis);
+        try infeasible_row.solveFor(gpa, entry_variable.?);
+        try tableau.insert(gpa, entry_variable.?, infeasible_row);
+        try tableau.substitute(gpa, entry_variable.?, infeasible_row);
+        try objective.substitute(gpa, entry_variable.?, infeasible_row);
     }
 }
 
 test "reoptimize()" {
     const gpa  = std.testing.allocator;
-    var   row  = @as(*Row, undefined);
+    var   row  = @as(Row, .empty);
 
     var actual_objective   = Row.empty;
     var expected_objective = Row.empty;
@@ -1178,7 +1232,6 @@ test "reoptimize()" {
 
     // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xlm + [0,2]xrm
 
-    expected_objective.basis = null;
     expected_objective.constant = Strength.init(0.0, 0.0, 60.0);
 
     try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
@@ -1188,50 +1241,52 @@ test "reoptimize()" {
 
     // xm = 90 + xmp - xmm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &xm;
+    row = .empty;
     row.constant = 90;
 
     try row.insertTerm(gpa, Term.init( 1.0, &xmp));
     try row.insertTerm(gpa, Term.init(-1.0, &xmm));
 
+    try expected_tableau.insert(gpa, &xm, row);
+    row = .empty;
+
     // xl = 80 + s3 + 2 * xmp - 2 * xmm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &xl;
+    row = .empty;
     row.constant = 80;
 
     try row.insertTerm(gpa, Term.init( 1.0, &s3));
     try row.insertTerm(gpa, Term.init( 2.0, &xmp));
     try row.insertTerm(gpa, Term.init(-2.0, &xmm));
 
+    try expected_tableau.insert(gpa, &xl, row);
+    row = .empty;
+
     // xr = 100 - s3
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &xr;
+    row = .empty;
     row.constant = 100;
 
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
+    try expected_tableau.insert(gpa, &xr, row);
+    row = .empty;
+
     // s1 = 10 - 2 * s3 - 2 * xmp + 2 * xmm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &s1;
+    row = .empty;
     row.constant = 10;
 
     try row.insertTerm(gpa, Term.init(-2.0, &s3));
     try row.insertTerm(gpa, Term.init(-2.0, &xmp));
     try row.insertTerm(gpa, Term.init( 2.0, &xmm));
 
+    try expected_tableau.insert(gpa, &s1, row);
+    row = .empty;
+
     // xlp = 50 + s3 + 2 * xmp - 2 * xmm + xlm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &xlp;
+    row = .empty;
     row.constant = 50;
 
     try row.insertTerm(gpa, Term.init( 1.0, &s3));
@@ -1239,26 +1294,31 @@ test "reoptimize()" {
     try row.insertTerm(gpa, Term.init(-2.0, &xmm));
     try row.insertTerm(gpa, Term.init( 1.0, &xlm));
 
+    try expected_tableau.insert(gpa, &xlp, row);
+    row = .empty;
+
     // xrp = 10 - s3 + xrm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &xrp;
+    row = .empty;
     row.constant = 10;
 
     try row.insertTerm(gpa, Term.init(-1.0, &s3));
     try row.insertTerm(gpa, Term.init( 1.0, &xrm));
 
+    try expected_tableau.insert(gpa, &xrp, row);
+    row = .empty;
+
     // s2 = 90 + s3 + 2 * xmp - 2 * xmm
 
-    row = try expected_tableau.addRow(gpa);
-
-    row.basis = &s2;
+    row = .empty;
     row.constant = 90;
 
     try row.insertTerm(gpa, Term.init( 1.0, &s3));
     try row.insertTerm(gpa, Term.init( 2.0, &xmp));
     try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+
+    try expected_tableau.insert(gpa, &s2, row);
+    row = .empty;
 
     // ------------ //
     //  Test input  //
@@ -1266,7 +1326,6 @@ test "reoptimize()" {
 
     // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xl.err_mius + [0,2]xrm
 
-    actual_objective.basis = null;
     actual_objective.constant = Strength.init(0.0, 0.0, 60.0);
 
     try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
@@ -1276,29 +1335,29 @@ test "reoptimize()" {
 
     // xm = 90 + xmp - xmm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &xm;
+    row = .empty;
     row.constant = 90;
 
     try row.insertTerm(gpa, Term.init( 1.0, &xmp));
     try row.insertTerm(gpa, Term.init(-1.0, &xmm));
 
+    try actual_tableau.insert(gpa, &xm, row);
+    row = .empty;
+
     // xl = 30 + xlp - xlm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &xl;
+    row = .empty;
     row.constant = 30;
 
     try row.insertTerm(gpa, Term.init( 1.0, &xlp));
     try row.insertTerm(gpa, Term.init(-1.0, &xlm));
 
+    try actual_tableau.insert(gpa, &xl, row);
+    row = .empty;
+
     // xr = 150 + 2 * xmp - 2 * xmm - xlp + xlm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &xr;
+    row = .empty;
     row.constant = 150;
 
     try row.insertTerm(gpa, Term.init( 2.0, &xmp));
@@ -1306,11 +1365,12 @@ test "reoptimize()" {
     try row.insertTerm(gpa, Term.init(-1.0, &xlp));
     try row.insertTerm(gpa, Term.init( 1.0, &xlm));
 
+    try actual_tableau.insert(gpa, &xr, row);
+    row = .empty;
+
     // s1 = 110 + 2 * xmp - 2 * xmm - 2 * xlp + 2 * xlm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &s1;
+    row = .empty;
     row.constant = 110;
 
     try row.insertTerm(gpa, Term.init( 2.0, &xmp));
@@ -1318,11 +1378,12 @@ test "reoptimize()" {
     try row.insertTerm(gpa, Term.init(-2.0, &xlp));
     try row.insertTerm(gpa, Term.init( 2.0, &xlm));
 
+    try actual_tableau.insert(gpa, &s1, row);
+    row = .empty;
+
     // s3 = -50 - 2 * xmp + 2 * xmm + xlp - xlm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &s3;
+    row = .empty;
     row.constant = -50;
 
     try row.insertTerm(gpa, Term.init(-2.0, &xmp));
@@ -1330,11 +1391,12 @@ test "reoptimize()" {
     try row.insertTerm(gpa, Term.init( 1.0, &xlp));
     try row.insertTerm(gpa, Term.init(-1.0, &xlm));
 
+    try actual_tableau.insert(gpa, &s3, row);
+    row = .empty;
+
     // xrp = 60 + 2 * xmp - 2 * xmm - xlp + xlm + xrm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &xrp;
+    row = .empty;
     row.constant = 60;
 
     try row.insertTerm(gpa, Term.init( 2.0, &xmp));
@@ -1343,15 +1405,19 @@ test "reoptimize()" {
     try row.insertTerm(gpa, Term.init( 1.0, &xlm));
     try row.insertTerm(gpa, Term.init( 1.0, &xrm));
 
+    try actual_tableau.insert(gpa, &xrp, row);
+    row = .empty;
+
     // s2 = 40 + xlp - xlm
 
-    row = try actual_tableau.addRow(gpa);
-
-    row.basis = &s2;
+    row = .empty;
     row.constant = 40;
 
     try row.insertTerm(gpa, Term.init( 1.0, &xlp));
     try row.insertTerm(gpa, Term.init(-1.0, &xlm));
+
+    try actual_tableau.insert(gpa, &s2, row);
+    row = .empty;
 
     //
 
