@@ -16,7 +16,7 @@ pub const System = struct {
     /// If constraint is an equation, then the markers are plus and minus error
     /// variables when the constraint is also non-required. For required
     /// equality constraints, the first marker is a "dummy" variable.
-    marker_map: std.AutoArrayHashMapUnmanaged(*const Constraint, [2]?*Variable) = .empty,
+    constraint_marker_map: std.AutoArrayHashMapUnmanaged(*const Constraint, [2]?*Variable) = .empty,
 
     pub const empty = System{};
 
@@ -24,7 +24,7 @@ pub const System = struct {
         self.tableau.deinit(gpa);
         self.objective.deinit(gpa);
 
-        var marker_it = self.marker_map.iterator();
+        var marker_it = self.constraint_marker_map.iterator();
         while (marker_it.next()) |entry| {
             const markers = entry.value_ptr.*;
             for (markers) |marker| {
@@ -33,7 +33,7 @@ pub const System = struct {
                 gpa.destroy(marker.?);
             }
         }
-        self.marker_map.deinit(gpa);
+        self.constraint_marker_map.deinit(gpa);
     }
 
     // zig fmt: off
@@ -43,7 +43,7 @@ pub const System = struct {
         gpa: std.mem.Allocator,
         constraint: *const Constraint,
     ) error{ OutOfMemory, DuplicateConstraint, UnsatisfiableConstraint, ObjectiveUnbound }!void {
-        if (self.marker_map.contains(constraint))
+        if (self.constraint_marker_map.contains(constraint))
             return error.DuplicateConstraint;
 
         var new_row = try self.tableau.addRow(gpa);
@@ -68,8 +68,8 @@ pub const System = struct {
 
         // add slack and error variables
 
-        try self.marker_map.putNoClobber(gpa, constraint, .{ null, null });
-        const markers = self.marker_map.getPtr(constraint).?;
+        try self.constraint_marker_map.putNoClobber(gpa, constraint, .{ null, null });
+        const markers = self.constraint_marker_map.getPtr(constraint).?;
 
         switch (constraint.operator) {
             .le, .ge => {
@@ -256,12 +256,12 @@ pub const System = struct {
         gpa: std.mem.Allocator,
         constraint: *const Constraint,
     ) error{ OutOfMemory, UnknownConstraint, ConstraintMarkerNotFound, ObjectiveUnbound }!void {
-        if (!self.marker_map.contains(constraint))
+        if (!self.constraint_marker_map.contains(constraint))
             return error.UnknownConstraint;
 
         // remove error variable effects from the objective function
 
-        const markers = self.marker_map.get(constraint).?;
+        const markers = self.constraint_marker_map.get(constraint).?;
 
         for (markers) |marker| {
             if (marker == null or marker.?.kind != .err)
@@ -378,7 +378,7 @@ pub const System = struct {
                 continue;
             gpa.destroy(_marker.?);
         }
-        _ = self.marker_map.swapRemove(constraint);
+        _ = self.constraint_marker_map.swapRemove(constraint);
     }
 
     // zig fmt: on
