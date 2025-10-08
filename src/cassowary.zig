@@ -78,16 +78,6 @@ pub const System = struct {
             try new_row.insertTerm(gpa, term);
         }
 
-        // multiply the entire row with -1 so that the constant becomes
-        // non-negative.
-        //
-        // this is possible because the row is of the form l = 0
-        if (new_row.constant < 0.0 and !nearZero(new_row.constant)) {
-            new_row.constant *= -1;
-            for (new_row.term_list.items) |*term|
-                term.coefficient *= -1;
-        }
-
         // add slack and error variables
 
         var markers: [2]?*Variable = .{ null, null };
@@ -161,6 +151,16 @@ pub const System = struct {
 
                 markers[1] = err_minus;
             },
+        }
+
+        // multiply the entire row with -1 so that the constant becomes
+        // non-negative.
+        //
+        // this is possible because the row is of the form l = 0
+        if (new_row.constant < 0.0 and !nearZero(new_row.constant)) {
+            new_row.constant *= -1;
+            for (new_row.term_list.items) |*term|
+                term.coefficient *= -1;
         }
 
         // choose the subject to enter the basis
