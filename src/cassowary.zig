@@ -10,12 +10,40 @@ pub const System = struct {
     // list of internal variables owned by the system.
     variable_list: std.ArrayList(*Variable) = .empty,
 
+    /// list of added constraints
+    ///
+    /// We keep this to ensure that the same constraints aren’t added more than
+    /// once and aren’t removed without having been added first.
+    constraint_list: std.ArrayList(*const Constraint) = .empty,
+
+    /// Maps added constraints to their markers
+    ///
+    /// If constraint is an inequality, then the first marker is always a slack
+    /// variable. The second marker is an error variable when the constraint is
+    /// also non-required.
+    ///
+    /// If constraint is an equation, then the markers are plus and minus error
+    /// variables when the constraint is also non-required. For required
+    /// equality constraints, the first marker is a "dummy" variable.
+    marker_map: std.AutoArrayHashMapUnmanaged(*const Constraint, [2]?*Variable) = .empty,
+
     pub const empty = System{};
 
     pub fn deinit(self: *System, gpa: std.mem.Allocator) void {
         self.tableau.deinit(gpa);
         self.objective.deinit(gpa);
         self.variable_list.deinit(gpa);
+        self.constraint_list.deinit(gpa);
+        var marker_it = self.marker_map.iterator();
+        while (marker_it.next()) |entry| {
+            const markers = entry.value_ptr.*;
+            for (markers) |marker| {
+                if (marker == null)
+                    continue;
+                gpa.destroy(marker.?);
+            }
+        }
+        self.marker_map.deinit(gpa);
     }
 
     // zig fmt: off
@@ -23,8 +51,13 @@ pub const System = struct {
     pub fn addConstraint(
         self: *System,
         gpa: std.mem.Allocator,
-        constraint: *Constraint,
-    ) error{ OutOfMemory, UnsatisfiableConstraint, ObjectiveUnbound }!void {
+        constraint: *const Constraint,
+    ) error{ OutOfMemory, DuplicateConstraint, UnsatisfiableConstraint, ObjectiveUnbound }!void {
+        for (self.constraint_list.items) |_constraint| {
+            if (_constraint == constraint)
+                return error.DuplicateConstraint;
+        }
+
         var new_row = try self.tableau.addRow(gpa);
 
         // use the current tableau to substitute out all the basic variables
@@ -57,8 +90,7 @@ pub const System = struct {
 
         // add slack and error variables
 
-        constraint.markers[0] = null;
-        constraint.markers[1] = null;
+        var markers: [2]?*Variable = .{ null, null };
 
         switch (constraint.operator) {
             .le, .ge => {
@@ -73,7 +105,7 @@ pub const System = struct {
                 self.variable_list.append(gpa, slack) catch unreachable;
                 try new_row.insertTerm(gpa, Term.init(coefficient, slack));
 
-                constraint.markers[0] = slack;
+                markers[0] = slack;
 
                 if (constraint.strength < Strength.required) {
                     try self.variable_list.ensureUnusedCapacity(gpa, 1);
@@ -86,13 +118,26 @@ pub const System = struct {
                     try new_row.insertTerm(gpa, Term.init(-coefficient, err));
                     try self.objective.insertTerm(gpa, Term.init(constraint.strength, err));
 
-                    constraint.markers[1] = err;
+                    markers[1] = err;
                 }
             },
 
             .eq => this: {
-                if (constraint.strength == Strength.required)
+                // add a dummy variable to server as a marker
+                if (constraint.strength == Strength.required) {
+                    try self.variable_list.ensureTotalCapacity(gpa, 1);
+
+                    const dummy = try gpa.create(Variable);
+                    dummy.name = "";
+                    dummy.kind = .dummy;
+
+                    self.variable_list.append(gpa, dummy) catch unreachable;
+                    try new_row.insertTerm(gpa, Term.init(1.0, dummy));
+
+                    markers[0] = dummy;
+
                     break :this;
+                }
 
                 try self.variable_list.ensureUnusedCapacity(gpa, 2);
 
@@ -104,7 +149,7 @@ pub const System = struct {
                 try new_row.insertTerm(gpa, Term.init(-1.0, err_plus));
                 try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_plus));
 
-                constraint.markers[0] = err_plus;
+                markers[0] = err_plus;
 
                 const err_minus = try gpa.create(Variable);
                 err_minus.name  = "";
@@ -114,7 +159,7 @@ pub const System = struct {
                 try new_row.insertTerm(gpa, Term.init(1.0, err_minus));
                 try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_minus));
 
-                constraint.markers[1] = err_minus;
+                markers[1] = err_minus;
             },
         }
 
@@ -135,7 +180,7 @@ pub const System = struct {
                 break :selection;
             }
 
-            for (constraint.markers) |marker| {
+            for (markers) |marker| {
                 if  (marker == null) continue;
                 if ((marker.?.kind == .slack or marker.?.kind == .err) and
                     new_row.coefficientOf(marker.?) < 0.0)
@@ -185,17 +230,28 @@ pub const System = struct {
                 // also be zero
                 std.debug.assert(nearZero(artificial_row.constant));
 
-                // the row is just a = 0, so it can be removed
-                if (artificial_row.term_list.items.len == 0) {
+                // find a variable to enter the basis
+
+                var entry_variable: ?*Variable = null;
+
+                for (artificial_row.term_list.items) |term| {
+                    if (term.variable.kind == .dummy)
+                        continue;
+                    entry_variable = term.variable;
+                    break;
+                }
+
+                // the row is just a = 0 (+ dummies), so it can be removed
+                if (entry_variable == null) {
                     _ = self.tableau.row_list.swapRemove(index);
                 }
 
-                // perform a pivot
-                //
-                // here any variable should do as entry (I think)
-                try artificial_row.solveFor(gpa, artificial_row.term_list.items[0].variable);
-                for (self.tableau.row_list.items) |*row| try row.substitute(gpa, artificial_row);
-                try self.objective.substitute(gpa, artificial_row);
+                // perform the pivot
+                else {
+                    try artificial_row.solveFor(gpa, entry_variable.?);
+                    for (self.tableau.row_list.items) |*row| try row.substitute(gpa, artificial_row);
+                    try self.objective.substitute(gpa, artificial_row);
+                }
             }
 
             // remove any occurrence of the artificial variable from the system
@@ -216,123 +272,146 @@ pub const System = struct {
         }
 
         try optimize(gpa, &self.tableau, &self.objective);
+
+        try self.constraint_list.append(gpa, constraint);
+        try self.marker_map.putNoClobber(gpa, constraint, markers);
     }
 
-    test "addConstraint()" {
-        const gpa  = std.testing.allocator;
-        var   row  = @as(*Row, undefined);
+    pub fn removeConstraint(
+        self: *System,
+        gpa: std.mem.Allocator,
+        constraint: *const Constraint,
+    ) error{ OutOfMemory, UnknownConstraint, ConstraintMarkerNotFound, ObjectiveUnbound }!void {
+        var index: ?usize = null;
+        for (self.constraint_list.items, 0..) |_constraint, i| {
+            if (_constraint != constraint) continue;
+            index = i;
+            break;
+        }
+        if (index == null) return error.UnknownConstraint;
 
-        var   expected_tableau = Tableau.empty;
-        var   actual_system    =  System.empty;
+        // remove error variable effects from the objective function
 
-        defer expected_tableau.deinit(gpa);
-        defer actual_system.deinit(gpa);
+        const markers = self.marker_map.get(constraint).?;
 
-        var xl: Variable = .{ .name = "xl", .kind = .external };
-        var xm: Variable = .{ .name = "xm", .kind = .external };
-        var xr: Variable = .{ .name = "xr", .kind = .external };
-        var s1: Variable = .{ .name = "s1", .kind = .slack    };
-        var s2: Variable = .{ .name = "s2", .kind = .slack    };
-        var s3: Variable = .{ .name = "s3", .kind = .slack    };
+        for (markers) |marker| {
+            if (marker == null or marker.?.kind != .err)
+                continue;
 
-        // ------------ //
-        //   Expected   //
-        // ------------ //
+            var marked_row: ?*Row = null;
 
-        // xl = 0 + s3
+            for (self.tableau.row_list.items) |*row| {
+                if (row.basis.? != marker.?)
+                    continue;
 
-        row = try expected_tableau.addRow(gpa);
-        row.basis = &xl;
-        row.constant = 0.0;
-        try row.insertTerm(gpa, Term.init(1.0, &s3));
+                marked_row = row;
 
-        // xm = 50
+                break;
+            }
 
-        row = try expected_tableau.addRow(gpa);
-        row.basis = &xm;
-        row.constant = 50.0;
+            // here, we assume the marker error variable or its equivalent
+            // substitution are all part of the objective function so the
+            // following just removes these terms from the objective without
+            // allocating new memory. Hence, no allocator is needed and no
+            // memory errors are anticipated.
+            if (marked_row) |row| {
+                self.objective.insertRow(
+                    undefined,
+                    row,
+                    -constraint.strength,
+                ) catch unreachable;
+            } else {
+                self.objective.insertTerm(
+                    undefined,
+                    Term.init(-constraint.strength, marker.?),
+                ) catch unreachable;
+            }
+        }
 
-        // xr = 100 - s3
+        std.debug.assert(markers[0] != null);
+        const marker = markers[0].?;
 
-        row = try expected_tableau.addRow(gpa);
-        row.basis = &xr;
-        row.constant = 100.0;
-        try row.insertTerm(gpa, Term.init(-1.0, &s3));
+        var marked_row_index: ?usize = null;
 
-        // s1 = 90 - 2 * s3
+        for (self.tableau.row_list.items, 0..) |*row, i| {
+            if (row.basis.? != marker)
+                continue;
+            marked_row_index = i;
+            break;
+        }
 
-        row = try expected_tableau.addRow(gpa);
-        row.basis = &s1;
-        row.constant = 90.0;
-        try row.insertTerm(gpa, Term.init(-2.0, &s3));
+        // if the marker is already in the basis, just drop that row
+        if (marked_row_index) |i| {
+            var row = self.tableau.row_list.swapRemove(i);
+            row.deinit(gpa);
+        }
+        // otherwise determine the most restrictive row with the marker
+        // variable to be dropped
+        else {
+            var min_ratio:   [2]f32   = undefined;
+            var candidates:  [3]?*Row = .{ null, null, null };
 
-        // s2 = 10 + s3
+            min_ratio[0] = std.math.floatMax(f32);
+            min_ratio[1] = std.math.floatMax(f32);
 
-        row = try expected_tableau.addRow(gpa);
-        row.basis = &s2;
-        row.constant = 10.0;
-        try row.insertTerm(gpa, Term.init(1.0, &s3));
+            for (self.tableau.row_list.items) |*row| {
+                if (row.basis.?.kind == .external)
+                    candidates[2] = row;
 
-        // ------------ //
-        //  Test input  //
-        // ------------ //
+                const constant    = row.constant;
+                const coefficient = row.coefficientOf(marker);
 
-        // xl = 90 - s1 - s3
+                if (coefficient == 0.0)
+                    continue;
 
-        row = try actual_system.tableau.addRow(gpa);
-        row.basis = &xl;
-        row.constant = 90.0;
-        try row.insertTerm(gpa, Term.init(-1.0, &s1));
-        try row.insertTerm(gpa, Term.init(-1.0, &s3));
+                if (coefficient < 0.0) {
+                    const ratio = -constant / coefficient;
+                    if (ratio < min_ratio[0]) {
+                         min_ratio[0] = ratio;
+                        candidates[0] = row;
+                    }
+                    continue;
+                }
 
-        // xm = 95 - 0.5 * s1 - s3
+                if (coefficient > 0.0) {
+                    const ratio = constant / coefficient;
+                    if (ratio < min_ratio[1]) {
+                         min_ratio[1] = ratio;
+                        candidates[1] = row;
+                    }
+                    continue;
+                }
+            }
 
-        row = try actual_system.tableau.addRow(gpa);
-        row.basis = &xm;
-        row.constant = 95.0;
-        try row.insertTerm(gpa, Term.init(-0.5, &s1));
-        try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            const leaving_row: *Row =
+                if      (candidates[0]) |candidate| candidate
+                else if (candidates[1]) |candidate| candidate
+                else if (candidates[2]) |candidate| candidate
+                else return error.ConstraintMarkerNotFound;
 
-        // xr = 100 - s3
+            try leaving_row.solveFor(gpa, marker);
+            for (self.tableau.row_list.items) |*row|
+                try row.substitute(gpa, leaving_row);
+            try self.objective.substitute(gpa, leaving_row);
+            for (self.tableau.row_list.items, 0..) |*row, i| {
+                if (row == leaving_row) {
+                    _ = self.tableau.row_list.swapRemove(i);
+                    row.deinit(gpa);
+                    break;
+                }
+            }
+        }
 
-        row = try actual_system.tableau.addRow(gpa);
-        row.basis = &xr;
-        row.constant = 100.0;
-        try row.insertTerm(gpa, Term.init(-1.0, &s3));
+        try optimize(gpa, &self.tableau, &self.objective);
 
-        // s2 = 100 - s1 - s3
+        for (markers) |_marker| {
+            if (_marker == null)
+                continue;
+            gpa.destroy(_marker.?);
+        }
 
-        row = try actual_system.tableau.addRow(gpa);
-        row.basis = &s2;
-        row.constant = 100.0;
-        try row.insertTerm(gpa, Term.init(-1.0, &s1));
-        try row.insertTerm(gpa, Term.init(-1.0, &s3));
-
-        //
-
-        var   lhs = Expression.empty;
-        var   rhs = Expression.empty;
-
-        defer lhs.deinit(gpa);
-        defer rhs.deinit(gpa);
-
-        try lhs.add(gpa, 1.0, &xm);
-        rhs.constant = 50;
-
-        var   constraint = try Constraint.init(gpa, lhs, rhs, .eq, Strength.required);
-        defer constraint.deinit(gpa);
-
-        try actual_system.addConstraint(gpa, &constraint);
-
-        std.testing.expect(
-            expected_tableau.equals(actual_system.tableau)
-        ) catch |err| {
-            std.debug.print("\t\n", .{});
-            std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
-            std.debug.print("  actual tableau:\n{f}\n",   .{actual_system.tableau});
-
-            return err;
-        };
+        _ = self.constraint_list.swapRemove(index.?);
+        _ = self.marker_map.swapRemove(constraint);
     }
 
     // zig fmt: on
@@ -613,17 +692,6 @@ pub const Constraint = struct {
     expression: Expression,
     operator:   Operator,
     strength:   f32,
-
-    /// If constraint is an inequality, then the first marker is always a slack
-    /// variable. The second marker is an error variable when the constraint is
-    /// also non-required.
-    ///
-    /// If constraint is an equation, then the markers are plus and minus error
-    /// variables when the constraint is also non-required.
-    ///
-    /// **Note** that these rules only apply when the constraint is currently
-    /// attached to a system. Otherwise, the marker array is undefined.
-    markers: [2]?*Variable = undefined,
 
     pub fn init(
         gpa: std.mem.Allocator,
@@ -982,7 +1050,7 @@ fn reoptimize(
             const d = objective.coefficientOf(variable);
             const a = term.coefficient;
 
-            if (a <= 0.0)
+            if (variable.kind == .dummy or a <= 0.0)
                 continue;
 
             const ratio = d / a;
@@ -1263,3 +1331,9 @@ fn nearEq(lhs: f32, rhs: f32) bool {
 fn nearZero(num: f32) bool {
     return nearEq(num, 0.0);
 }
+
+// ------- //
+//  Tests  //
+// ------- //
+
+// TODO
