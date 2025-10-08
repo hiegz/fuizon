@@ -1361,4 +1361,228 @@ fn nearZero(num: f32) bool {
 //  Tests  //
 // ------- //
 
-// TODO
+// zig fmt: off
+
+test {
+    const gpa    = std.testing.allocator;
+    var   system = System.empty;
+    var   lhs    = Expression.empty;
+    var   rhs    = Expression.empty;
+    var   x      = Variable.init("x");
+
+    defer system.deinit(gpa);
+    defer lhs.deinit(gpa);
+    defer rhs.deinit(gpa);
+
+    // x >= 10
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 10.0;
+
+    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_10.deinit(gpa);
+
+    // x >= 20
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 20.0;
+
+    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_20.deinit(gpa);
+
+    // x >= 30
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 30.0;
+
+    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_30.deinit(gpa);
+
+    //
+
+    try system.addConstraint(gpa, &x_ge_10);
+
+    system.refresh();
+
+    try std.testing.expectEqual(10.0, x.value);
+
+}
+
+test {
+    const gpa    = std.testing.allocator;
+    var   system = System.empty;
+    var   lhs    = Expression.empty;
+    var   rhs    = Expression.empty;
+    var   x      = Variable.init("x");
+
+    defer system.deinit(gpa);
+    defer lhs.deinit(gpa);
+    defer rhs.deinit(gpa);
+
+    // x >= 10
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 10.0;
+
+    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_10.deinit(gpa);
+
+    // x >= 20
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 20.0;
+
+    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_20.deinit(gpa);
+
+    // x >= 30
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 30.0;
+
+    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_30.deinit(gpa);
+
+    //
+
+    try system.addConstraint(gpa, &x_ge_10);
+    try system.addConstraint(gpa, &x_ge_20);
+    try system.addConstraint(gpa, &x_ge_30);
+
+    system.refresh();
+
+    try std.testing.expectEqual(30.0, x.value);
+}
+
+test {
+    const gpa    = std.testing.allocator;
+    var   system = System.empty;
+    var   lhs    = Expression.empty;
+    var   rhs    = Expression.empty;
+    var   x      = Variable.init("x");
+
+    defer system.deinit(gpa);
+    defer lhs.deinit(gpa);
+    defer rhs.deinit(gpa);
+
+    // x >= 10
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 10.0;
+
+    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_10.deinit(gpa);
+
+    // x >= 20
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 20.0;
+
+    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_20.deinit(gpa);
+
+    // x >= 30
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 30.0;
+
+    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_30.deinit(gpa);
+
+    //
+
+    try system.addConstraint(gpa, &x_ge_10);
+    try system.addConstraint(gpa, &x_ge_20);
+    try system.addConstraint(gpa, &x_ge_30);
+
+    try system.removeConstraint(gpa, &x_ge_30);
+
+    system.refresh();
+
+    try std.testing.expectEqual(20.0, x.value);
+}
+
+test {
+    const gpa    = std.testing.allocator;
+    var   system = System.empty;
+    var   lhs    = Expression.empty;
+    var   rhs    = Expression.empty;
+    var   x      = Variable.init("x");
+
+    defer system.deinit(gpa);
+    defer lhs.deinit(gpa);
+    defer rhs.deinit(gpa);
+
+    // x >= 10
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 10.0;
+
+    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_10.deinit(gpa);
+
+    // x >= 20
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 20.0;
+
+    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_20.deinit(gpa);
+
+    // x >= 30
+
+    lhs.clearAndRetainCapacity();
+    rhs.clearAndRetainCapacity();
+
+    try lhs.add(gpa, 1.0, &x);
+    rhs.constant = 30.0;
+
+    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+    defer x_ge_30.deinit(gpa);
+
+    //
+
+    try system.addConstraint(gpa, &x_ge_10);
+    try system.addConstraint(gpa, &x_ge_20);
+    try system.addConstraint(gpa, &x_ge_30);
+
+    try system.removeConstraint(gpa, &x_ge_20);
+    try system.removeConstraint(gpa, &x_ge_30);
+
+    system.refresh();
+
+    try std.testing.expectEqual(10.0, x.value);
+}
