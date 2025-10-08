@@ -7,15 +7,6 @@ pub const System = struct {
     tableau: Tableau = .empty,
     objective: Row = .empty,
 
-    // list of internal variables owned by the system.
-    variable_list: std.ArrayList(*Variable) = .empty,
-
-    /// list of added constraints
-    ///
-    /// We keep this to ensure that the same constraints aren’t added more than
-    /// once and aren’t removed without having been added first.
-    constraint_list: std.ArrayList(*const Constraint) = .empty,
-
     /// Maps added constraints to their markers
     ///
     /// If constraint is an inequality, then the first marker is always a slack
@@ -32,8 +23,7 @@ pub const System = struct {
     pub fn deinit(self: *System, gpa: std.mem.Allocator) void {
         self.tableau.deinit(gpa);
         self.objective.deinit(gpa);
-        self.variable_list.deinit(gpa);
-        self.constraint_list.deinit(gpa);
+
         var marker_it = self.marker_map.iterator();
         while (marker_it.next()) |entry| {
             const markers = entry.value_ptr.*;
@@ -53,10 +43,8 @@ pub const System = struct {
         gpa: std.mem.Allocator,
         constraint: *const Constraint,
     ) error{ OutOfMemory, DuplicateConstraint, UnsatisfiableConstraint, ObjectiveUnbound }!void {
-        for (self.constraint_list.items) |_constraint| {
-            if (_constraint == constraint)
-                return error.DuplicateConstraint;
-        }
+        if (self.marker_map.contains(constraint))
+            return error.DuplicateConstraint;
 
         var new_row = try self.tableau.addRow(gpa);
 
@@ -80,76 +68,65 @@ pub const System = struct {
 
         // add slack and error variables
 
-        var markers: [2]?*Variable = .{ null, null };
+        try self.marker_map.putNoClobber(gpa, constraint, .{ null, null });
+        const markers = self.marker_map.getPtr(constraint).?;
 
         switch (constraint.operator) {
             .le, .ge => {
                 const coefficient: f32 = switch (constraint.operator) { .le => 1.0, .ge => -1.0, .eq => unreachable };
 
-                try self.variable_list.ensureUnusedCapacity(gpa, 1);
-
                 const slack = try gpa.create(Variable);
                 slack.name  = "";
                 slack.kind  = .slack;
 
-                self.variable_list.append(gpa, slack) catch unreachable;
-                try new_row.insertTerm(gpa, Term.init(coefficient, slack));
-
                 markers[0] = slack;
 
-                if (constraint.strength < Strength.required) {
-                    try self.variable_list.ensureUnusedCapacity(gpa, 1);
+                try new_row.insertTerm(gpa, Term.init(coefficient, slack));
 
+
+                if (constraint.strength < Strength.required) {
                     const err = try gpa.create(Variable);
                     err.name  = "";
                     err.kind  = .err;
 
-                    self.variable_list.append(gpa, err) catch unreachable;
+                    markers[1] = err;
+
                     try new_row.insertTerm(gpa, Term.init(-coefficient, err));
                     try self.objective.insertTerm(gpa, Term.init(constraint.strength, err));
-
-                    markers[1] = err;
                 }
             },
 
             .eq => this: {
                 // add a dummy variable to server as a marker
                 if (constraint.strength == Strength.required) {
-                    try self.variable_list.ensureTotalCapacity(gpa, 1);
-
                     const dummy = try gpa.create(Variable);
                     dummy.name = "";
                     dummy.kind = .dummy;
 
-                    self.variable_list.append(gpa, dummy) catch unreachable;
-                    try new_row.insertTerm(gpa, Term.init(1.0, dummy));
-
                     markers[0] = dummy;
+
+                    try new_row.insertTerm(gpa, Term.init(1.0, dummy));
 
                     break :this;
                 }
-
-                try self.variable_list.ensureUnusedCapacity(gpa, 2);
 
                 const err_plus  = try gpa.create(Variable);
                 err_plus.name   = "";
                 err_plus.kind   = .err;
 
-                self.variable_list.append(gpa, err_plus) catch unreachable;
+                markers[0] = err_plus;
+
                 try new_row.insertTerm(gpa, Term.init(-1.0, err_plus));
                 try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_plus));
-
-                markers[0] = err_plus;
 
                 const err_minus = try gpa.create(Variable);
                 err_minus.name  = "";
                 err_minus.kind  = .err;
 
-                self.variable_list.append(gpa, err_minus) catch unreachable;
+                markers[1] = err_minus;
+
                 try new_row.insertTerm(gpa, Term.init(1.0, err_minus));
                 try self.objective.insertTerm(gpa, Term.init(constraint.strength, err_minus));
-
-                markers[1] = err_minus;
             },
         }
 
@@ -272,9 +249,6 @@ pub const System = struct {
         }
 
         try optimize(gpa, &self.tableau, &self.objective);
-
-        try self.constraint_list.append(gpa, constraint);
-        try self.marker_map.putNoClobber(gpa, constraint, markers);
     }
 
     pub fn removeConstraint(
@@ -282,13 +256,8 @@ pub const System = struct {
         gpa: std.mem.Allocator,
         constraint: *const Constraint,
     ) error{ OutOfMemory, UnknownConstraint, ConstraintMarkerNotFound, ObjectiveUnbound }!void {
-        var index: ?usize = null;
-        for (self.constraint_list.items, 0..) |_constraint, i| {
-            if (_constraint != constraint) continue;
-            index = i;
-            break;
-        }
-        if (index == null) return error.UnknownConstraint;
+        if (!self.marker_map.contains(constraint))
+            return error.UnknownConstraint;
 
         // remove error variable effects from the objective function
 
@@ -409,8 +378,6 @@ pub const System = struct {
                 continue;
             gpa.destroy(_marker.?);
         }
-
-        _ = self.constraint_list.swapRemove(index.?);
         _ = self.marker_map.swapRemove(constraint);
     }
 
