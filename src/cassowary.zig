@@ -628,7 +628,7 @@ const Row = struct {
 
     pub fn format(self: Row, writer: *std.Io.Writer) !void {
         if (self.basis) |basis| {
-            try writer.print("{s} = ", .{basis.name});
+            try writer.print("{f} = ", .{basis});
         }
 
         try writer.print("{d}", .{self.constant});
@@ -654,10 +654,7 @@ const Row = struct {
 
             low_id = min_id;
             try writer.writeAll(if (min_term.coefficient >= 0) " + " else " - ");
-            try writer.print(
-                "{d} * {s}",
-                .{ @abs(min_term.coefficient), min_term.variable.name },
-            );
+            try writer.print("{d} * {f}", .{ @abs(min_term.coefficient), min_term.variable });
         }
     }
 };
@@ -675,6 +672,25 @@ pub const Variable = struct {
 
     pub fn id(self: *const Variable) usize {
         return @intFromPtr(self);
+    }
+
+    pub fn format(self: *const Variable, writer: *std.Io.Writer) !void {
+        const kind =
+            switch (self.kind) {
+                .invalid => "inval",
+                .external => "ext",
+                .slack => "slack",
+                .err => "err",
+                .dummy => "dummy",
+            };
+
+        try writer.print("{s}", .{kind});
+        try writer.writeAll("[");
+        try writer.print("id={d}", .{self.id()});
+        if (self.name.len > 0) {
+            try writer.print(",name={s}", .{self.name});
+        }
+        try writer.writeAll("]");
     }
 };
 
