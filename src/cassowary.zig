@@ -415,10 +415,6 @@ const Tableau = struct {
         return &self.row_list.items[self.row_list.items.len - 1];
     }
 
-    pub fn numberOfRows(self: Tableau) usize {
-        return self.row_list.items.len;
-    }
-
     pub fn equals(self: Tableau, other: Tableau) bool {
         for (self.row_list.items) |row|
             if (!other.contains(row))
