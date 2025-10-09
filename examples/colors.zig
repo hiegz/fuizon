@@ -24,7 +24,7 @@ fn row(arena: std.mem.Allocator, label_text: []const u8, color: fuizon.Color) er
         .item(demo, .Auto()),
     });
 
-    return .item(stack, fuizon.StackConstraint.Auto());
+    return .item(stack, fuizon.Constraint.Auto());
 }
 
 pub fn main() !void {
