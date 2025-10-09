@@ -46,8 +46,7 @@ pub const System = struct {
         if (self.constraint_marker_map.contains(constraint))
             return error.DuplicateConstraint;
 
-        try self.constraint_marker_map.putNoClobber(gpa, constraint, .{ null, null });
-        const markers = self.constraint_marker_map.getPtr(constraint).?;
+        var markers: [2]?*Variable = .{ null, null };
 
         // use the current tableau to substitute out all the basic variables
 
@@ -241,6 +240,12 @@ pub const System = struct {
         }
 
         try optimize(gpa, &self.tableau, &self.objective);
+
+        try self.constraint_marker_map.putNoClobber(
+            gpa,
+            constraint,
+            markers,
+        );
     }
 
     pub fn removeConstraint(
