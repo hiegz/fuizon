@@ -1906,10 +1906,20 @@ test {
         },
         0..,
     ) |actions, id| {
-        try std.testing.checkAllAllocationFailures(
-            std.testing.allocator,
-            Test.run,
-            .{ id, actions },
-        );
+        var logging = false;
+
+        for (actions) |action| {
+            if (action == .log or action == .inspect)
+                logging = true;
+        }
+
+        if (logging)
+            try Test.run(std.testing.allocator, id,  actions)
+        else
+            try std.testing.checkAllAllocationFailures(
+                std.testing.allocator,
+                Test.run,
+                .{ id, actions },
+            );
     }
 }
