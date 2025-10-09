@@ -198,6 +198,8 @@ pub const System = struct {
                 var   row = tableau_entry.row.*;
                 defer row.deinit(gpa);
 
+                self.tableau.removeEntry(tableau_entry);
+
                 // since we were able to achieve a value of zero for our
                 // artificial objective function which is equal to
                 // `artificial_variable`, the constant of this row must
@@ -219,18 +221,15 @@ pub const System = struct {
                     break;
                 }
 
-                // the row is just a = 0 (+ dummies), so it can be removed
-                if (entry_variable == null) {
-                    self.tableau.removeEntry(tableau_entry);
-                }
-
-                // perform the pivot
-                else {
-                    self.tableau.removeEntry(tableau_entry);
-                    try row.solveFor(gpa, entry_variable.?);
-                    try self.tableau.substitute(gpa, entry_variable.?, row);
-                    try self.objective.substitute(gpa, entry_variable.?, row);
-                    try self.tableau.insert(gpa, entry_variable.?, row);
+                // If an entering variable is found, perform the pivot using
+                // that variable. Otherwise, the row is either empty or
+                // contains only dummy variables, so no further action is
+                // needed.
+                if (entry_variable) |entry| {
+                    try row.solveFor(gpa, entry);
+                    try self.tableau.substitute(gpa, entry, row);
+                    try self.objective.substitute(gpa, entry, row);
+                    try self.tableau.insert(gpa, entry, row);
                     row = .empty;
                 }
             }
