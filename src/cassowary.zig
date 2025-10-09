@@ -1715,9 +1715,6 @@ const Test = struct {
                 }
 
                 try constraint_list.append(gpa, parsedConstraint);
-
-                if (unsatisfiable == true)
-                    break;
             },
 
             .remove => |index| {
