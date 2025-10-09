@@ -46,7 +46,9 @@ pub const System = struct {
         if (self.constraint_marker_map.contains(constraint))
             return error.DuplicateConstraint;
 
-        var markers: [2]?*Variable = .{ null, null };
+        var   markers: [2]?*Variable = .{ null, null };
+        defer if (markers[0]) |marker| gpa.destroy(marker);
+        defer if (markers[1]) |marker| gpa.destroy(marker);
 
         // use the current tableau to substitute out all the basic variables
 
@@ -246,6 +248,8 @@ pub const System = struct {
             constraint,
             markers,
         );
+        markers[0] = null;
+        markers[1] = null;
     }
 
     pub fn removeConstraint(
