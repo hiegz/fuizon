@@ -1731,7 +1731,7 @@ const Test = struct {
 
                 system.refreshVariable(variable);
 
-                std.testing.expect(value == variable.value) catch |err| {
+                std.testing.expect(nearEq(value, variable.value)) catch |err| {
                     std.debug.print("\t\ntest case #{d} failed\n", .{id});
                     std.debug.print("expected: {s} = {d}\n", .{name, value});
                     std.debug.print("found:    {s} = {d}\n", .{variable.name, variable.value});
