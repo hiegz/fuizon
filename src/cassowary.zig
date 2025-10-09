@@ -979,147 +979,155 @@ fn optimize(
 }
 
 test "optimize()" {
-    const gpa  = std.testing.allocator;
-    var   row  = @as(Row, .empty);
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   row  = @as(Row, .empty);
+            defer row.deinit(gpa);
 
-    defer row.deinit(gpa);
+            var   actual_objective   = Row.empty;
+            var   expected_objective = Row.empty;
+            var   actual_tableau     = Tableau.empty;
+            var   expected_tableau   = Tableau.empty;
 
-    var   actual_objective   = Row.empty;
-    var   expected_objective = Row.empty;
-    var   actual_tableau     = Tableau.empty;
-    var   expected_tableau   = Tableau.empty;
+            defer actual_objective.deinit(gpa);
+            defer expected_objective.deinit(gpa);
+            defer actual_tableau.deinit(gpa);
+            defer expected_tableau.deinit(gpa);
 
-    defer actual_objective.deinit(gpa);
-    defer expected_objective.deinit(gpa);
-    defer actual_tableau.deinit(gpa);
-    defer expected_tableau.deinit(gpa);
+            var xl: Variable = .{ .name = "xl", .kind = .external };
+            var xm: Variable = .{ .name = "xm", .kind = .external };
+            var xr: Variable = .{ .name = "xr", .kind = .external };
+            var s1: Variable = .{ .name = "s1", .kind = .slack    };
+            var s2: Variable = .{ .name = "s2", .kind = .slack    };
+            var s3: Variable = .{ .name = "s3", .kind = .slack    };
 
-    var xl: Variable = .{ .name = "xl", .kind = .external };
-    var xm: Variable = .{ .name = "xm", .kind = .external };
-    var xr: Variable = .{ .name = "xr", .kind = .external };
-    var s1: Variable = .{ .name = "s1", .kind = .slack    };
-    var s2: Variable = .{ .name = "s2", .kind = .slack    };
-    var s3: Variable = .{ .name = "s3", .kind = .slack    };
+            // ------------ //
+            //   Expected   //
+            // ------------ //
 
-    // ------------ //
-    //   Expected   //
-    // ------------ //
+            // 5 + (1/2)s1
 
-    // 5 + (1/2)s1
+            expected_objective.constant = 5;
+            try expected_objective.insertTerm(gpa, Term.init(0.5, &s1));
 
-    expected_objective.constant = 5;
-    try expected_objective.insertTerm(gpa, Term.init(0.5, &s1));
+            // xl = 90 - s1 - s3
 
-    // xl = 90 - s1 - s3
+            row = .empty;
+            row.constant = 90;
+            try row.insertTerm(gpa, Term.init(-1.0, &s1));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 90;
-    try row.insertTerm(gpa, Term.init(-1.0, &s1));
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try expected_tableau.insert(gpa, &xl, row);
+            row = .empty;
 
-    try expected_tableau.insert(gpa, &xl, row);
-    row = .empty;
+            // xm = 95 - (1/2)s1 - s3
 
-    // xm = 95 - (1/2)s1 - s3
+            row = .empty;
+            row.constant = 95;
+            try row.insertTerm(gpa, Term.init(-0.5, &s1));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 95;
-    try row.insertTerm(gpa, Term.init(-0.5, &s1));
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try expected_tableau.insert(gpa, &xm, row);
+            row = .empty;
 
-    try expected_tableau.insert(gpa, &xm, row);
-    row = .empty;
+            // xr = 100 - s3
 
-    // xr = 100 - s3
+            row = .empty;
+            row.constant = 100;
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 100;
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try expected_tableau.insert(gpa, &xr, row);
+            row = .empty;
 
-    try expected_tableau.insert(gpa, &xr, row);
-    row = .empty;
+            // s2 = 100 - s1 - s3
 
-    // s2 = 100 - s1 - s3
+            row = .empty;
+            row.constant = 100;
+            try row.insertTerm(gpa, Term.init(-1.0, &s1));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 100;
-    try row.insertTerm(gpa, Term.init(-1.0, &s1));
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try expected_tableau.insert(gpa, &s2, row);
+            row = .empty;
 
-    try expected_tableau.insert(gpa, &s2, row);
-    row = .empty;
+            // ------------ //
+            //  Test input  //
+            // ------------ //
 
-    // ------------ //
-    //  Test input  //
-    // ------------ //
+            // 55 - (1/2) * s2 - (1/2) * s3
 
-    // 55 - (1/2) * s2 - (1/2) * s3
+            actual_objective.constant = 55;
+            try actual_objective.insertTerm(gpa, Term.init(-0.5, &s2));
+            try actual_objective.insertTerm(gpa, Term.init(-0.5, &s3));
 
-    actual_objective.constant = 55;
-    try actual_objective.insertTerm(gpa, Term.init(-0.5, &s2));
-    try actual_objective.insertTerm(gpa, Term.init(-0.5, &s3));
+            // xl = -10 + s2
 
-    // xl = -10 + s2
+            row = .empty;
+            row.constant = -10;
+            try row.insertTerm(gpa, Term.init(1.0, &s2));
 
-    row = .empty;
-    row.constant = -10;
-    try row.insertTerm(gpa, Term.init(1.0, &s2));
+            try actual_tableau.insert(gpa, &xl, row);
+            row = .empty;
 
-    try actual_tableau.insert(gpa, &xl, row);
-    row = .empty;
+            // xm = 45 + (1/2)s2 - (1/2)s3
 
-    // xm = 45 + (1/2)s2 - (1/2)s3
+            row = .empty;
+            row.constant = 45;
+            try row.insertTerm(gpa, Term.init( 0.5, &s2));
+            try row.insertTerm(gpa, Term.init(-0.5, &s3));
 
-    row = .empty;
-    row.constant = 45;
-    try row.insertTerm(gpa, Term.init( 0.5, &s2));
-    try row.insertTerm(gpa, Term.init(-0.5, &s3));
+            try actual_tableau.insert(gpa, &xm, row);
+            row = .empty;
 
-    try actual_tableau.insert(gpa, &xm, row);
-    row = .empty;
+            // xr = 100 - s3
 
-    // xr = 100 - s3
+            row = .empty;
+            row.constant = 100;
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 100;
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try actual_tableau.insert(gpa, &xr, row);
+            row = .empty;
 
-    try actual_tableau.insert(gpa, &xr, row);
-    row = .empty;
+            // s1 = 100 - s2 - s3
 
-    // s1 = 100 - s2 - s3
+            row = .empty;
+            row.constant = 100;
+            try row.insertTerm(gpa, Term.init(-1.0, &s2));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    row = .empty;
-    row.constant = 100;
-    try row.insertTerm(gpa, Term.init(-1.0, &s2));
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try actual_tableau.insert(gpa, &s1, row);
+            row = .empty;
 
-    try actual_tableau.insert(gpa, &s1, row);
-    row = .empty;
+            //
 
-    //
+            try optimize(gpa, &actual_tableau, &actual_objective);
 
-    try optimize(gpa, &actual_tableau, &actual_objective);
+            std.testing.expect(
+                expected_objective.equals(actual_objective)
+            ) catch |err| {
+                std.debug.print("\t\n", .{});
+                std.debug.print("expected objective: {f}\n", .{expected_objective});
+                std.debug.print("  actual objective: {f}\n", .{  actual_objective});
 
-    std.testing.expect(
-        expected_objective.equals(actual_objective)
-    ) catch |err| {
-        std.debug.print("\t\n", .{});
-        std.debug.print("expected objective: {f}\n", .{expected_objective});
-        std.debug.print("  actual objective: {f}\n", .{  actual_objective});
+                return err;
+            };
 
-        return err;
-    };
+            std.testing.expect(
+                expected_tableau.equals(actual_tableau)
+            ) catch |err| {
+                std.debug.print("\t\n", .{});
+                std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
+                std.debug.print("  actual tableau:\n{f}\n",   .{actual_tableau});
 
-    std.testing.expect(
-        expected_tableau.equals(actual_tableau)
-    ) catch |err| {
-        std.debug.print("\t\n", .{});
-        std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
-        std.debug.print("  actual tableau:\n{f}\n",   .{actual_tableau});
+                return err;
+            };
+        }
+    }.testFn;
 
-        return err;
-    };
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
 
 /// Performs the dual simplex optimization algorithm.
@@ -1213,251 +1221,261 @@ fn reoptimize(
 }
 
 test "reoptimize()" {
-    const gpa  = std.testing.allocator;
-    var   row  = @as(Row, .empty);
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   row  = @as(Row, .empty);
+            defer row.deinit(gpa);
 
-    var actual_objective   = Row.empty;
-    var expected_objective = Row.empty;
-    var actual_tableau     = Tableau.empty;
-    var expected_tableau   = Tableau.empty;
+            var actual_objective   = Row.empty;
+            var expected_objective = Row.empty;
+            var actual_tableau     = Tableau.empty;
+            var expected_tableau   = Tableau.empty;
 
-    defer actual_objective.deinit(gpa);
-    defer expected_objective.deinit(gpa);
-    defer actual_tableau.deinit(gpa);
-    defer expected_tableau.deinit(gpa);
+            defer actual_objective.deinit(gpa);
+            defer expected_objective.deinit(gpa);
+            defer actual_tableau.deinit(gpa);
+            defer expected_tableau.deinit(gpa);
 
-    var s1:  Variable = .{ .name = "s1",  .kind = .slack    };
-    var s2:  Variable = .{ .name = "s2",  .kind = .slack    };
-    var s3:  Variable = .{ .name = "s3",  .kind = .slack    };
+            var s1:  Variable = .{ .name = "s1",  .kind = .slack    };
+            var s2:  Variable = .{ .name = "s2",  .kind = .slack    };
+            var s3:  Variable = .{ .name = "s3",  .kind = .slack    };
 
-    var xl:  Variable = .{ .name = "xl",  .kind = .external };
-    var xlp: Variable = .{ .name = "xlp", .kind = .err      };
-    var xlm: Variable = .{ .name = "xlm", .kind = .err      };
+            var xl:  Variable = .{ .name = "xl",  .kind = .external };
+            var xlp: Variable = .{ .name = "xlp", .kind = .err      };
+            var xlm: Variable = .{ .name = "xlm", .kind = .err      };
 
-    var xm:  Variable = .{ .name = "xm",  .kind = .external };
-    var xmp: Variable = .{ .name = "xmp", .kind = .err      };
-    var xmm: Variable = .{ .name = "xmm", .kind = .err      };
+            var xm:  Variable = .{ .name = "xm",  .kind = .external };
+            var xmp: Variable = .{ .name = "xmp", .kind = .err      };
+            var xmm: Variable = .{ .name = "xmm", .kind = .err      };
 
-    var xr:  Variable = .{ .name = "xr",  .kind = .external };
-    var xrp: Variable = .{ .name = "xrp", .kind = .err      };
-    var xrm: Variable = .{ .name = "xrm", .kind = .err      };
+            var xr:  Variable = .{ .name = "xr",  .kind = .external };
+            var xrp: Variable = .{ .name = "xrp", .kind = .err      };
+            var xrm: Variable = .{ .name = "xrm", .kind = .err      };
 
-    // ------------ //
-    //   Expected   //
-    // ------------ //
+            // ------------ //
+            //   Expected   //
+            // ------------ //
 
-    // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xlm + [0,2]xrm
+            // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xlm + [0,2]xrm
 
-    expected_objective.constant = Strength.init(0.0, 0.0, 60.0);
+            expected_objective.constant = Strength.init(0.0, 0.0, 60.0);
 
-    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
-    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), &xmm));
-    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xlm));
-    try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xrm));
+            try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
+            try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), &xmm));
+            try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xlm));
+            try expected_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xrm));
 
-    // xm = 90 + xmp - xmm
+            // xm = 90 + xmp - xmm
 
-    row = .empty;
-    row.constant = 90;
+            row = .empty;
+            row.constant = 90;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-1.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-1.0, &xmm));
 
-    try expected_tableau.insert(gpa, &xm, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &xm, row);
+            row = .empty;
 
-    // xl = 80 + s3 + 2 * xmp - 2 * xmm
+            // xl = 80 + s3 + 2 * xmp - 2 * xmm
 
-    row = .empty;
-    row.constant = 80;
+            row = .empty;
+            row.constant = 80;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &s3));
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &s3));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
 
-    try expected_tableau.insert(gpa, &xl, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &xl, row);
+            row = .empty;
 
-    // xr = 100 - s3
+            // xr = 100 - s3
 
-    row = .empty;
-    row.constant = 100;
+            row = .empty;
+            row.constant = 100;
 
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
 
-    try expected_tableau.insert(gpa, &xr, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &xr, row);
+            row = .empty;
 
-    // s1 = 10 - 2 * s3 - 2 * xmp + 2 * xmm
+            // s1 = 10 - 2 * s3 - 2 * xmp + 2 * xmm
 
-    row = .empty;
-    row.constant = 10;
+            row = .empty;
+            row.constant = 10;
 
-    try row.insertTerm(gpa, Term.init(-2.0, &s3));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmp));
-    try row.insertTerm(gpa, Term.init( 2.0, &xmm));
+            try row.insertTerm(gpa, Term.init(-2.0, &s3));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmp));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmm));
 
-    try expected_tableau.insert(gpa, &s1, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &s1, row);
+            row = .empty;
 
-    // xlp = 50 + s3 + 2 * xmp - 2 * xmm + xlm
+            // xlp = 50 + s3 + 2 * xmp - 2 * xmm + xlm
 
-    row = .empty;
-    row.constant = 50;
+            row = .empty;
+            row.constant = 50;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &s3));
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
-    try row.insertTerm(gpa, Term.init( 1.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 1.0, &s3));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlm));
 
-    try expected_tableau.insert(gpa, &xlp, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &xlp, row);
+            row = .empty;
 
-    // xrp = 10 - s3 + xrm
+            // xrp = 10 - s3 + xrm
 
-    row = .empty;
-    row.constant = 10;
+            row = .empty;
+            row.constant = 10;
 
-    try row.insertTerm(gpa, Term.init(-1.0, &s3));
-    try row.insertTerm(gpa, Term.init( 1.0, &xrm));
+            try row.insertTerm(gpa, Term.init(-1.0, &s3));
+            try row.insertTerm(gpa, Term.init( 1.0, &xrm));
 
-    try expected_tableau.insert(gpa, &xrp, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &xrp, row);
+            row = .empty;
 
-    // s2 = 90 + s3 + 2 * xmp - 2 * xmm
+            // s2 = 90 + s3 + 2 * xmp - 2 * xmm
 
-    row = .empty;
-    row.constant = 90;
+            row = .empty;
+            row.constant = 90;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &s3));
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &s3));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
 
-    try expected_tableau.insert(gpa, &s2, row);
-    row = .empty;
+            try expected_tableau.insert(gpa, &s2, row);
+            row = .empty;
 
-    // ------------ //
-    //  Test input  //
-    // ------------ //
+            // ------------ //
+            //  Test input  //
+            // ------------ //
 
-    // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xl.err_mius + [0,2]xrm
+            // [0,60] + [1,2]xmp + [1,-2]xmm + [0,2]xl.err_mius + [0,2]xrm
 
-    actual_objective.constant = Strength.init(0.0, 0.0, 60.0);
+            actual_objective.constant = Strength.init(0.0, 0.0, 60.0);
 
-    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
-    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), &xmm));
-    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xlm));
-    try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xrm));
+            try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0,  2.0), &xmp));
+            try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 1.0, -2.0), &xmm));
+            try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xlm));
+            try actual_objective.insertTerm(gpa, Term.init(Strength.init(0.0, 0.0,  2.0), &xrm));
 
-    // xm = 90 + xmp - xmm
+            // xm = 90 + xmp - xmm
 
-    row = .empty;
-    row.constant = 90;
+            row = .empty;
+            row.constant = 90;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-1.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-1.0, &xmm));
 
-    try actual_tableau.insert(gpa, &xm, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &xm, row);
+            row = .empty;
 
-    // xl = 30 + xlp - xlm
+            // xl = 30 + xlp - xlm
 
-    row = .empty;
-    row.constant = 30;
+            row = .empty;
+            row.constant = 30;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &xlp));
-    try row.insertTerm(gpa, Term.init(-1.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlp));
+            try row.insertTerm(gpa, Term.init(-1.0, &xlm));
 
-    try actual_tableau.insert(gpa, &xl, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &xl, row);
+            row = .empty;
 
-    // xr = 150 + 2 * xmp - 2 * xmm - xlp + xlm
+            // xr = 150 + 2 * xmp - 2 * xmm - xlp + xlm
 
-    row = .empty;
-    row.constant = 150;
+            row = .empty;
+            row.constant = 150;
 
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
-    try row.insertTerm(gpa, Term.init(-1.0, &xlp));
-    try row.insertTerm(gpa, Term.init( 1.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init(-1.0, &xlp));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlm));
 
-    try actual_tableau.insert(gpa, &xr, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &xr, row);
+            row = .empty;
 
-    // s1 = 110 + 2 * xmp - 2 * xmm - 2 * xlp + 2 * xlm
+            // s1 = 110 + 2 * xmp - 2 * xmm - 2 * xlp + 2 * xlm
 
-    row = .empty;
-    row.constant = 110;
+            row = .empty;
+            row.constant = 110;
 
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
-    try row.insertTerm(gpa, Term.init(-2.0, &xlp));
-    try row.insertTerm(gpa, Term.init( 2.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init(-2.0, &xlp));
+            try row.insertTerm(gpa, Term.init( 2.0, &xlm));
 
-    try actual_tableau.insert(gpa, &s1, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &s1, row);
+            row = .empty;
 
-    // s3 = -50 - 2 * xmp + 2 * xmm + xlp - xlm
+            // s3 = -50 - 2 * xmp + 2 * xmm + xlp - xlm
 
-    row = .empty;
-    row.constant = -50;
+            row = .empty;
+            row.constant = -50;
 
-    try row.insertTerm(gpa, Term.init(-2.0, &xmp));
-    try row.insertTerm(gpa, Term.init( 2.0, &xmm));
-    try row.insertTerm(gpa, Term.init( 1.0, &xlp));
-    try row.insertTerm(gpa, Term.init(-1.0, &xlm));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmp));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlp));
+            try row.insertTerm(gpa, Term.init(-1.0, &xlm));
 
-    try actual_tableau.insert(gpa, &s3, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &s3, row);
+            row = .empty;
 
-    // xrp = 60 + 2 * xmp - 2 * xmm - xlp + xlm + xrm
+            // xrp = 60 + 2 * xmp - 2 * xmm - xlp + xlm + xrm
 
-    row = .empty;
-    row.constant = 60;
+            row = .empty;
+            row.constant = 60;
 
-    try row.insertTerm(gpa, Term.init( 2.0, &xmp));
-    try row.insertTerm(gpa, Term.init(-2.0, &xmm));
-    try row.insertTerm(gpa, Term.init(-1.0, &xlp));
-    try row.insertTerm(gpa, Term.init( 1.0, &xlm));
-    try row.insertTerm(gpa, Term.init( 1.0, &xrm));
+            try row.insertTerm(gpa, Term.init( 2.0, &xmp));
+            try row.insertTerm(gpa, Term.init(-2.0, &xmm));
+            try row.insertTerm(gpa, Term.init(-1.0, &xlp));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xrm));
 
-    try actual_tableau.insert(gpa, &xrp, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &xrp, row);
+            row = .empty;
 
-    // s2 = 40 + xlp - xlm
+            // s2 = 40 + xlp - xlm
 
-    row = .empty;
-    row.constant = 40;
+            row = .empty;
+            row.constant = 40;
 
-    try row.insertTerm(gpa, Term.init( 1.0, &xlp));
-    try row.insertTerm(gpa, Term.init(-1.0, &xlm));
+            try row.insertTerm(gpa, Term.init( 1.0, &xlp));
+            try row.insertTerm(gpa, Term.init(-1.0, &xlm));
 
-    try actual_tableau.insert(gpa, &s2, row);
-    row = .empty;
+            try actual_tableau.insert(gpa, &s2, row);
+            row = .empty;
 
-    //
+            //
 
-    try reoptimize(gpa, &actual_tableau, &actual_objective);
+            try reoptimize(gpa, &actual_tableau, &actual_objective);
 
-    std.testing.expect(
-        expected_objective.equals(actual_objective)
-    ) catch |err| {
-        std.debug.print("\t\n", .{});
-        std.debug.print("expected objective: {f}\n", .{expected_objective});
-        std.debug.print("  actual objective: {f}\n", .{  actual_objective});
+            std.testing.expect(
+                expected_objective.equals(actual_objective)
+            ) catch |err| {
+                std.debug.print("\t\n", .{});
+                std.debug.print("expected objective: {f}\n", .{expected_objective});
+                std.debug.print("  actual objective: {f}\n", .{  actual_objective});
 
-        return err;
-    };
+                return err;
+            };
 
-    std.testing.expect(
-        expected_tableau.equals(actual_tableau)
-    ) catch |err| {
-        std.debug.print("\t\n", .{});
-        std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
-        std.debug.print("  actual tableau:\n{f}\n",   .{actual_tableau});
+            std.testing.expect(
+                expected_tableau.equals(actual_tableau)
+            ) catch |err| {
+                std.debug.print("\t\n", .{});
+                std.debug.print("expected tableau:\n{f}\n\n", .{expected_tableau});
+                std.debug.print("  actual tableau:\n{f}\n",   .{actual_tableau});
 
-        return err;
-    };
+                return err;
+            };
+        }
+    }.testFn;
+
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
 
 // zig fmt: on
@@ -1478,225 +1496,260 @@ fn nearZero(num: f32) bool {
 // zig fmt: off
 
 test {
-    const gpa    = std.testing.allocator;
-    var   system = System.empty;
-    var   lhs    = Expression.empty;
-    var   rhs    = Expression.empty;
-    var   x      = Variable.init("x");
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   system = System.empty;
+            var   lhs    = Expression.empty;
+            var   rhs    = Expression.empty;
+            var   x      = Variable.init("x");
 
-    defer system.deinit(gpa);
-    defer lhs.deinit(gpa);
-    defer rhs.deinit(gpa);
+            defer system.deinit(gpa);
+            defer lhs.deinit(gpa);
+            defer rhs.deinit(gpa);
 
-    // x >= 10
+            // x >= 10
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 10.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 10.0;
 
-    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_10.deinit(gpa);
+            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_10.deinit(gpa);
 
-    // x >= 20
+            // x >= 20
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 20.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 20.0;
 
-    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_20.deinit(gpa);
+            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_20.deinit(gpa);
 
-    // x >= 30
+            // x >= 30
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 30.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 30.0;
 
-    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_30.deinit(gpa);
+            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_30.deinit(gpa);
 
-    //
+            //
 
-    try system.addConstraint(gpa, &x_ge_10);
+            try system.addConstraint(gpa, &x_ge_10);
 
-    system.refresh();
+            system.refresh();
 
-    try std.testing.expectEqual(10.0, x.value);
+            try std.testing.expectEqual(10.0, x.value);
+        }
+    }.testFn;
 
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
 
 test {
-    const gpa    = std.testing.allocator;
-    var   system = System.empty;
-    var   lhs    = Expression.empty;
-    var   rhs    = Expression.empty;
-    var   x      = Variable.init("x");
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   system = System.empty;
+            var   lhs    = Expression.empty;
+            var   rhs    = Expression.empty;
+            var   x      = Variable.init("x");
 
-    defer system.deinit(gpa);
-    defer lhs.deinit(gpa);
-    defer rhs.deinit(gpa);
+            defer system.deinit(gpa);
+            defer lhs.deinit(gpa);
+            defer rhs.deinit(gpa);
 
-    // x >= 10
+            // x >= 10
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 10.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 10.0;
 
-    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_10.deinit(gpa);
+            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_10.deinit(gpa);
 
-    // x >= 20
+            // x >= 20
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 20.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 20.0;
 
-    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_20.deinit(gpa);
+            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_20.deinit(gpa);
 
-    // x >= 30
+            // x >= 30
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 30.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 30.0;
 
-    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_30.deinit(gpa);
+            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_30.deinit(gpa);
 
-    //
+            //
 
-    try system.addConstraint(gpa, &x_ge_10);
-    try system.addConstraint(gpa, &x_ge_20);
-    try system.addConstraint(gpa, &x_ge_30);
+            try system.addConstraint(gpa, &x_ge_10);
+            try system.addConstraint(gpa, &x_ge_20);
+            try system.addConstraint(gpa, &x_ge_30);
 
-    system.refresh();
+            system.refresh();
 
-    try std.testing.expectEqual(30.0, x.value);
+            try std.testing.expectEqual(30.0, x.value);
+        }
+    }.testFn;
+
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
 
 test {
-    const gpa    = std.testing.allocator;
-    var   system = System.empty;
-    var   lhs    = Expression.empty;
-    var   rhs    = Expression.empty;
-    var   x      = Variable.init("x");
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   system = System.empty;
+            var   lhs    = Expression.empty;
+            var   rhs    = Expression.empty;
+            var   x      = Variable.init("x");
 
-    defer system.deinit(gpa);
-    defer lhs.deinit(gpa);
-    defer rhs.deinit(gpa);
+            defer system.deinit(gpa);
+            defer lhs.deinit(gpa);
+            defer rhs.deinit(gpa);
 
-    // x >= 10
+            // x >= 10
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 10.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 10.0;
 
-    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_10.deinit(gpa);
+            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_10.deinit(gpa);
 
-    // x >= 20
+            // x >= 20
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 20.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 20.0;
 
-    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_20.deinit(gpa);
+            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_20.deinit(gpa);
 
-    // x >= 30
+            // x >= 30
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 30.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 30.0;
 
-    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_30.deinit(gpa);
+            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_30.deinit(gpa);
 
-    //
+            //
 
-    try system.addConstraint(gpa, &x_ge_10);
-    try system.addConstraint(gpa, &x_ge_20);
-    try system.addConstraint(gpa, &x_ge_30);
+            try system.addConstraint(gpa, &x_ge_10);
+            try system.addConstraint(gpa, &x_ge_20);
+            try system.addConstraint(gpa, &x_ge_30);
 
-    try system.removeConstraint(gpa, &x_ge_30);
+            try system.removeConstraint(gpa, &x_ge_30);
 
-    system.refresh();
+            system.refresh();
 
-    try std.testing.expectEqual(20.0, x.value);
+            try std.testing.expectEqual(20.0, x.value);
+        }
+    }.testFn;
+
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
 
 test {
-    const gpa    = std.testing.allocator;
-    var   system = System.empty;
-    var   lhs    = Expression.empty;
-    var   rhs    = Expression.empty;
-    var   x      = Variable.init("x");
+    const testFn = struct {
+        pub fn testFn(gpa: std.mem.Allocator) !void {
+            var   system = System.empty;
+            var   lhs    = Expression.empty;
+            var   rhs    = Expression.empty;
+            var   x      = Variable.init("x");
 
-    defer system.deinit(gpa);
-    defer lhs.deinit(gpa);
-    defer rhs.deinit(gpa);
+            defer system.deinit(gpa);
+            defer lhs.deinit(gpa);
+            defer rhs.deinit(gpa);
 
-    // x >= 10
+            // x >= 10
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 10.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 10.0;
 
-    var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_10.deinit(gpa);
+            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_10.deinit(gpa);
 
-    // x >= 20
+            // x >= 20
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 20.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 20.0;
 
-    var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_20.deinit(gpa);
+            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_20.deinit(gpa);
 
-    // x >= 30
+            // x >= 30
 
-    lhs.clearAndRetainCapacity();
-    rhs.clearAndRetainCapacity();
+            lhs.clearAndRetainCapacity();
+            rhs.clearAndRetainCapacity();
 
-    try lhs.add(gpa, 1.0, &x);
-    rhs.constant = 30.0;
+            try lhs.add(gpa, 1.0, &x);
+            rhs.constant = 30.0;
 
-    var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-    defer x_ge_30.deinit(gpa);
+            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
+            defer x_ge_30.deinit(gpa);
 
-    //
+            //
 
-    try system.addConstraint(gpa, &x_ge_10);
-    try system.addConstraint(gpa, &x_ge_20);
-    try system.addConstraint(gpa, &x_ge_30);
+            try system.addConstraint(gpa, &x_ge_10);
+            try system.addConstraint(gpa, &x_ge_20);
+            try system.addConstraint(gpa, &x_ge_30);
 
-    try system.removeConstraint(gpa, &x_ge_20);
-    try system.removeConstraint(gpa, &x_ge_30);
+            try system.removeConstraint(gpa, &x_ge_20);
+            try system.removeConstraint(gpa, &x_ge_30);
 
-    system.refresh();
+            system.refresh();
 
-    try std.testing.expectEqual(10.0, x.value);
+            try std.testing.expectEqual(10.0, x.value);
+        }
+    }.testFn;
+
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        testFn,
+        .{},
+    );
 }
