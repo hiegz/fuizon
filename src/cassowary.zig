@@ -1638,10 +1638,15 @@ const Test = struct {
     pub const Action = union(enum) {
         const Self = @This();
 
+        log: []const u8,
         inspect,
         add:          struct { constraint: []const u8, strength: f32, unsatisfiable: bool },
         remove:       usize,
         expect_equal: struct { name: []const u8, value: f32 },
+
+        pub fn Log(message: []const u8) Action {
+            return .{ .log = message };
+        }
 
         pub fn Inspect() Action {
             return .inspect;
@@ -1679,6 +1684,9 @@ const Test = struct {
         }
 
         for (actions) |action| switch (action) {
+            .log => |message|
+                std.debug.print("{s}\n", .{message}),
+
             .inspect => {
                 std.debug.print("f: {f}\n\n", .{system.objective});
                 std.debug.print("{f}\n", .{system.tableau});
