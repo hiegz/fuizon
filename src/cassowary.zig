@@ -803,7 +803,7 @@ pub const Constraint = struct {
         return self;
     }
 
-    pub fn deinit(self: *Constraint, gpa: std.mem.Allocator) void {
+    pub fn deinit(self: *const Constraint, gpa: std.mem.Allocator) void {
         self.expression.deinit(gpa);
     }
 };
@@ -814,8 +814,8 @@ pub const Expression = struct {
 
     pub const empty = Expression{};
 
-    pub fn deinit(self: *Expression, gpa: std.mem.Allocator) void {
-        self.term_list.deinit(gpa);
+    pub fn deinit(self: *const Expression, gpa: std.mem.Allocator) void {
+        gpa.free(self.term_list.allocatedSlice());
     }
 
     pub fn clearAndRetainCapacity(self: *Expression) void {
