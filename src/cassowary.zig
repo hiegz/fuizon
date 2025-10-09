@@ -305,8 +305,10 @@ pub const System = struct {
                 const basis = entry.basis;
                 const row   = entry.row;
 
-                if (basis.kind == .external)
+                if (basis.kind == .external) {
                     candidates[2] = entry;
+                    continue;
+                }
 
                 const constant    = row.constant;
                 const coefficient = row.coefficientOf(marker);
