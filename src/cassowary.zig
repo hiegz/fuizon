@@ -1936,6 +1936,27 @@ test {
                 .Remove(1),
                 .ExpectEqual("x", 15.0),
             },
+
+            // #21
+            &[_]Test.Action{
+                .Add("t <= 100", Strength.required),
+
+                .Add("x = 50", Strength.weak),
+                .ExpectEqual("x", 50.0),
+
+                .Add("y = 2x", Strength.required),
+                .ExpectEqual("y", 100.0),
+
+                .Add("x + y = t", Strength.required),
+
+                .ExpectEqual("x", 33.33333),
+                .ExpectEqual("y", 66.66666),
+
+                .Remove(0),
+
+                .ExpectEqual("x", 50.0),
+                .ExpectEqual("y", 100.0),
+            },
         },
         0..,
     ) |actions, id| {
