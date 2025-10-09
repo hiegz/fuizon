@@ -1638,12 +1638,16 @@ const Test = struct {
     pub const Action = union(enum) {
         const Self = @This();
 
-        add:          struct { constraint: []const u8, strength: f32 },
+        add:          struct { constraint: []const u8, strength: f32, unsatisfiable: bool },
         remove:       usize,
         expect_equal: struct { name: []const u8, value: f32 },
 
         pub fn Add(constraint: []const u8, strength: f32) Action {
-            return .{ .add = .{ .constraint = constraint, .strength = strength } };
+            return .{ .add = .{ .constraint = constraint, .strength = strength, .unsatisfiable = false } };
+        }
+
+        pub fn AddUnsatisfiable(constraint: []const u8, strength: f32) Action {
+            return .{ .add = .{ .constraint = constraint, .strength = strength, .unsatisfiable = true } };
         }
 
         pub fn Remove(index: usize) Action {
@@ -1671,15 +1675,31 @@ const Test = struct {
 
         for (actions) |action| switch (action) {
             .add => |structure| {
-                const constraint = structure.constraint;
-                const strength   = structure.strength;
+                const unsatisfiable = structure.unsatisfiable;
+                const constraint    = structure.constraint;
+                const strength      = structure.strength;
+                var   failed        = false;
 
                 var      parsedConstraint = try parseConstraint(gpa, constraint, strength, &variable_store);
                 errdefer gpa.destroy(parsedConstraint);
                 errdefer parsedConstraint.deinit(gpa);
 
-                try   system.addConstraint(gpa, parsedConstraint);
+                system.addConstraint(gpa, parsedConstraint)
+                    catch |err| {
+                        if (unsatisfiable != true or err != error.UnsatisfiableConstraint)
+                            return err;
+                        failed = true;
+                    };
+
+                if (unsatisfiable == true and failed == false) {
+                    std.debug.print("(test case #{d}) expected unsatisfiable constraint was satisfiable\n", .{id});
+                    return error.TestExpectedUnsatisfiable;
+                }
+
                 try constraint_list.append(gpa, parsedConstraint);
+
+                if (unsatisfiable == true)
+                    break;
             },
 
             .remove => |index| {
@@ -1768,6 +1788,30 @@ test {
                 .Remove(0),
 
                 .ExpectEqual("x", 0.0),
+            },
+
+            // #5
+            &[_]Test.Action{
+                .Add("x = 10", Strength.required),
+                .AddUnsatisfiable("x >= 20", Strength.required),
+            },
+
+            // #6
+            &[_]Test.Action{
+                .Add("x >= 20", Strength.required),
+                .AddUnsatisfiable("x = 10", Strength.required),
+            },
+
+            // #7
+            &[_]Test.Action{
+                .Add("x = 10", Strength.required),
+                .AddUnsatisfiable("x = 30", Strength.required),
+            },
+
+            // #8
+            &[_]Test.Action{
+                .Add("x <= 10", Strength.required),
+                .AddUnsatisfiable("x = 20", Strength.required),
             },
         },
         0..,
