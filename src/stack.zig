@@ -3,7 +3,7 @@ const Area = @import("area.zig").Area;
 const Buffer = @import("buffer.zig").Buffer;
 const Text = @import("text.zig").Text;
 const Dimensions = @import("dimensions.zig").Dimensions;
-const StackConstraint = @import("stack_constraint.zig").StackConstraint;
+const Constraint = @import("constraint.zig").Constraint;
 const StackDirection = @import("stack_direction.zig").StackDirection;
 const StackItem = @import("stack_item.zig").StackItem;
 const Widget = @import("widget.zig").Widget;
@@ -309,9 +309,9 @@ test "render()" {
         measure:   bool = false,   // rely on the measure function to choose buffer dimensions
         direction: StackDirection,
         text:      []const u8,
-        left:      StackConstraint,
-        center:    StackConstraint,
-        right:     StackConstraint,
+        left:      Constraint,
+        center:    Constraint,
+        right:     Constraint,
         max:       u16 = std.math.maxInt(u16),
         expected:  []const []const u8,
 

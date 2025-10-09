@@ -1,10 +1,10 @@
 const Dimensions = @import("dimensions.zig").Dimensions;
-const StackConstraint = @import("stack_constraint.zig").StackConstraint;
+const Constraint = @import("constraint.zig").Constraint;
 const Widget = @import("widget.zig").Widget;
 
 pub const StackItem = struct {
     widget: Widget,
-    constraint: StackConstraint,
+    constraint: Constraint,
 
     /// For measurement
     _dimensions: Dimensions = undefined,
@@ -12,7 +12,7 @@ pub const StackItem = struct {
     /// Relevant during rendering and measurement.
     _value: u16 = undefined,
 
-    pub fn init(widget: anytype, constraint: StackConstraint) StackItem {
+    pub fn init(widget: anytype, constraint: Constraint) StackItem {
         return .{ .widget = Widget.impl(widget), .constraint = constraint };
     }
 
