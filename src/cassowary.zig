@@ -1,8 +1,51 @@
+//! Implementation of The Cassowary Linear Arithmetic Constraint Solving Algorithm
+//!
+//! Authors of the Algorithm:
+//!   - Greg J. Badros
+//!   - Alan Borning, University of Washington
+//!   - Peter J. Stuckey, University of Melbourne
+//!
+//! For a deeper understanding of the algorithm, refer to the original paper:
+//!   - https://constraints.cs.washington.edu/solvers/cassowary-tochi.pdf
+//!
+//! License and Usage:
+//!
+//! This code has no formal license. You are free to use, modify, and
+//! distribute it in any way, provided that the original authors above are
+//! acknowledged. This applies only to the Cassowary implementation itself, not
+//! the fuizon library that this implementation is part of.
+//!
+//! Issues or questions can be submitted at:
+//!     https://github.com/hiegz/fuizon/issues
+
 const std = @import("std");
 
-/// used for comparing float values.
+/// Defines the numerical tolerance used when comparing 32-bit floating-point
+/// values.
+///
+/// Floating-point arithmetic is inherently imprecise due to rounding errors
+/// that occur during computation. Direct equality comparisons (`a === b`)
+/// between two 32-bit floats can therefore yield false negatives even when the
+/// numbers are logically equivalent.
+///
+/// This constant specifies the acceptable difference between two float values
+/// for them to be considered equal within reasonable precision.
 const TOLERANCE = 1.0e-5;
 
+/// Returns true if two 32-bit floats are equal within `TOLERANCE`
+fn nearEq(lhs: f32, rhs: f32) bool {
+    return @abs(lhs - rhs) <= TOLERANCE;
+}
+
+/// Returns true if a 32-bit float is effectively zero.
+fn nearZero(num: f32) bool {
+    return nearEq(num, 0.0);
+}
+
+/// Linear Constraint System
+///
+/// This struct manages a set of linear constraints and variables optimized for
+/// efficient incremental addition and removal of linear constraints.
 pub const System = struct {
     tableau: Tableau = .empty,
     objective: Row = .empty,
@@ -20,6 +63,11 @@ pub const System = struct {
 
     pub const empty = System{};
 
+    /// Releases all memory allocated by the system.
+    ///
+    /// This function frees any internal data structures and memory
+    /// used by the System. After calling `deinit`, the `System` instance
+    /// must not be used unless re-initialized.
     pub fn deinit(self: *System, gpa: std.mem.Allocator) void {
         self.tableau.deinit(gpa);
         self.objective.deinit(gpa);
@@ -38,6 +86,16 @@ pub const System = struct {
 
     // zig fmt: off
 
+    /// Adds a constraint to the system.
+    ///
+    /// The caller must ensure that the constraint instance remains at a fixed
+    /// memory location for the lifetime of its presence in the system.
+    ///
+    /// If the constraint is already in the system, this function returns
+    /// `error.DuplicateConstraint`. If the constraint cannot be satisfied
+    /// given the current state of the system, it returns
+    /// `error.UnsatisfiableConstraint`. Other error values indicate internal
+    /// system failures.
     pub fn addConstraint(
         self: *System,
         gpa: std.mem.Allocator,
@@ -253,6 +311,11 @@ pub const System = struct {
         markers[1] = null;
     }
 
+    /// Removes a constraint from the system.
+    ///
+    /// If the constraint is not in the system, this function returns
+    /// `error.UnknownConstraint`. Other error values indicate internal system
+    /// failures.
     pub fn removeConstraint(
         self: *System,
         gpa: std.mem.Allocator,
@@ -369,16 +432,26 @@ pub const System = struct {
 
     // zig fmt: on
 
+    /// Updates the value of a given variable to reflect the current state of
+    /// the system.
+    ///
+    /// In debug builds, additional checks may be added to detect anomalies or
+    /// inconsistencies in the system.
     pub fn refreshVariable(self: *System, variable: *Variable) void {
+        // TODO: check for system anomalies when in debug mode
+
         if (self.tableau.findBasis(variable)) |entry|
             variable.value = entry.row.constant
         else
             variable.value = 0.0;
     }
 
+    /// Updates the values of a given set of variables to reflect the current
+    /// state of the system.
+    ///
+    /// In debug builds, additional checks may be added to detect anomalies or
+    /// inconsistencies in the system.
     pub fn refreshVariables(self: *System, variables: []const *Variable) void {
-        // TODO: check for system anomalies when in debug mode
-
         for (variables) |variable|
             self.refreshVariable(variable);
     }
@@ -388,6 +461,7 @@ test "System" {
     _ = System;
 }
 
+/// Represents the internal tableau of the linear constraint system.
 const Tableau = struct {
     const Map = std.AutoHashMapUnmanaged(*Variable, Row);
 
@@ -437,6 +511,11 @@ const Tableau = struct {
         return .{ .row_map_iterator = self.row_map.iterator() };
     }
 
+    /// Inserts a row into the tableau.
+    ///
+    /// The tableau takes ownership of the provided row. After insertion, the
+    /// caller must not use, modify, or deinitialize the row, as the tableau
+    /// now manages its memory and state.
     pub fn insert(
         self: *Tableau,
         gpa: std.mem.Allocator,
@@ -451,7 +530,17 @@ const Tableau = struct {
         std.debug.assert(removed == true);
     }
 
-    pub fn substitute(self: *Tableau, gpa: std.mem.Allocator, variable: *Variable, row: Row) error{OutOfMemory}!void {
+    /// Replaces all occurrences of a variable in the tableau with a given row.
+    ///
+    /// This method iterates over every row in the tableau and substitutes the
+    /// specified `variable` with the provided `row`. After this operation, the
+    /// variable will no longer appear in any row
+    pub fn substitute(
+        self: *Tableau,
+        gpa: std.mem.Allocator,
+        variable: *Variable,
+        row: Row,
+    ) error{OutOfMemory}!void {
         var tableau_iterator = self.iterator();
         while (tableau_iterator.next()) |entry|
             try entry.row.substitute(gpa, variable, row);
@@ -556,6 +645,11 @@ const Row = struct {
         return .{ .term_map_iterator = self.term_map.iterator() };
     }
 
+    /// Returns the coefficient of a given variable in this row.
+    ///
+    /// If the row contains a term for the specified `variable`, its
+    /// coefficient is returned. If the variable does not appear in the row,
+    /// this function returns `0.0`
     pub fn coefficientOf(self: Row, variable: *Variable) f32 {
         return self.term_map.get(variable) orelse 0.0;
     }
@@ -615,6 +709,9 @@ const Row = struct {
         return self.term_map.remove(variable);
     }
 
+    /// Replaces all occurrences of a variable in this row with the provided
+    /// row. After this operation, the variable will no longer appear in this
+    /// row.
     pub fn substitute(
         self: *Row,
         gpa: std.mem.Allocator,
@@ -630,6 +727,16 @@ const Row = struct {
 
     // zig fmt: off
 
+    /// Solves the row for the specified variable.
+    ///
+    /// Given a row in the form `c + b*y + a*x + ...`, this function rewrites
+    /// the row so that the expression `x = r = -(c + b*y + ...) / a` holds,
+    /// where `r` represents the rewritten row. The specified variable (`x`) is
+    /// removed from the row.
+    ///
+    /// The caller is responsible for adding any previous basis variable to the
+    /// row before calling this function, and for setting the specified
+    /// variable (`x`) as the new basis in the tableau afterwards.
     pub fn solveFor(
         self: *Row,
         gpa: std.mem.Allocator,
@@ -1466,17 +1573,6 @@ test "reoptimize()" {
         testFn,
         .{},
     );
-}
-
-// zig fmt: on
-
-/// Returns true if two floating point values are equal within `TOLERANCE`
-fn nearEq(lhs: f32, rhs: f32) bool {
-    return @abs(lhs - rhs) <= TOLERANCE;
-}
-
-fn nearZero(num: f32) bool {
-    return nearEq(num, 0.0);
 }
 
 // zig fmt: off
