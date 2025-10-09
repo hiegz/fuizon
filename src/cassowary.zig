@@ -1491,267 +1491,291 @@ fn nearZero(num: f32) bool {
     return nearEq(num, 0.0);
 }
 
-// ------- //
-//  Tests  //
-// ------- //
-
 // zig fmt: off
 
-test {
-    const testFn = struct {
-        pub fn testFn(gpa: std.mem.Allocator) !void {
-            var   system = System.empty;
-            var   lhs    = Expression.empty;
-            var   rhs    = Expression.empty;
-            var   x      = Variable.init("x");
+const VariableStore = struct {
+    map: std.StringHashMapUnmanaged(*Variable) = .empty,
 
-            defer system.deinit(gpa);
-            defer lhs.deinit(gpa);
-            defer rhs.deinit(gpa);
+    pub const empty = VariableStore{};
 
-            // x >= 10
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 10.0;
-
-            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_10.deinit(gpa);
-
-            // x >= 20
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 20.0;
-
-            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_20.deinit(gpa);
-
-            // x >= 30
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 30.0;
-
-            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_30.deinit(gpa);
-
-            //
-
-            try system.addConstraint(gpa, &x_ge_10);
-
-            system.refreshVariable(&x);
-
-            try std.testing.expectEqual(10.0, x.value);
+    pub fn deinit(self: *VariableStore, gpa: std.mem.Allocator) void {
+        var iterator = self.map.valueIterator();
+        while (iterator.next()) |variable| {
+            gpa.free(variable.*.name);
+            gpa.destroy(variable.*);
         }
-    }.testFn;
+        self.map.deinit(gpa);
+    }
 
-    try std.testing.checkAllAllocationFailures(
-        std.testing.allocator,
-        testFn,
-        .{},
-    );
+    pub fn get(self: *VariableStore, name: []const u8) ?*Variable {
+        return self.map.get(name);
+    }
+
+    pub fn getOrPut(self: *VariableStore, gpa: std.mem.Allocator, name: []const u8) error{OutOfMemory}!*Variable {
+        if (self.get(name)) |variable|
+            return variable
+        else {
+            const    variable = try gpa.create(Variable);
+            errdefer gpa.destroy(variable);
+
+            variable.name  = try gpa.dupe(u8, name);
+            errdefer gpa.free(variable.name);
+
+            variable.kind  = .external;
+            variable.value = undefined;
+
+            try self.map.putNoClobber(gpa, variable.name, variable);
+
+            return variable;
+        }
+    }
+};
+
+fn tokenizeConstraintString(
+    gpa: std.mem.Allocator,
+    constraint: []const u8,
+) error{OutOfMemory}![]const u8 {
+    var   array_list = std.ArrayList(u8).empty;
+    defer array_list.deinit(gpa);
+
+    for (constraint) |character|
+        switch (character) {
+            ' '  => continue,
+            else => try array_list.append(gpa, character),
+        };
+
+    try array_list.append(gpa, 0);
+
+    return try array_list.toOwnedSlice(gpa);
 }
 
-test {
-    const testFn = struct {
-        pub fn testFn(gpa: std.mem.Allocator) !void {
-            var   system = System.empty;
-            var   lhs    = Expression.empty;
-            var   rhs    = Expression.empty;
-            var   x      = Variable.init("x");
+fn parseConstraint(
+    gpa: std.mem.Allocator,
+    constraint: []const u8,
+    strength: f32,
+    variables: *VariableStore,
+) error{OutOfMemory}!*Constraint {
+    var   expressions = @as([2]Expression, .{ .empty, .empty });
+    defer expressions[0].deinit(gpa);
+    defer expressions[1].deinit(gpa);
 
-            defer system.deinit(gpa);
-            defer lhs.deinit(gpa);
-            defer rhs.deinit(gpa);
+    var   expression  = &expressions[0];
+    var   sign        = @as(f32, 1.0);
+    var   relation    = @as(?u8, null);
+    var   operator    = @as(Operator, undefined);
+    var   coefficient = @as(f32, 0.0);
+    var   name        = std.ArrayList(u8).empty;
+    defer name.deinit(gpa);
+    const tokens = try tokenizeConstraintString(gpa, constraint);
+    defer gpa.free(tokens);
 
-            // x >= 10
+    for (tokens) |token| switch (token) {
+        '<' => relation = '<',
+        '>' => relation = '>',
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+        'a'...'z', 'A'...'Z'
+            => try name.append(gpa, token),
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 10.0;
+        '0'...'9' => {
+            if (name.items.len > 0)
+                try name.append(gpa, token)
+            else {
+                const digit: f32 = @floatFromInt(token - '0');
+                coefficient = coefficient * 10.0 + digit;
+            }
+        },
 
-            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_10.deinit(gpa);
+        '+', '-', '=', 0 => {
+            if (name.items.len == 0) {
+                expression.constant += sign * coefficient;
+                coefficient = 0.0;
+                sign = if (token == '-') -1.0 else 1.0;
 
-            // x >= 20
+                continue;
+            }
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+            const k = sign * if (coefficient == 0.0) 1.0 else coefficient;
+            const v = name.items;
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 20.0;
+            coefficient = 0.0;
+            name.clearRetainingCapacity();
+            sign = if (token == '-') -1.0 else 1.0;
 
-            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_20.deinit(gpa);
+            try expression.add(gpa, k, try variables.getOrPut(gpa, v));
 
-            // x >= 30
+            if (token == '=') {
+                if (relation == null)
+                    operator = .eq
+                else if (relation != null and relation.? == '>')
+                    operator = .ge
+                else if (relation != null and relation.? == '<')
+                    operator = .le
+                else
+                    unreachable;
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+                expression = &expressions[1];
+            }
+        },
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 30.0;
+        else => continue,
+    };
 
-            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_30.deinit(gpa);
+    const    c = try gpa.create(Constraint);
+    errdefer gpa.destroy(c);
 
-            //
-
-            try system.addConstraint(gpa, &x_ge_10);
-            try system.addConstraint(gpa, &x_ge_20);
-            try system.addConstraint(gpa, &x_ge_30);
-
-            system.refreshVariable(&x);
-
-            try std.testing.expectEqual(30.0, x.value);
-        }
-    }.testFn;
-
-    try std.testing.checkAllAllocationFailures(
-        std.testing.allocator,
-        testFn,
-        .{},
+    c.* = try Constraint.init(
+        gpa,
+        expressions[0],
+        expressions[1],
+        operator,
+        strength,
     );
+
+    return c;
 }
 
-test {
-    const testFn = struct {
-        pub fn testFn(gpa: std.mem.Allocator) !void {
-            var   system = System.empty;
-            var   lhs    = Expression.empty;
-            var   rhs    = Expression.empty;
-            var   x      = Variable.init("x");
+const Test = struct {
+    pub const Action = union(enum) {
+        const Self = @This();
 
-            defer system.deinit(gpa);
-            defer lhs.deinit(gpa);
-            defer rhs.deinit(gpa);
+        add:          struct { constraint: []const u8, strength: f32 },
+        remove:       usize,
+        expect_equal: struct { name: []const u8, value: f32 },
 
-            // x >= 10
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 10.0;
-
-            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_10.deinit(gpa);
-
-            // x >= 20
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 20.0;
-
-            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_20.deinit(gpa);
-
-            // x >= 30
-
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
-
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 30.0;
-
-            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_30.deinit(gpa);
-
-            //
-
-            try system.addConstraint(gpa, &x_ge_10);
-            try system.addConstraint(gpa, &x_ge_20);
-            try system.addConstraint(gpa, &x_ge_30);
-
-            try system.removeConstraint(gpa, &x_ge_30);
-
-            system.refreshVariable(&x);
-
-            try std.testing.expectEqual(20.0, x.value);
+        pub fn Add(constraint: []const u8, strength: f32) Action {
+            return .{ .add = .{ .constraint = constraint, .strength = strength } };
         }
-    }.testFn;
 
-    try std.testing.checkAllAllocationFailures(
-        std.testing.allocator,
-        testFn,
-        .{},
-    );
-}
+        pub fn Remove(index: usize) Action {
+            return .{ .remove = index };
+        }
+
+        pub fn ExpectEqual(variable_name: []const u8, value: f32) Action {
+            return .{ .expect_equal = .{ .name = variable_name, .value = value } };
+        }
+    };
+
+    pub fn run(gpa: std.mem.Allocator, id: usize, actions: []const Action) !void {
+        var   system = System.empty;
+        defer system.deinit(gpa);
+        var   variable_store = VariableStore.empty;
+        defer variable_store.deinit(gpa);
+        var   constraint_list = std.ArrayList(*Constraint).empty;
+        defer {
+            for (constraint_list.items) |constraint| {
+                constraint.deinit(gpa);
+                gpa.destroy(constraint);
+            }
+            constraint_list.deinit(gpa);
+        }
+
+        for (actions) |action| switch (action) {
+            .add => |structure| {
+                const constraint = structure.constraint;
+                const strength   = structure.strength;
+
+                var      parsedConstraint = try parseConstraint(gpa, constraint, strength, &variable_store);
+                errdefer gpa.destroy(parsedConstraint);
+                errdefer parsedConstraint.deinit(gpa);
+
+                try   system.addConstraint(gpa, parsedConstraint);
+                try constraint_list.append(gpa, parsedConstraint);
+            },
+
+            .remove => |index| {
+                const constraint = constraint_list.orderedRemove(index);
+                try system.removeConstraint(gpa, constraint);
+                constraint.deinit(gpa);
+                gpa.destroy(constraint);
+            },
+
+            .expect_equal => |_variable| {
+                const name     = _variable.name;
+                const value    = _variable.value;
+                const variable = variable_store.get(name) orelse @panic("Unknown Variable");
+
+                system.refreshVariable(variable);
+
+                std.testing.expect(value == variable.value) catch |err| {
+                    std.debug.print("\t\ntest case #{d} failed\n", .{id});
+                    std.debug.print("expected: {s} = {d}\n", .{name, value});
+                    std.debug.print("found:    {s} = {d}\n", .{variable.name, variable.value});
+
+                    return err;
+                };
+            },
+        };
+    }
+};
 
 test {
-    const testFn = struct {
-        pub fn testFn(gpa: std.mem.Allocator) !void {
-            var   system = System.empty;
-            var   lhs    = Expression.empty;
-            var   rhs    = Expression.empty;
-            var   x      = Variable.init("x");
+    inline for(
+        [_][]const Test.Action{
+            // #0
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .ExpectEqual("x", 10.0),
+            },
 
-            defer system.deinit(gpa);
-            defer lhs.deinit(gpa);
-            defer rhs.deinit(gpa);
+            // #1
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .Add("x >= 20", Strength.required),
 
-            // x >= 10
+                .ExpectEqual("x", 20.0),
+            },
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+            // #2
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .Add("x >= 20", Strength.required),
+                .Add("x >= 30", Strength.required),
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 10.0;
+                .ExpectEqual("x", 30.0),
+            },
 
-            var   x_ge_10 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_10.deinit(gpa);
+            // #3
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .Add("x >= 20", Strength.required),
+                .Add("x >= 30", Strength.required),
 
-            // x >= 20
+                .Remove(2),
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+                .ExpectEqual("x", 20.0),
+            },
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 20.0;
+            // #3
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .Add("x >= 20", Strength.required),
+                .Add("x >= 30", Strength.required),
 
-            var   x_ge_20 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_20.deinit(gpa);
+                .Remove(2),
+                .Remove(1),
 
-            // x >= 30
+                .ExpectEqual("x", 10.0),
+            },
 
-            lhs.clearAndRetainCapacity();
-            rhs.clearAndRetainCapacity();
+            // #4
+            &[_]Test.Action{
+                .Add("x >= 10", Strength.required),
+                .Add("x >= 20", Strength.required),
+                .Add("x >= 30", Strength.required),
 
-            try lhs.add(gpa, 1.0, &x);
-            rhs.constant = 30.0;
+                .Remove(2),
+                .Remove(1),
+                .Remove(0),
 
-            var   x_ge_30 = try Constraint.init(gpa, lhs, rhs, .ge, Strength.required);
-            defer x_ge_30.deinit(gpa);
-
-            //
-
-            try system.addConstraint(gpa, &x_ge_10);
-            try system.addConstraint(gpa, &x_ge_20);
-            try system.addConstraint(gpa, &x_ge_30);
-
-            try system.removeConstraint(gpa, &x_ge_20);
-            try system.removeConstraint(gpa, &x_ge_30);
-
-            system.refreshVariable(&x);
-
-            try std.testing.expectEqual(10.0, x.value);
-        }
-    }.testFn;
-
-    try std.testing.checkAllAllocationFailures(
-        std.testing.allocator,
-        testFn,
-        .{},
-    );
+                .ExpectEqual("x", 0.0),
+            },
+        },
+        0..,
+    ) |actions, id| {
+        try std.testing.checkAllAllocationFailures(
+            std.testing.allocator,
+            Test.run,
+            .{ id, actions },
+        );
+    }
 }
