@@ -1638,9 +1638,14 @@ const Test = struct {
     pub const Action = union(enum) {
         const Self = @This();
 
+        inspect,
         add:          struct { constraint: []const u8, strength: f32, unsatisfiable: bool },
         remove:       usize,
         expect_equal: struct { name: []const u8, value: f32 },
+
+        pub fn Inspect() Action {
+            return .inspect;
+        }
 
         pub fn Add(constraint: []const u8, strength: f32) Action {
             return .{ .add = .{ .constraint = constraint, .strength = strength, .unsatisfiable = false } };
@@ -1674,6 +1679,11 @@ const Test = struct {
         }
 
         for (actions) |action| switch (action) {
+            .inspect => {
+                std.debug.print("f: {f}\n\n", .{system.objective});
+                std.debug.print("{f}\n", .{system.tableau});
+            },
+
             .add => |structure| {
                 const unsatisfiable = structure.unsatisfiable;
                 const constraint    = structure.constraint;
