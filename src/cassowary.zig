@@ -195,7 +195,8 @@ pub const System = struct {
 
             // artificial variable is basic
             if (self.tableau.findBasis(&artificial_variable)) |tableau_entry| {
-                var row = tableau_entry.row.*;
+                var   row = tableau_entry.row.*;
+                defer row.deinit(gpa);
 
                 // since we were able to achieve a value of zero for our
                 // artificial objective function which is equal to
@@ -227,9 +228,10 @@ pub const System = struct {
                 else {
                     self.tableau.removeEntry(tableau_entry);
                     try row.solveFor(gpa, entry_variable.?);
-                    try self.tableau.insert(gpa, entry_variable.?, row);
                     try self.tableau.substitute(gpa, entry_variable.?, row);
                     try self.objective.substitute(gpa, entry_variable.?, row);
+                    try self.tableau.insert(gpa, entry_variable.?, row);
+                    row = .empty;
                 }
             }
 
@@ -964,14 +966,16 @@ fn optimize(
 
         const exit_basis = exit_entry.?.basis;
         var   exit_row   = exit_entry.?.row.*;
+        defer exit_row.deinit(gpa);
 
         tableau.removeEntry(exit_entry.?);
 
         try exit_row.insert(gpa, -1.0, exit_basis);
         try exit_row.solveFor(gpa, entry_variable.?);
-        try tableau.insert(gpa, entry_variable.?, exit_row);
         try tableau.substitute(gpa, entry_variable.?, exit_row);
         try objective.substitute(gpa, entry_variable.?, exit_row);
+        try tableau.insert(gpa, entry_variable.?, exit_row);
+        exit_row = .empty;
     }
 }
 
@@ -1196,14 +1200,16 @@ fn reoptimize(
 
         const infeasible_basis = infeasible_entry.?.basis;
         var   infeasible_row   = infeasible_entry.?.row.*;
+        defer infeasible_row.deinit(gpa);
 
         tableau.removeEntry(infeasible_entry.?);
 
         try infeasible_row.insert(gpa, -1.0, infeasible_basis);
         try infeasible_row.solveFor(gpa, entry_variable.?);
-        try tableau.insert(gpa, entry_variable.?, infeasible_row);
         try tableau.substitute(gpa, entry_variable.?, infeasible_row);
         try objective.substitute(gpa, entry_variable.?, infeasible_row);
+        try tableau.insert(gpa, entry_variable.?, infeasible_row);
+        infeasible_row = .empty;
     }
 }
 
