@@ -830,18 +830,6 @@ pub const Expression = struct {
         variable: *Variable,
     ) error{OutOfMemory}!void {
         if (nearEq(coefficient, 0.0)) return;
-
-        for (self.term_list.items, 0..) |*term, i| {
-            if (term.variable != variable)
-                continue;
-
-            term.coefficient += coefficient;
-            if (nearEq(term.coefficient, 0.0))
-                _ = self.term_list.swapRemove(i);
-
-            return;
-        }
-
         try self.term_list.append(gpa, Term.init(coefficient, variable));
     }
 
