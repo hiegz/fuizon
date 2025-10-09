@@ -1903,6 +1903,42 @@ test {
 
                 .ExpectEqual("x", 10.0),
             },
+
+            // #18
+            &[_]Test.Action{
+                .Add("x  = 15", Strength.medium),
+                .ExpectEqual("x", 15.0),
+
+                .Add("x  = 10", Strength.strong),
+                .ExpectEqual("x", 10.0),
+
+                .Remove(1),
+                .ExpectEqual("x", 15.0),
+            },
+
+            // #19
+            &[_]Test.Action{
+                .Add("x  >= 10", Strength.medium),
+                .ExpectEqual("x", 10.0),
+
+                .Add("x  >= 15", Strength.strong),
+                .ExpectEqual("x", 15.0),
+
+                .Remove(1),
+                .ExpectEqual("x", 10.0),
+            },
+
+            // #20
+            &[_]Test.Action{
+                .Add("x  <= 15", Strength.medium),
+                .ExpectEqual("x", 15.0),
+
+                .Add("x  <= 10", Strength.strong),
+                .ExpectEqual("x", 10.0),
+
+                .Remove(1),
+                .ExpectEqual("x", 15.0),
+            },
         },
         0..,
     ) |actions, id| {
