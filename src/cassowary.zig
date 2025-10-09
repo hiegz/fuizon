@@ -1,7 +1,7 @@
 const std = @import("std");
 
 /// used for comparing float values.
-const TOLERANCE = 1.0e-8;
+const TOLERANCE = 1.0e-5;
 
 pub const System = struct {
     tableau: Tableau = .empty,
