@@ -367,18 +367,18 @@ pub const System = struct {
 
     // zig fmt: on
 
-    pub fn refresh(self: *System) void {
+    pub fn refreshVariable(self: *System, variable: *Variable) void {
+        if (self.tableau.findBasis(variable)) |entry|
+            variable.value = entry.row.constant
+        else
+            variable.value = 0.0;
+    }
+
+    pub fn refreshVariables(self: *System, variables: []const *Variable) void {
         // TODO: check for system anomalies when in debug mode
 
-        var tableau_iterator = self.tableau.iterator();
-        while (tableau_iterator.next()) |entry| {
-            const basis = entry.basis;
-            const row = entry.row;
-
-            if (basis.kind != .external)
-                continue;
-            basis.value = row.constant;
-        }
+        for (variables) |variable|
+            self.refreshVariable(variable);
     }
 };
 
@@ -1544,7 +1544,7 @@ test {
 
             try system.addConstraint(gpa, &x_ge_10);
 
-            system.refresh();
+            system.refreshVariable(&x);
 
             try std.testing.expectEqual(10.0, x.value);
         }
@@ -1608,7 +1608,7 @@ test {
             try system.addConstraint(gpa, &x_ge_20);
             try system.addConstraint(gpa, &x_ge_30);
 
-            system.refresh();
+            system.refreshVariable(&x);
 
             try std.testing.expectEqual(30.0, x.value);
         }
@@ -1674,7 +1674,7 @@ test {
 
             try system.removeConstraint(gpa, &x_ge_30);
 
-            system.refresh();
+            system.refreshVariable(&x);
 
             try std.testing.expectEqual(20.0, x.value);
         }
@@ -1741,7 +1741,7 @@ test {
             try system.removeConstraint(gpa, &x_ge_20);
             try system.removeConstraint(gpa, &x_ge_30);
 
-            system.refresh();
+            system.refreshVariable(&x);
 
             try std.testing.expectEqual(10.0, x.value);
         }
