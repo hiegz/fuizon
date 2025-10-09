@@ -346,10 +346,12 @@ pub const System = struct {
                 else if (candidates[2]) |candidate| candidate
                 else return error.ConstraintMarkerNotFound;
 
-            var   leaving_row = leaving_entry.row.*;
+            const leaving_basis = leaving_entry.basis;
+            var   leaving_row   = leaving_entry.row.*;
             defer leaving_row.deinit(gpa);
 
             self.tableau.removeEntry(leaving_entry);
+            try leaving_row.insert(gpa, -1.0, leaving_basis);
             try leaving_row.solveFor(gpa, marker);
             try self.tableau.substitute(gpa, marker, leaving_row);
             try self.objective.substitute(gpa, marker, leaving_row);
