@@ -1,27 +1,27 @@
-pub const Constraint = union(enum) {
+pub const SizePolicy = union(enum) {
     auto,
     fill: u16,
     percentage: u8,
     fraction: struct { numerator: u16, denominator: u16 },
     fixed: u16,
 
-    pub fn Auto() Constraint {
+    pub fn Auto() SizePolicy {
         return .auto;
     }
 
-    pub fn Fill(factor: u16) Constraint {
+    pub fn Fill(factor: u16) SizePolicy {
         return .{ .fill = factor };
     }
 
-    pub fn Percentage(value: u8) Constraint {
+    pub fn Percentage(value: u8) SizePolicy {
         return .{ .percentage = value };
     }
 
-    pub fn Fraction(numerator: u16, denominator: u16) Constraint {
+    pub fn Fraction(numerator: u16, denominator: u16) SizePolicy {
         return .{ .fraction = .{ .numerator = numerator, .denominator = denominator } };
     }
 
-    pub fn Fixed(value: u16) Constraint {
+    pub fn Fixed(value: u16) SizePolicy {
         return .{ .fixed = value };
     }
 };
