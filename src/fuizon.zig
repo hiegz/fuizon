@@ -279,7 +279,6 @@ test "fuizon" {
     _ = @import("border_type.zig");
     _ = @import("borders.zig");
     _ = @import("buffer.zig");
-    _ = @import("cassowary.zig");
     _ = @import("character.zig");
     _ = @import("color.zig");
     _ = @import("constraint.zig");
@@ -308,6 +307,7 @@ test "fuizon" {
     _ = @import("stack_item.zig");
     _ = @import("strength.zig");
     _ = @import("style.zig");
+    _ = @import("system.zig");
     _ = @import("tableau.zig");
     _ = @import("term.zig");
     _ = @import("terminal.zig");
