@@ -33,4 +33,10 @@ pub const Constraint = struct {
     pub fn deinit(self: *Constraint, gpa: std.mem.Allocator) void {
         self.expression.deinit(gpa);
     }
+
+    /// The caller no longer manages the constraint. Calling `deinit()` is
+    /// safe, but unnecessary.
+    pub fn release(self: *Constraint) void {
+        self.expression.release();
+    }
 };
