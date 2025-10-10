@@ -19,33 +19,12 @@
 //!     https://github.com/hiegz/fuizon/issues
 
 const std = @import("std");
+const float32 = @import("float32.zig");
 
 const Variable = @import("variable.zig").Variable;
 const Term = @import("term.zig").Term;
 const Operator = @import("operator.zig").Operator;
 const Strength = @import("strength.zig").Strength;
-
-/// Defines the numerical tolerance used when comparing 32-bit floating-point
-/// values.
-///
-/// Floating-point arithmetic is inherently imprecise due to rounding errors
-/// that occur during computation. Direct equality comparisons (`a === b`)
-/// between two 32-bit floats can therefore yield false negatives even when the
-/// numbers are logically equivalent.
-///
-/// This constant specifies the acceptable difference between two float values
-/// for them to be considered equal within reasonable precision.
-const TOLERANCE = 1.0e-5;
-
-/// Returns true if two 32-bit floats are equal within `TOLERANCE`
-fn nearEq(lhs: f32, rhs: f32) bool {
-    return @abs(lhs - rhs) <= TOLERANCE;
-}
-
-/// Returns true if a 32-bit float is effectively zero.
-fn nearZero(num: f32) bool {
-    return nearEq(num, 0.0);
-}
 
 /// Linear Constraint System
 ///
@@ -192,7 +171,7 @@ pub const System = struct {
         // non-negative.
         //
         // this is possible because the row is of the form l = 0
-        if (new_row.constant < 0.0 and !nearZero(new_row.constant)) {
+        if (new_row.constant < 0.0 and !float32.nearZero(new_row.constant)) {
             new_row.constant *= -1;
             new_row_iterator = new_row.iterator();
             while (new_row_iterator.next()) |entry|
@@ -253,7 +232,7 @@ pub const System = struct {
             new_row = .empty;
 
             try optimize(gpa, &self.tableau, &artificial_objective);
-            if (!nearZero(artificial_objective.constant))
+            if (!float32.nearZero(artificial_objective.constant))
                 return error.UnsatisfiableConstraint;
 
             // artificial variable is basic
@@ -267,7 +246,7 @@ pub const System = struct {
                 // artificial objective function which is equal to
                 // `artificial_variable`, the constant of this row must
                 // also be zero
-                std.debug.assert(nearZero(row.constant));
+                std.debug.assert(float32.nearZero(row.constant));
 
                 // find a variable to enter the basis
 
@@ -686,11 +665,11 @@ const Row = struct {
     }
 
     pub fn insertTerm(self: *Row, gpa: std.mem.Allocator, term: Term) error{OutOfMemory}!void {
-        if (nearEq(term.coefficient, 0.0)) return;
+        if (float32.nearZero(term.coefficient)) return;
 
         if (self.findVariable(term.variable)) |entry| {
             entry.coefficient.* += term.coefficient;
-            if (nearZero(entry.coefficient.*))
+            if (float32.nearZero(entry.coefficient.*))
                 self.removeEntry(entry);
         } else {
             try self.term_map.putNoClobber(gpa, term.variable, term.coefficient);
@@ -769,7 +748,7 @@ const Row = struct {
         var   row_iterator = self.iterator();
         while (row_iterator.next()) |entry| {
             entry.coefficient.* *= coefficient;
-            if (nearZero(entry.coefficient.*))
+            if (float32.nearZero(entry.coefficient.*))
                 try remove_list.append(gpa, entry.variable);
         }
 
@@ -784,7 +763,7 @@ const Row = struct {
     pub fn equals(self: Row, other: Row) bool {
         var row_iterator: Iterator = undefined;
 
-        if (!nearEq(self.constant, other.constant))
+        if (!float32.nearEq(self.constant, other.constant))
             return false;
 
         row_iterator = self.iterator();
@@ -889,7 +868,7 @@ pub const Expression = struct {
         coefficient: f32,
         variable: *Variable,
     ) error{OutOfMemory}!void {
-        if (nearEq(coefficient, 0.0)) return;
+        if (float32.nearZero(coefficient)) return;
         try self.term_list.append(gpa, Term.init(coefficient, variable));
     }
 
@@ -990,7 +969,7 @@ fn optimize(
             }
 
             // choose the lowest numbered variable to prevent cycling
-            if (nearEq(ratio, min_ratio) and basis.id() < min_id) {
+            if (float32.nearEq(ratio, min_ratio) and basis.id() < min_id) {
                 min_id = basis.id();
                 min_ratio = ratio;
                 exit_entry = entry;
@@ -1231,7 +1210,7 @@ fn reoptimize(
             }
 
             // choose the lowest numbered variable to prevent cycling
-            if (nearEq(ratio, min_ratio) and variable.id() < min_id) {
+            if (float32.nearEq(ratio, min_ratio) and variable.id() < min_id) {
                 min_id = variable.id();
                 min_ratio = ratio;
                 entry_variable = variable;
@@ -1759,7 +1738,7 @@ const Test = struct {
 
                 system.refreshVariable(variable);
 
-                std.testing.expect(nearEq(value, variable.value)) catch |err| {
+                std.testing.expect(float32.nearEq(value, variable.value)) catch |err| {
                     std.debug.print("\t\ntest case #{d} failed\n", .{id});
                     std.debug.print("expected: {s} = {d}\n", .{name, value});
                     std.debug.print("found:    {s} = {d}\n", .{variable.name, variable.value});
