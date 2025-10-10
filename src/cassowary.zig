@@ -21,6 +21,7 @@
 const std = @import("std");
 
 const Variable = @import("variable.zig").Variable;
+const Term = @import("term.zig").Term;
 
 /// Defines the numerical tolerance used when comparing 32-bit floating-point
 /// values.
@@ -826,17 +827,6 @@ const Row = struct {
             try writer.writeAll(if (min_term.coefficient >= 0) " + " else " - ");
             try writer.print("{d} * {f}", .{ @abs(min_term.coefficient), min_term.variable });
         }
-    }
-};
-
-// zig fmt: on
-
-pub const Term = struct {
-    coefficient: f32,
-    variable: *Variable,
-
-    pub fn init(coefficient: f32, variable: *Variable) Term {
-        return .{ .coefficient = coefficient, .variable = variable };
     }
 };
 
