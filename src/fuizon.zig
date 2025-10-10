@@ -302,6 +302,7 @@ test "fuizon" {
     _ = @import("stack.zig");
     _ = @import("stack_direction.zig");
     _ = @import("stack_item.zig");
+    _ = @import("strength.zig");
     _ = @import("style.zig");
     _ = @import("term.zig");
     _ = @import("terminal.zig");
