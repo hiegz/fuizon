@@ -22,6 +22,7 @@ const std = @import("std");
 
 const Variable = @import("variable.zig").Variable;
 const Term = @import("term.zig").Term;
+const Operator = @import("operator.zig").Operator;
 
 /// Defines the numerical tolerance used when comparing 32-bit floating-point
 /// values.
@@ -934,12 +935,6 @@ pub const Strength = struct {
     pub const strong   = init(1.0, 0.0, 0.0);
     pub const medium   = init(0.0, 1.0, 0.0);
     pub const weak     = init(0.0, 0.0, 1.0);
-};
-
-pub const Operator = enum {
-    le,
-    eq,
-    ge,
 };
 
 /// Performs Phase II of the standard two-phase simplex algorithm.

@@ -293,6 +293,7 @@ test "fuizon" {
     _ = @import("key_code.zig");
     _ = @import("key_modifier.zig");
     _ = @import("key_modifiers.zig");
+    _ = @import("operator.zig");
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
     _ = @import("source.zig");
