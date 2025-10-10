@@ -7,16 +7,6 @@
 //!
 //! For a deeper understanding of the algorithm, refer to the original paper:
 //!   - https://constraints.cs.washington.edu/solvers/cassowary-tochi.pdf
-//!
-//! License and Usage:
-//!
-//! This code has no formal license. You are free to use, modify, and
-//! distribute it in any way, provided that the original authors above are
-//! acknowledged. This applies only to the Cassowary implementation itself, not
-//! the fuizon library that this implementation is part of.
-//!
-//! Issues or questions can be submitted at:
-//!     https://github.com/hiegz/fuizon/issues
 
 const std = @import("std");
 const float32 = @import("float32.zig");
