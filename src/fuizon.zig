@@ -305,6 +305,8 @@ test "fuizon" {
     _ = @import("terminal.zig");
     _ = @import("text.zig");
     _ = @import("text_alignment.zig");
+    _ = @import("variable.zig");
+    _ = @import("variable_kind.zig");
     _ = @import("viewport.zig");
     _ = @import("void.zig");
     _ = @import("vt.zig");
