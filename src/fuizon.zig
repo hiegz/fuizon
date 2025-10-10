@@ -282,6 +282,7 @@ test "fuizon" {
     _ = @import("cassowary.zig");
     _ = @import("character.zig");
     _ = @import("color.zig");
+    _ = @import("constraint.zig");
     _ = @import("container.zig");
     _ = @import("coordinate.zig");
     _ = @import("dimensions.zig");

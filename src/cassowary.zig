@@ -21,6 +21,7 @@
 const std = @import("std");
 const float32 = @import("float32.zig");
 
+const Constraint = @import("constraint.zig").Constraint;
 const Expression = @import("expression.zig").Expression;
 const Variable = @import("variable.zig").Variable;
 const Term = @import("term.zig").Term;
@@ -813,40 +814,6 @@ const Row = struct {
 };
 
 // zig fmt: off
-
-pub const Constraint = struct {
-    expression: Expression,
-    operator:   Operator,
-    strength:   f32,
-
-    pub fn init(
-        gpa: std.mem.Allocator,
-        lhs: Expression,
-        rhs: Expression,
-        operator: Operator,
-        strength: f32,
-    ) error{OutOfMemory}!Constraint {
-        var self: Constraint = undefined;
-        errdefer self.deinit(gpa);
-
-        self.expression = .empty;
-        self.operator   = operator;
-        self.strength   = strength;
-
-        self.expression.constant += lhs.constant;
-        for (lhs.term_list.items) |term|
-            try self.expression.add(gpa, term.coefficient, term.variable);
-        self.expression.constant -= rhs.constant;
-        for (rhs.term_list.items) |term|
-            try self.expression.sub(gpa, term.coefficient, term.variable);
-
-        return self;
-    }
-
-    pub fn deinit(self: *const Constraint, gpa: std.mem.Allocator) void {
-        self.expression.deinit(gpa);
-    }
-};
 
 /// Performs Phase II of the standard two-phase simplex algorithm.
 ///
