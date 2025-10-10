@@ -948,6 +948,12 @@ pub const Expression = struct {
     ) error{OutOfMemory}!void {
         try self.add(gpa, -coefficient, variable);
     }
+
+    pub fn mul(self: *Expression, k: f32) void {
+        self.constant *= k;
+        for (self.term_list.items) |*term|
+            term.coefficient *= k;
+    }
 };
 
 pub const Strength = struct {
