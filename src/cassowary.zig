@@ -954,6 +954,16 @@ pub const Expression = struct {
         for (self.term_list.items) |*term|
             term.coefficient *= k;
     }
+
+    pub fn append(
+        self: *Expression,
+        gpa: std.mem.Allocator,
+        expression: Expression,
+    ) error{OutOfMemory}!void {
+        self.constant += expression.constant;
+        for (expression.term_list.items) |term|
+            try self.add(gpa, term.coefficient, term.variable);
+    }
 };
 
 pub const Strength = struct {
