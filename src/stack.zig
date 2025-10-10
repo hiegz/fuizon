@@ -3,7 +3,7 @@ const Area = @import("area.zig").Area;
 const Buffer = @import("buffer.zig").Buffer;
 const Text = @import("text.zig").Text;
 const Dimensions = @import("dimensions.zig").Dimensions;
-const Constraint = @import("constraint.zig").Constraint;
+const SizePolicy = @import("size_policy.zig").SizePolicy;
 const StackDirection = @import("stack_direction.zig").StackDirection;
 const StackItem = @import("stack_item.zig").StackItem;
 const Widget = @import("widget.zig").Widget;
@@ -95,7 +95,7 @@ pub const Stack = struct {
         var total_factor: u16 = 0;
 
         for (self.item_list.items) |*item| {
-            item._value = switch (item.constraint) {
+            item._value = switch (item.size_policy) {
                 .auto       => item._value,
                 .fixed      => |value|    value,
                 .percentage => |value|    percentageOf(space, value),
@@ -125,10 +125,10 @@ pub const Stack = struct {
         const space_to_fill = remaining;
 
         for (self.item_list.items) |*item| {
-            if (item.constraint != .fill)
+            if (item.size_policy != .fill)
                 continue;
 
-            const factor = item.constraint.fill;
+            const factor = item.size_policy.fill;
             item._value  = fractionOf(space_to_fill, factor, total_factor);
             remaining   -= item._value;
         }
@@ -169,7 +169,7 @@ pub const Stack = struct {
             const w = item._dimensions.width;
             const h = item._dimensions.height;
 
-            switch (item.constraint) {
+            switch (item.size_policy) {
                 .auto       =>     fixed_space  += self.selectPrimarySize(w, h),
                 .fixed      => |v| fixed_space  += v,
                 .fill       => |v| factor_sum   += v,
@@ -196,14 +196,14 @@ pub const Stack = struct {
                 var   fspace:      f32 = 0;
 
                 for (self.item_list.items) |item| {
-                    if (item.constraint != .fill) continue;
+                    if (item.size_policy != .fill) continue;
 
                     const  w = item._dimensions.width;
                     const  h = item._dimensions.height;
                     const  p = self.selectPrimarySize(w, h);
 
                     const fp = @as(f32, @floatFromInt(p));
-                    const ff = @as(f32, @floatFromInt(item.constraint.fill));
+                    const ff = @as(f32, @floatFromInt(item.size_policy.fill));
                     const fs = (ffactor_sum / ff) * fp;
 
                     fspace = @max(fspace, fs);
@@ -223,7 +223,7 @@ pub const Stack = struct {
             const fp = @as(f32, @floatFromInt(p));
 
             const candidate: f32 =
-                switch (item.constraint) {
+                switch (item.size_policy) {
                     .percentage => |v|
                         (100.0 / @as(f32, @floatFromInt(v))) * fp,
 
@@ -252,7 +252,7 @@ pub const Stack = struct {
         area: Area,
     ) anyerror!void {
         for (self.item_list.items) |*item| {
-            if (item.constraint != .auto)
+            if (item.size_policy != .auto)
                 continue;
 
             const max_width  = area.width;
@@ -309,9 +309,9 @@ test "render()" {
         measure:   bool = false,   // rely on the measure function to choose buffer dimensions
         direction: StackDirection,
         text:      []const u8,
-        left:      Constraint,
-        center:    Constraint,
-        right:     Constraint,
+        left:      SizePolicy,
+        center:    SizePolicy,
+        right:     SizePolicy,
         max:       u16 = std.math.maxInt(u16),
         expected:  []const []const u8,
 

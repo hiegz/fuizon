@@ -24,7 +24,7 @@ pub const Character = @import("character.zig").Character;
 pub const Viewport = @import("viewport.zig").Viewport;
 pub const Span = @import("span.zig").Span;
 pub const Stack = @import("stack.zig").Stack;
-pub const Constraint = @import("constraint.zig").Constraint;
+pub const SizePolicy = @import("size_policy.zig").SizePolicy;
 pub const StackDirection = @import("stack_direction.zig").StackDirection;
 pub const StackItem = @import("stack_item.zig").StackItem;
 pub const Container = @import("container.zig").Container;
@@ -282,7 +282,6 @@ test "fuizon" {
     _ = @import("cassowary.zig");
     _ = @import("character.zig");
     _ = @import("color.zig");
-    _ = @import("constraint.zig");
     _ = @import("container.zig");
     _ = @import("coordinate.zig");
     _ = @import("dimensions.zig");
@@ -298,6 +297,7 @@ test "fuizon" {
     _ = @import("operator.zig");
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
+    _ = @import("size_policy.zig");
     _ = @import("source.zig");
     _ = @import("spacing.zig");
     _ = @import("span.zig");
