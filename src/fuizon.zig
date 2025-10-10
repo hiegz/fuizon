@@ -298,6 +298,7 @@ test "fuizon" {
     _ = @import("operator.zig");
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
+    _ = @import("row.zig");
     _ = @import("size_policy.zig");
     _ = @import("source.zig");
     _ = @import("spacing.zig");
