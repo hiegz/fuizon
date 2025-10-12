@@ -354,16 +354,16 @@ pub const System = struct {
                 const basis      = row.basis();
                 const expression = row.expression;
 
-                if (basis.kind == .external) {
-                    candidates[2] = row;
-                    continue;
-                }
-
                 const constant    = expression.constant;
                 const coefficient = expression.getCoefficientFor(marker);
 
                 if (coefficient == 0.0)
                     continue;
+
+                if (basis.kind == .external) {
+                    candidates[2] = row;
+                    continue;
+                }
 
                 if (coefficient < 0.0) {
                     const ratio = -constant / coefficient;
