@@ -6,37 +6,22 @@ const Operator = @import("operator.zig").Operator;
 // zig fmt: off
 
 pub const Constraint = struct {
-    expression: Expression,
-    operator:   Operator,
-    strength:   f32,
+    lhs:        Expression = .empty,
+    rhs:        Expression = .empty,
+    operator:   Operator   = undefined,
+    strength:   f32        = undefined,
 
-    pub fn init(
-        gpa: std.mem.Allocator,
-        lhs: Expression,
-        rhs: Expression,
-        operator: Operator,
-        strength: f32,
-    ) error{OutOfMemory}!Constraint {
-        var self: Constraint = undefined;
-        errdefer self.deinit(gpa);
-
-        self.expression = .empty;
-        self.operator = operator;
-        self.strength = strength;
-
-        try self.expression.insertExpression(gpa,  1.0, lhs);
-        try self.expression.insertExpression(gpa, -1.0, rhs);
-
-        return self;
-    }
+    pub const empty = Constraint{};
 
     pub fn deinit(self: *Constraint, gpa: std.mem.Allocator) void {
-        self.expression.deinit(gpa);
+        self.lhs.deinit(gpa);
+        self.rhs.deinit(gpa);
     }
 
     /// The caller no longer manages the constraint. Calling `deinit()` is
     /// safe, but unnecessary.
     pub fn release(self: *Constraint) void {
-        self.expression.release();
+        self.lhs.release();
+        self.rhs.release();
     }
 };

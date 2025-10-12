@@ -30,7 +30,7 @@ pub const System = struct {
     tableau:   Tableau    = .empty,
     objective: Expression = .empty,
 
-    /// Maps added constraints to their markers
+    /// Maps constraint ids to their markers
     ///
     /// If constraint is an inequality, then the first marker is always a slack
     /// variable. The second marker is an error variable when the constraint is
@@ -39,7 +39,12 @@ pub const System = struct {
     /// If constraint is an equation, then the markers are plus and minus error
     /// variables when the constraint is also non-required. For required
     /// equality constraints, the first marker is a "dummy" variable.
-    constraint_marker_map: std.AutoArrayHashMapUnmanaged(*const Constraint, [2]?*Variable) = .empty,
+    constraint_marker_map: std.AutoArrayHashMapUnmanaged(usize, ConstraintInfo) = .empty,
+
+    const ConstraintInfo = struct {
+        strength: f32,
+        markers: [2]?*Variable,
+    };
 
     pub const empty = System{};
 
@@ -54,7 +59,10 @@ pub const System = struct {
 
         var marker_it = self.constraint_marker_map.iterator();
         while (marker_it.next()) |entry| {
-            const markers = entry.value_ptr.*;
+            const info = entry.value_ptr.*;
+            const id = entry.key_ptr.*;
+            gpa.destroy(@as(*u8, @ptrFromInt(id)));
+            const markers = info.markers;
             for (markers) |marker| {
                 if (marker == null)
                     continue;
@@ -66,28 +74,29 @@ pub const System = struct {
 
     /// Adds a constraint to the system.
     ///
-    /// The caller must ensure that the constraint instance remains at a fixed
-    /// memory location for the lifetime of its presence in the system.
+    /// Returns a constraint id that can be used to remove it from the system.
     ///
-    /// If the constraint is already in the system, this function returns
-    /// `error.DuplicateConstraint`. If the constraint cannot be satisfied
-    /// given the current state of the system, it returns
-    /// `error.UnsatisfiableConstraint`. Other error values indicate internal
-    /// system failures.
+    /// If the constraint cannot be satisfied given the current state of the
+    /// system, it returns `error.UnsatisfiableConstraint`. Other error values
+    /// indicate internal system failures.
     pub fn addConstraint(
         self: *System,
         gpa: std.mem.Allocator,
-        constraint: *const Constraint,
-    ) error{ OutOfMemory, DuplicateConstraint, UnsatisfiableConstraint, ObjectiveUnbound }!void {
-        if (self.constraint_marker_map.contains(constraint))
-            return error.DuplicateConstraint;
+        constraint: Constraint,
+    ) error{ OutOfMemory, UnsatisfiableConstraint, ObjectiveUnbound }!usize {
+        // Too lazy to make a real ID allocator, so I just grab a byte of
+        // memory and use its address as the ID.
+        const    id_address = try gpa.create(u8);
+        errdefer gpa.destroy(id_address);
+        const id = @intFromPtr(id_address);
 
-        var   expression    = try constraint.expression.clone(gpa);
+        var   expression    = try constraint.lhs.clone(gpa);
+        defer expression.deinit(gpa);
+        try   expression.insertExpression(gpa, -1.0, constraint.rhs);
         var   markers       = @as([2]?*Variable, .{ null, null });
         var   row_iterator  = @as(Tableau.RowIterator, undefined);
         var   term_iterator = @as(Expression.TermIterator, undefined);
 
-        defer expression.deinit(gpa);
         defer if (markers[0]) |marker| gpa.destroy(marker);
         defer if (markers[1]) |marker| gpa.destroy(marker);
 
@@ -276,14 +285,16 @@ pub const System = struct {
 
         try self.constraint_marker_map.putNoClobber(
             gpa,
-            constraint,
-            markers,
+            id,
+            .{ .strength = constraint.strength, .markers = markers },
         );
         markers[0] = null;
         markers[1] = null;
+
+        return id;
     }
 
-    /// Removes a constraint from the system.
+    /// Removes a constraint with the given id from the system.
     ///
     /// If the constraint is not in the system, this function returns
     /// `error.UnknownConstraint`. Other error values indicate internal system
@@ -291,12 +302,11 @@ pub const System = struct {
     pub fn removeConstraint(
         self: *System,
         gpa: std.mem.Allocator,
-        constraint: *const Constraint,
+        id: usize,
     ) error{ OutOfMemory, UnknownConstraint, ConstraintMarkerNotFound, ObjectiveUnbound }!void {
-        if (!self.constraint_marker_map.contains(constraint))
-            return error.UnknownConstraint;
-
-        const markers = self.constraint_marker_map.get(constraint).?;
+        const info = self.constraint_marker_map.get(id) orelse @panic("no constraint with the provided id");
+        const strength = info.strength;
+        const markers = info.markers;
 
         // remove error variable effects from the objective function
         for (markers) |marker| {
@@ -311,13 +321,13 @@ pub const System = struct {
             if (self.tableau.find(marker.?)) |row| {
                 self.objective.insertExpression(
                     undefined,
-                    -constraint.strength,
+                    -strength,
                     row.expression.*,
                 ) catch unreachable;
             } else {
                 self.objective.insert(
                     undefined,
-                    -constraint.strength,
+                    -strength,
                     marker.?,
                 ) catch unreachable;
             }
@@ -395,7 +405,8 @@ pub const System = struct {
                 continue;
             gpa.destroy(_marker.?);
         }
-        _ = self.constraint_marker_map.swapRemove(constraint);
+        _ = self.constraint_marker_map.swapRemove(id);
+        gpa.destroy(@as(*u8, @ptrFromInt(id)));
     }
 
     // zig fmt: on
@@ -1112,22 +1123,19 @@ fn tokenizeConstraintString(
 
 fn parseConstraint(
     gpa: std.mem.Allocator,
-    constraint: []const u8,
+    constraint_string: []const u8,
     strength: f32,
     variables: *VariableStore,
-) error{OutOfMemory}!*Constraint {
-    var   expressions = @as([2]Expression, .{ .empty, .empty });
-    defer expressions[0].deinit(gpa);
-    defer expressions[1].deinit(gpa);
-
-    var   expression  = &expressions[0];
-    var   sign        = @as(f32, 1.0);
-    var   relation    = @as(?u8, null);
-    var   operator    = @as(Operator, undefined);
-    var   coefficient = @as(f32, 0.0);
-    var   name        = std.ArrayList(u8).empty;
+) error{OutOfMemory}!Constraint {
+    var   constraint   = Constraint.empty;
+    defer constraint.deinit(gpa);
+    var   expression   = &constraint.lhs;
+    var   sign         = @as(f32, 1.0);
+    var   relation     = @as(?u8, null);
+    var   coefficient  = @as(f32, 0.0);
+    var   name         = std.ArrayList(u8).empty;
     defer name.deinit(gpa);
-    const tokens = try tokenizeConstraintString(gpa, constraint);
+    const tokens = try tokenizeConstraintString(gpa, constraint_string);
     defer gpa.free(tokens);
 
     for (tokens) |token| switch (token) {
@@ -1166,33 +1174,26 @@ fn parseConstraint(
 
             if (token == '=') {
                 if (relation == null)
-                    operator = .eq
+                    constraint.operator = .eq
                 else if (relation != null and relation.? == '>')
-                    operator = .ge
+                    constraint.operator = .ge
                 else if (relation != null and relation.? == '<')
-                    operator = .le
+                    constraint.operator = .le
                 else
                     unreachable;
 
-                expression = &expressions[1];
+                expression = &constraint.rhs;
             }
         },
 
         else => continue,
     };
 
-    const    c = try gpa.create(Constraint);
-    errdefer gpa.destroy(c);
 
-    c.* = try Constraint.init(
-        gpa,
-        expressions[0],
-        expressions[1],
-        operator,
-        strength,
-    );
+    constraint.strength = strength;
 
-    return c;
+    defer  constraint.release();
+    return constraint;
 }
 
 const Test = struct {
@@ -1235,14 +1236,8 @@ const Test = struct {
         defer system.deinit(gpa);
         var   variable_store = VariableStore.empty;
         defer variable_store.deinit(gpa);
-        var   constraint_list = std.ArrayList(*Constraint).empty;
-        defer {
-            for (constraint_list.items) |constraint| {
-                constraint.deinit(gpa);
-                gpa.destroy(constraint);
-            }
-            constraint_list.deinit(gpa);
-        }
+        var   constraint_list = std.ArrayList(usize).empty;
+        defer constraint_list.deinit(gpa);
 
         for (actions) |action| switch (action) {
             .log => |message|
@@ -1254,20 +1249,18 @@ const Test = struct {
             },
 
             .add => |structure| {
-                const unsatisfiable = structure.unsatisfiable;
-                const constraint    = structure.constraint;
-                const strength      = structure.strength;
-                var   failed        = false;
-
-                var      parsedConstraint = try parseConstraint(gpa, constraint, strength, &variable_store);
-                errdefer gpa.destroy(parsedConstraint);
-                errdefer parsedConstraint.deinit(gpa);
-
-                system.addConstraint(gpa, parsedConstraint)
-                    catch |err| {
+                const unsatisfiable     = structure.unsatisfiable;
+                const constraint_string = structure.constraint;
+                const strength          = structure.strength;
+                var   failed            = false;
+                var   constraint        = try parseConstraint(gpa, constraint_string, strength, &variable_store);
+                defer constraint.deinit(gpa);
+                const constraint_id =
+                    system.addConstraint(gpa, constraint) catch |err| {
                         if (unsatisfiable != true or err != error.UnsatisfiableConstraint)
                             return err;
                         failed = true;
+                        continue;
                     };
 
                 if (unsatisfiable == true and failed == false) {
@@ -1275,14 +1268,12 @@ const Test = struct {
                     return error.TestExpectedUnsatisfiable;
                 }
 
-                try constraint_list.append(gpa, parsedConstraint);
+                try constraint_list.append(gpa, constraint_id);
             },
 
             .remove => |index| {
-                const constraint = constraint_list.orderedRemove(index);
-                try system.removeConstraint(gpa, constraint);
-                constraint.deinit(gpa);
-                gpa.destroy(constraint);
+                const constraint_id = constraint_list.orderedRemove(index);
+                try system.removeConstraint(gpa, constraint_id);
             },
 
             .expect_equal => |_variable| {
