@@ -31,7 +31,7 @@ pub fn Shared(comptime T: type) type {
             shared.weak   = 0;
             shared.data   = undefined;
 
-            return .{ .gpa = gpa, .reference = shared };
+            return .{ .gpa = gpa, .ref = shared };
         }
 
         /// Creates a new shared object using the provided allocator,
