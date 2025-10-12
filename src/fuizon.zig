@@ -298,6 +298,7 @@ test "fuizon" {
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
     _ = @import("row.zig");
+    _ = @import("shared.zig");
     _ = @import("size_policy.zig");
     _ = @import("source.zig");
     _ = @import("spacing.zig");
@@ -306,6 +307,7 @@ test "fuizon" {
     _ = @import("stack_direction.zig");
     _ = @import("stack_item.zig");
     _ = @import("strength.zig");
+    _ = @import("strong.zig");
     _ = @import("style.zig");
     _ = @import("system.zig");
     _ = @import("tableau.zig");
@@ -318,6 +320,7 @@ test "fuizon" {
     _ = @import("viewport.zig");
     _ = @import("void.zig");
     _ = @import("vt.zig");
+    _ = @import("weak.zig");
     _ = @import("widget.zig");
     _ = @import("windows.zig");
 }
