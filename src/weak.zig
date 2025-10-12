@@ -42,5 +42,11 @@ pub fn Weak(comptime T: type) type {
 
             return strong;
         }
+
+        /// Creates a new weak reference to the shared object.
+        pub fn clone(weak: Weak(T)) Weak(T) {
+            weak.ref.weak += 1;
+            return weak;
+        }
     };
 }
