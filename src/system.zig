@@ -405,7 +405,7 @@ pub const System = struct {
     ///
     /// In debug builds, additional checks may be added to detect anomalies or
     /// inconsistencies in the system.
-    pub fn refreshVariable(self: *System, variable: *Variable) void {
+    pub fn refreshVariable(self: System, variable: *Variable) void {
         // TODO: check for system anomalies when in debug mode
 
         if (self.tableau.find(variable)) |entry|
@@ -419,7 +419,7 @@ pub const System = struct {
     ///
     /// In debug builds, additional checks may be added to detect anomalies or
     /// inconsistencies in the system.
-    pub fn refreshVariables(self: *System, variables: []const *Variable) void {
+    pub fn refreshVariables(self: System, variables: []const *Variable) void {
         for (variables) |variable|
             self.refreshVariable(variable);
     }
