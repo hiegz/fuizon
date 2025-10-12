@@ -1,7 +1,7 @@
 pub const SizePolicy = union(enum) {
     auto,
     fill: u16,
-    percentage: u8,
+    percentage: u16,
     fraction: struct { numerator: u16, denominator: u16 },
     fixed: u16,
 
@@ -13,7 +13,7 @@ pub const SizePolicy = union(enum) {
         return .{ .fill = factor };
     }
 
-    pub fn Percentage(value: u8) SizePolicy {
+    pub fn Percentage(value: u16) SizePolicy {
         return .{ .percentage = value };
     }
 
