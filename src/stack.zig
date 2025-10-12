@@ -285,7 +285,7 @@ pub const Stack = struct {
     }
 };
 
-fn percentageOf(total: u16, percentage: u8) u16 {
+fn percentageOf(total: u16, percentage: u16) u16 {
     const ftotal: f32 = @floatFromInt(total);
     const fpercentage: f32 = @floatFromInt(percentage);
 
