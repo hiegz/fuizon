@@ -15,16 +15,16 @@ pub fn Strong(comptime T: type) type {
         ///
         /// The object is allocated when the first strong reference is created,
         /// and deallocated when all strong and weak references are dropped.
-        reference: *Shared(T),
+        ref: *Shared(T),
 
         /// Returns the shared object data.
         pub fn data(self: Strong(T)) *T {
-            return &self.reference.data;
+            return &self.ref.data;
         }
 
         /// Creates a new strong reference to the shared object.
         pub fn clone(strong: Strong(T)) Strong(T) {
-            strong.reference.strong += 1;
+            strong.ref.strong += 1;
             return strong;
         }
 
@@ -32,8 +32,8 @@ pub fn Strong(comptime T: type) type {
         pub fn downgrade(strong: Strong(T)) Weak(T) {
             var weak: Weak(T) = undefined;
             weak.gpa = strong.gpa;
-            weak.reference = strong.reference;
-            weak.reference.weak += 1;
+            weak.ref = strong.ref;
+            weak.ref.weak += 1;
             return weak;
         }
 
@@ -47,13 +47,13 @@ pub fn Strong(comptime T: type) type {
         pub fn deinit(self: Strong(T)) ?T {
             var object_data: ?T = null;
 
-            if (self.reference.strong == 1)
-                object_data = self.reference.data;
+            if (self.ref.strong == 1)
+                object_data = self.ref.data;
 
-            self.reference.strong -= 1;
+            self.ref.strong -= 1;
 
-            if (self.reference.strong + self.reference.weak == 0)
-                self.gpa.destroy(self.reference);
+            if (self.ref.strong + self.ref.weak == 0)
+                self.gpa.destroy(self.ref);
 
             return object_data;
         }
