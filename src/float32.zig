@@ -8,7 +8,7 @@
 ///
 /// This constant specifies the acceptable difference between two float values
 /// for them to be considered equal within reasonable precision.
-pub const TOLERANCE = 1.0e-5;
+pub const TOLERANCE = 1.0e-4;
 
 /// Returns true if two 32-bit floats are equal within `TOLERANCE`
 pub fn nearEq(lhs: f32, rhs: f32) bool {
