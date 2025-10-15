@@ -295,6 +295,8 @@ test "fuizon" {
     _ = @import("key_modifier.zig");
     _ = @import("key_modifiers.zig");
     _ = @import("operator.zig");
+    _ = @import("partition.zig");
+    _ = @import("partitioner.zig");
     _ = @import("queue.zig");
     _ = @import("rgb.zig");
     _ = @import("row.zig");
