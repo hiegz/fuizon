@@ -286,7 +286,7 @@ test "fuizon" {
     _ = @import("coordinate.zig");
     _ = @import("dimensions.zig");
     _ = @import("expression.zig");
-    _ = @import("float32.zig");
+    _ = @import("float64.zig");
     _ = @import("fuizon.zig");
     _ = @import("input.zig");
     _ = @import("input_parser.zig");

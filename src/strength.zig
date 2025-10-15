@@ -3,10 +3,10 @@ const std = @import("std");
 // zig fmt: off
 
 pub const Strength = struct {
-    pub fn init(s: f32, m: f32, w: f32) f32 {
-        const lo = @as(f32, -1000.0);
-        const hi = @as(f32,  1000.0);
-        var   rt = @as(f32,     0.0);
+    pub fn init(s: f64, m: f64, w: f64) f64 {
+        const lo = @as(f64, -1000.0);
+        const hi = @as(f64,  1000.0);
+        var   rt = @as(f64,     0.0);
 
         rt += std.math.clamp(s, lo, hi) * 1000000.0;
         rt += std.math.clamp(m, lo, hi) * 1000.0;

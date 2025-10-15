@@ -9,7 +9,7 @@
 //!   - https://constraints.cs.washington.edu/solvers/cassowary-tochi.pdf
 
 const std = @import("std");
-const float32 = @import("float32.zig");
+const float64 = @import("float64.zig");
 
 const Tableau = @import("tableau.zig").Tableau;
 const Constraint = @import("constraint.zig").Constraint;
@@ -42,7 +42,7 @@ pub const System = struct {
     constraint_marker_map: std.AutoArrayHashMapUnmanaged(usize, ConstraintInfo) = .empty,
 
     const ConstraintInfo = struct {
-        strength: f32,
+        strength: f64,
         markers: [2]?*Variable,
     };
 
@@ -108,7 +108,7 @@ pub const System = struct {
         // add slack and error variables
         switch (constraint.operator) {
             .le, .ge => {
-                const coefficient: f32 = switch (constraint.operator) { .le => 1.0, .ge => -1.0, .eq => unreachable };
+                const coefficient: f64 = switch (constraint.operator) { .le => 1.0, .ge => -1.0, .eq => unreachable };
 
                 const slack = try gpa.create(Variable);
                 slack.name  = "";
@@ -168,7 +168,7 @@ pub const System = struct {
         // non-negative.
         //
         // this is possible because the row is of the form l = 0
-        if (expression.constant < 0.0 and !float32.nearZero(expression.constant))
+        if (expression.constant < 0.0 and !float64.nearZero(expression.constant))
             expression.multiply(-1);
 
         // choose the subject to enter the basis
@@ -226,7 +226,8 @@ pub const System = struct {
             expression.release();
 
             try optimize(gpa, &self.tableau, &artificial_objective);
-            if (!float32.nearZero(artificial_objective.constant))
+
+            if (!float64.nearZero(artificial_objective.constant))
                 return error.UnsatisfiableConstraint;
 
             // artificial variable is basic
@@ -239,7 +240,7 @@ pub const System = struct {
                 // artificial objective function which is equal to
                 // `artificial_variable`, the constant of this row must
                 // also be zero
-                std.debug.assert(float32.nearZero(expression.constant));
+                std.debug.assert(float64.nearZero(expression.constant));
 
                 // find a variable to enter the basis
 
@@ -343,11 +344,11 @@ pub const System = struct {
         // otherwise determine the most restrictive row with the marker
         // variable to be dropped
         else {
-            var min_ratio:   [2]f32            = undefined;
+            var min_ratio:   [2]f64            = undefined;
             var candidates:  [3]?Tableau.RowEntry = .{ null, null, null };
 
-            min_ratio[0] = std.math.floatMax(f32);
-            min_ratio[1] = std.math.floatMax(f32);
+            min_ratio[0] = std.math.floatMax(f64);
+            min_ratio[1] = std.math.floatMax(f64);
 
             var row_iterator = self.tableau.rowIterator();
             while (row_iterator.next()) |row| {
@@ -456,7 +457,7 @@ fn optimize(
     objective: *Expression,
 ) error{ OutOfMemory, ObjectiveUnbound }!void {
     var min_id:    usize = undefined;
-    var min_ratio: f32   = undefined;
+    var min_ratio: f64   = undefined;
 
     while (true) {
         var entry_variable: ?*Variable         = null;
@@ -488,7 +489,7 @@ fn optimize(
         // select a row that contains an exit variable needed for a pivot
 
         min_id    = std.math.maxInt(usize);
-        min_ratio = std.math.floatMax(f32);
+        min_ratio = std.math.floatMax(f64);
 
         var row_iterator = tableau.rowIterator();
         while (row_iterator.next()) |row_entry| {
@@ -512,7 +513,7 @@ fn optimize(
             }
 
             // choose the lowest numbered variable to prevent cycling
-            if (float32.nearEq(ratio, min_ratio) and basis.id() < min_id) {
+            if (float64.nearEq(ratio, min_ratio) and basis.id() < min_id) {
                 min_id = basis.id();
                 min_ratio = ratio;
                 exit_entry = row_entry;
@@ -716,7 +717,7 @@ fn reoptimize(
     objective: *Expression,
 ) error{ OutOfMemory, EntryVariableNotFound }!void {
     var min_id:    usize = undefined;
-    var min_ratio: f32   = undefined;
+    var min_ratio: f64   = undefined;
 
     while (true) {
         var infeasible_entry: ? Tableau.RowEntry = null;
@@ -743,7 +744,7 @@ fn reoptimize(
         // find an entry variable
 
         min_id    = std.math.maxInt(usize);
-        min_ratio = std.math.floatMax(f32);
+        min_ratio = std.math.floatMax(f64);
 
         var term_iterator = infeasible_entry.?.expression.termIterator();
         while (term_iterator.next()) |term_entry| {
@@ -765,7 +766,7 @@ fn reoptimize(
             }
 
             // choose the lowest numbered variable to prevent cycling
-            if (float32.nearEq(ratio, min_ratio) and variable.id() < min_id) {
+            if (float64.nearEq(ratio, min_ratio) and variable.id() < min_id) {
                 min_id = variable.id();
                 min_ratio = ratio;
                 entry_variable = variable;
@@ -1124,15 +1125,15 @@ fn tokenizeConstraintString(
 fn parseConstraint(
     gpa: std.mem.Allocator,
     constraint_string: []const u8,
-    strength: f32,
+    strength: f64,
     variables: *VariableStore,
 ) error{OutOfMemory}!Constraint {
     var   constraint   = Constraint.empty;
     defer constraint.deinit(gpa);
     var   expression   = &constraint.lhs;
-    var   sign         = @as(f32, 1.0);
+    var   sign         = @as(f64, 1.0);
     var   relation     = @as(?u8, null);
-    var   coefficient  = @as(f32, 0.0);
+    var   coefficient  = @as(f64, 0.0);
     var   name         = std.ArrayList(u8).empty;
     defer name.deinit(gpa);
     const tokens = try tokenizeConstraintString(gpa, constraint_string);
@@ -1149,7 +1150,7 @@ fn parseConstraint(
             if (name.items.len > 0)
                 try name.append(gpa, token)
             else {
-                const digit: f32 = @floatFromInt(token - '0');
+                const digit: f64 = @floatFromInt(token - '0');
                 coefficient = coefficient * 10.0 + digit;
             }
         },
@@ -1202,9 +1203,9 @@ const Test = struct {
 
         log: []const u8,
         inspect,
-        add:          struct { constraint: []const u8, strength: f32, unsatisfiable: bool },
+        add:          struct { constraint: []const u8, strength: f64, unsatisfiable: bool },
         remove:       usize,
-        expect_equal: struct { name: []const u8, value: f32 },
+        expect_equal: struct { name: []const u8, value: f64 },
 
         pub fn Log(message: []const u8) Action {
             return .{ .log = message };
@@ -1214,11 +1215,11 @@ const Test = struct {
             return .inspect;
         }
 
-        pub fn Add(constraint: []const u8, strength: f32) Action {
+        pub fn Add(constraint: []const u8, strength: f64) Action {
             return .{ .add = .{ .constraint = constraint, .strength = strength, .unsatisfiable = false } };
         }
 
-        pub fn AddUnsatisfiable(constraint: []const u8, strength: f32) Action {
+        pub fn AddUnsatisfiable(constraint: []const u8, strength: f64) Action {
             return .{ .add = .{ .constraint = constraint, .strength = strength, .unsatisfiable = true } };
         }
 
@@ -1226,7 +1227,7 @@ const Test = struct {
             return .{ .remove = index };
         }
 
-        pub fn ExpectEqual(variable_name: []const u8, value: f32) Action {
+        pub fn ExpectEqual(variable_name: []const u8, value: f64) Action {
             return .{ .expect_equal = .{ .name = variable_name, .value = value } };
         }
     };
@@ -1283,7 +1284,7 @@ const Test = struct {
 
                 system.refreshVariable(variable);
 
-                std.testing.expect(float32.nearEq(value, variable.value)) catch |err| {
+                std.testing.expect(float64.nearEq(value, variable.value)) catch |err| {
                     std.debug.print("\t\ntest case #{d} failed\n", .{id});
                     std.debug.print("expected: {s} = {d}\n", .{name, value});
                     std.debug.print("found:    {s} = {d}\n", .{variable.name, variable.value});
@@ -1501,8 +1502,8 @@ test {
 
                 .Add("x + y = t", Strength.required),
 
-                .ExpectEqual("x", 33.33333),
-                .ExpectEqual("y", 66.66666),
+                .ExpectEqual("x", 33.33333333),
+                .ExpectEqual("y", 66.66666666),
 
                 .Remove(0),
 

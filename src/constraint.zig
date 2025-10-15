@@ -9,7 +9,7 @@ pub const Constraint = struct {
     lhs:        Expression = .empty,
     rhs:        Expression = .empty,
     operator:   Operator   = undefined,
-    strength:   f32        = undefined,
+    strength:   f64        = undefined,
 
     pub const empty = Constraint{};
 
