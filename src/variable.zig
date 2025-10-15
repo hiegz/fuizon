@@ -4,7 +4,7 @@ const VariableKind = @import("variable_kind.zig").VariableKind;
 pub const Variable = struct {
     kind: VariableKind = .external,
     name: []const u8 = "",
-    value: f32 = 0.0,
+    value: f64 = 0.0,
 
     pub fn init(name: []const u8) Variable {
         return .{ .name = name };

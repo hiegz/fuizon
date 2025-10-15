@@ -1,14 +1,14 @@
 const std = @import("std");
-const float32 = @import("float32.zig");
+const float64 = @import("float64.zig");
 
 const Variable = @import("variable.zig").Variable;
 const Term = @import("term.zig").Term;
-const TermMap = std.AutoHashMapUnmanaged(*Variable, f32);
+const TermMap = std.AutoHashMapUnmanaged(*Variable, f64);
 
 // zig fmt: off
 
 pub const Expression = struct {
-    constant: f32 = 0.0,
+    constant: f64 = 0.0,
     term_map: TermMap = .empty,
 
     pub const empty = Expression{};
@@ -38,10 +38,10 @@ pub const Expression = struct {
     /// Insertions or removals of terms in the expression invalidate the
     /// pointers.
     pub const TermEntry = struct {
-        coefficient_ptr:  *f32,
+        coefficient_ptr:  *f64,
         variable_ptr:    **Variable,
 
-        pub fn coefficient(self: TermEntry) f32 {
+        pub fn coefficient(self: TermEntry) f64 {
             return self.coefficient_ptr.*;
         }
 
@@ -94,7 +94,7 @@ pub const Expression = struct {
     /// If the expression contains the specified variable, its coefficient is
     /// returned. If the variable does not appear in the expression, this
     /// function returns `0.0`
-    pub fn getCoefficientFor(self: Expression, variable: *Variable) f32 {
+    pub fn getCoefficientFor(self: Expression, variable: *Variable) f64 {
         return if (self.find(variable)) |term| term.coefficient() else 0.0;
     }
 
@@ -107,17 +107,17 @@ pub const Expression = struct {
     }
 
     /// Adds a given value to the constant.
-    pub fn add(self: *Expression, constant: f32) void {
+    pub fn add(self: *Expression, constant: f64) void {
         self.constant += constant;
     }
 
     /// Subtracts a given value from the constant.
-    pub fn subtract(self: *Expression, constant: f32) void {
+    pub fn subtract(self: *Expression, constant: f64) void {
         self.constant -= constant;
     }
 
     /// Multiplies the whole expression with a given value.
-    pub fn multiply(self: *Expression, k: f32) void {
+    pub fn multiply(self: *Expression, k: f64) void {
         self.constant *= k;
         var iterator = self.term_map.valueIterator();
         while (iterator.next()) |coefficient|
@@ -125,7 +125,7 @@ pub const Expression = struct {
     }
 
     /// Divides the whole expression with a given value.
-    pub fn divide(self: *Expression, k: f32) void {
+    pub fn divide(self: *Expression, k: f64) void {
         self.multiply(1 / k);
     }
 
@@ -134,7 +134,7 @@ pub const Expression = struct {
     pub fn insert(
         self: *Expression,
         gpa: std.mem.Allocator,
-        coefficient: f32,
+        coefficient: f64,
         variable: *Variable,
     ) error{OutOfMemory}!void {
         return self.insertTerm(gpa, Term.init(coefficient, variable));
@@ -142,11 +142,11 @@ pub const Expression = struct {
 
     /// Adds the provided term to the expression.
     pub fn insertTerm(self: *Expression, gpa: std.mem.Allocator, term: Term) error{OutOfMemory}!void {
-        if (float32.nearZero(term.coefficient)) return;
+        if (float64.nearZero(term.coefficient)) return;
 
         if (self.find(term.variable)) |term_entry| {
             term_entry.coefficient_ptr.* += term.coefficient;
-            if (float32.nearZero(term_entry.coefficient_ptr.*))
+            if (float64.nearZero(term_entry.coefficient_ptr.*))
                 self.remove(term_entry);
         } else {
             try self.term_map.putNoClobber(gpa, term.variable, term.coefficient);
@@ -157,7 +157,7 @@ pub const Expression = struct {
     pub fn insertExpression(
         self: *Expression,
         gpa: std.mem.Allocator,
-        coefficient: f32,
+        coefficient: f64,
         expression: Expression,
     ) error{OutOfMemory}!void {
         self.constant += coefficient * expression.constant;
@@ -213,7 +213,7 @@ pub const Expression = struct {
         gpa: std.mem.Allocator,
         variable: *Variable,
     ) error{OutOfMemory}!void {
-        var coefficient: f32 = 0.0;
+        var coefficient: f64 = 0.0;
 
         if (self.find(variable)) |entry|
             coefficient = -1.0 / self.fetchRemove(entry).coefficient;
@@ -233,7 +233,7 @@ pub const Expression = struct {
         var   row_iterator = self.termIterator();
         while (row_iterator.next()) |entry| {
             entry.coefficient_ptr.* *= coefficient;
-            if (float32.nearZero(entry.coefficient_ptr.*))
+            if (float64.nearZero(entry.coefficient_ptr.*))
                 try remove_list.append(gpa, entry.variable());
         }
 
@@ -244,7 +244,7 @@ pub const Expression = struct {
     pub fn equals(self: Expression, other: Expression) bool {
         var iterator: TermIterator = undefined;
 
-        if (!float32.nearEq(self.constant, other.constant))
+        if (!float64.nearEq(self.constant, other.constant))
             return false;
 
         iterator = self.termIterator();
