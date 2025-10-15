@@ -1332,7 +1332,7 @@ test {
                 .ExpectEqual("x", 20.0),
             },
 
-            // #3
+            // #4
             &[_]Test.Action{
                 .Add("x >= 10", Strength.required),
                 .Add("x >= 20", Strength.required),
@@ -1344,7 +1344,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #4
+            // #5
             &[_]Test.Action{
                 .Add("x >= 10", Strength.required),
                 .Add("x >= 20", Strength.required),
@@ -1357,31 +1357,31 @@ test {
                 .ExpectEqual("x", 0.0),
             },
 
-            // #5
+            // #6
             &[_]Test.Action{
                 .Add("x = 10", Strength.required),
                 .AddUnsatisfiable("x >= 20", Strength.required),
             },
 
-            // #6
+            // #7
             &[_]Test.Action{
                 .Add("x >= 20", Strength.required),
                 .AddUnsatisfiable("x = 10", Strength.required),
             },
 
-            // #7
+            // #8
             &[_]Test.Action{
                 .Add("x = 10", Strength.required),
                 .AddUnsatisfiable("x = 30", Strength.required),
             },
 
-            // #8
+            // #9
             &[_]Test.Action{
                 .Add("x <= 10", Strength.required),
                 .AddUnsatisfiable("x = 20", Strength.required),
             },
 
-            // #9
+            // #10
             &[_]Test.Action{
                 .Add("x  =  5", Strength.strong),
                 .Add("x >= 10", Strength.required),
@@ -1389,7 +1389,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #10
+            // #11
             &[_]Test.Action{
                 .Add("x  = 15", Strength.strong),
                 .Add("x <= 10", Strength.required),
@@ -1397,7 +1397,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #11
+            // #12
             &[_]Test.Action{
                 .Add("x  =  5", Strength.medium),
                 .Add("x >= 10", Strength.strong),
@@ -1405,7 +1405,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #12
+            // #13
             &[_]Test.Action{
                 .Add("x  = 15", Strength.medium),
                 .Add("x <= 10", Strength.strong),
@@ -1413,7 +1413,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #13
+            // #14
             &[_]Test.Action{
                 .Add("x  =  5", Strength.weak),
                 .Add("x >= 10", Strength.medium),
@@ -1421,7 +1421,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #14
+            // #15
             &[_]Test.Action{
                 .Add("x  = 15", Strength.weak),
                 .Add("x <= 10", Strength.medium),
@@ -1429,7 +1429,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #15
+            // #16
             &[_]Test.Action{
                 .Add("x = 15", Strength.weak),
                 .Add("x = 10", Strength.medium),
@@ -1437,7 +1437,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #16
+            // #17
             &[_]Test.Action{
                 .Add("x = 15", Strength.medium),
                 .Add("x = 10", Strength.strong),
@@ -1445,7 +1445,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #17
+            // #18
             &[_]Test.Action{
                 .Add("x = 15", Strength.strong),
                 .Add("x = 10", Strength.required),
@@ -1453,7 +1453,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #18
+            // #19
             &[_]Test.Action{
                 .Add("x  = 15", Strength.medium),
                 .ExpectEqual("x", 15.0),
@@ -1465,7 +1465,7 @@ test {
                 .ExpectEqual("x", 15.0),
             },
 
-            // #19
+            // #20
             &[_]Test.Action{
                 .Add("x  >= 10", Strength.medium),
                 .ExpectEqual("x", 10.0),
@@ -1477,7 +1477,7 @@ test {
                 .ExpectEqual("x", 10.0),
             },
 
-            // #20
+            // #21
             &[_]Test.Action{
                 .Add("x  <= 15", Strength.medium),
                 .ExpectEqual("x", 15.0),
@@ -1489,7 +1489,7 @@ test {
                 .ExpectEqual("x", 15.0),
             },
 
-            // #21
+            // #22
             &[_]Test.Action{
                 .Add("t <= 100", Strength.required),
 
